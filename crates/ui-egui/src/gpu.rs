@@ -16,9 +16,11 @@ mod pbr;
 pub const PBR_SIZE: usize = pbr::VERTEX_SIZE;
 /// Line instance: a, b (3 × f32 each), colour (4 × u8), width in pixels (f32).
 pub const LINE_SIZE: usize = 32;
-/// The shader's `U`: the view-projection matrix, 9 `vec4`s, the 8 analysis colours and their
-/// flags (`uniform_bytes`).
-const UNIFORM_SIZE: u64 = 352;
+/// Shader uniform including analysis colours and ambient occlusion.
+const UNIFORM_SIZE: u64 = 368;
+
+#[path = "gpu_ao.rs"]
+mod ao;
 
 /// A body drawn from its display plan, evaluated on the GPU: the plan, and a colour per face
 /// (the plan's face numbering; faces past the end take the last colour).
@@ -243,6 +245,8 @@ pub struct ViewportCallback {
     /// Eye position and 1 for a perspective camera (0: orthographic), for the section cap's depth
     /// and the depth bias.
     pub eye: [f32; 4],
+    /// World-space occlusion radius; zero skips the depth prepass and all AO sampling.
+    pub ao_radius: f32,
     /// Supersampling (#1288): draw the frame this many times the viewport's pixels in each
     /// direction and filter it down (1: off).
     pub ssaa: f32,
@@ -431,6 +435,7 @@ impl Batches {
 }
 
 struct Resources {
+    ao: ao::Resources,
     tri: wgpu::RenderPipeline,
     /// `tri` and `tri_cut` for planned bodies (positions and normals from the GPU evaluation,
     /// colours per vertex, indexed).
@@ -773,9 +778,10 @@ impl Resources {
                 count: None,
             }],
         });
+        let ao = ao::Resources::new(device, &bgl, &module);
         let solid_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("sc_solid"),
-            bind_group_layouts: &[Some(&bgl), Some(&access_bgl)],
+            bind_group_layouts: &[Some(&bgl), Some(&access_bgl), Some(&ao.layout)],
             immediate_size: 0,
         });
         let built = [Some(tri_layout())];
@@ -889,6 +895,7 @@ impl Resources {
             cache: None,
         });
         Resources {
+            ao,
             target: t,
             max_texture: device.limits().max_texture_dimension_2d,
             ss_blit,
@@ -1077,6 +1084,7 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
             res.access_bind = access_texture(device, Some(queue), &res.access_bgl, a.size, &a.depth);
             res.access_version = a.version;
         }
+        res.ao.prepare(device, encoder, &res.bind, self.ao_radius, self.size_px, [&res.model, &res.preview]);
         // Images: upload new or changed textures, drop removed ones, rebuild the quads.
         res.textures.retain(|id, _| self.images.iter().any(|i| i.id == *id));
         res.quads.clear();
@@ -1178,6 +1186,7 @@ impl Resources {
         lines(pass, &res.overlay, &m.under);
         lines(pass, &res.overlay, &sk.under);
         pass.set_bind_group(1, &res.access_bind, &[]);
+        pass.set_bind_group(2, &res.ao.bind, &[]);
         let planned = |pass: &mut wgpu::RenderPass<'static>, p: &wgpu::RenderPipeline| {
             for d in &m.planned {
                 pass.set_pipeline(p);
@@ -1457,6 +1466,7 @@ fn offscreen(
         analysis_colors,
         access: None,
         outline: false,
+        ao_radius: 0.0,
         eye,
         ssaa,
     };
@@ -1540,6 +1550,7 @@ pub fn uniform_bytes(cb: &ViewportCallback, w: f32, h: f32, linear: bool) -> Vec
         None => v.extend([0.0; 8]),
     }
     v.extend(cb.eye);
+    v.extend([if cb.ao_radius.is_finite() { cb.ao_radius.max(0.0) } else { 0.0 }, 0.0, 0.0, 0.0]);
     v.extend(cb.analysis_colors);
     v.iter().flat_map(|x| x.to_le_bytes()).collect()
 }

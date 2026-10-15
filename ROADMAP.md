@@ -14,6 +14,10 @@ features → parametric timeline) as an open, pure-Rust, agent-drivable applicat
 | Gates | `cargo xtask ci`: fmt, clippy -D warnings, tests, asset attribution, layering, wasm32 build — green |
 | Time to a useful alpha (M0–M6) | ≈ **82 agent hours** remain (sum of the M1–M6 estimates below) |
 
+Optional GPU viewport ambient occlusion is available in View settings and Graphics preferences,
+with persistent settings, Performance/Quality graphics presets (Quality combines AO, Fine tessellation and adaptive 2× supersampling; manual combinations show Custom), and the
+`view.ambient_occlusion` and `view.graphics_preset` commands. See [display settings](docs/ambient-occlusion.md).
+
 ## Scope (owner decision, 2026-10-07)
 
 The issue batch adds preservation of blind pockets in through cuts, associative projected

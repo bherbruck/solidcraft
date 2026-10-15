@@ -1036,5 +1036,14 @@
   "update.install_failed": "La mise à jour ne s'est pas installée : {error}. Rien n'a été modifié ; Télécharger récupère plutôt le paquet.",
   "cmd.render_settings_get": "Réglages de rendu",
   "cmd.render_settings_set": "Enregistrer les réglages de rendu",
+  "ui.ambient_occlusion": "Occlusion ambiante",
+  "ui.ambient_occlusion_help": "Ombrage doux aux jonctions des surfaces opaques. Nécessite la vue GPU.",
+  "cmd.view_ambient_occlusion": "Occlusion ambiante",
+  "ui.graphics_preset": "Préréglage graphique",
+  "ui.graphics_performance": "Performances",
+  "ui.graphics_quality": "Qualité",
+  "ui.graphics_custom": "Personnalisé",
+  "ui.graphics_preset_help": "Qualité : occlusion ambiante, tessellation fine et suréchantillonnage adaptatif 2×. Performances : sans occlusion ambiante, tessellation normale et sans suréchantillonnage. Les réglages manuels affichent Personnalisé. MSAA reste inchangé.",
+  "cmd.view_graphics_preset": "Préréglage graphique",
   "drive.unconnected": "Rien ne bouge : {part} n'est relié à rien de fixé"
 }

@@ -6,7 +6,12 @@ use super::CommandSpec;
 use crate::params::{bad, num, req_vec2, req_vec3, vec3};
 use crate::{Result, Session};
 
-pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new("view.navigate", "Navigate View", navigate)
+pub static COMMANDS: &[CommandSpec] = &[
+CommandSpec::new("view.graphics_preset", "Graphics Preset", graphics_preset)
+    .icon("settings").noundo().doc_only().params("preset: performance|quality → preset, enabled, display_quality, supersampling, supersampling_adaptive; Quality: AO, Fine, adaptive 2x SSAA; Performance: no AO, Normal, no SSAA"),
+CommandSpec::new("view.ambient_occlusion", "Ambient Occlusion", ambient_occlusion)
+    .icon("settings").noundo().doc_only().params("enabled: bool → enabled; apply soft contact shading in the GPU viewport"),
+CommandSpec::new("view.navigate", "Navigate View", navigate)
     .icon("orbit")
     .noundo()
     .doc_only()
@@ -249,5 +254,63 @@ mod tests {
         ] {
             assert!(s.execute("view.navigate", &params).is_err());
         }
+    }
+}
+
+fn ambient_occlusion(_s: &mut Session, p: &Value) -> Result<Value> {
+    let enabled = p.get("enabled").and_then(Value::as_bool).ok_or_else(|| bad("view.ambient_occlusion", "enabled must be a boolean"))?;
+    Ok(json!({"enabled": enabled}))
+}
+
+#[cfg(test)]
+mod ambient_occlusion_tests {
+    use super::*;
+    #[test]
+    fn validates_display_setting_without_editing_design_or_history() {
+        let mut s = Session::default();
+        let before = s.doc.to_json();
+        for enabled in [true, false] {
+            assert_eq!(s.execute("view.ambient_occlusion", &json!({"enabled": enabled})).unwrap(), json!({"enabled": enabled}));
+        }
+        for p in [json!({}), json!({"enabled": 1}), json!({"enabled": "true"}), json!({"enabled": null})] {
+            assert!(s.execute("view.ambient_occlusion", &p).is_err());
+        }
+        assert_eq!(s.doc.to_json(), before);
+        assert!(s.undo.is_empty());
+    }
+}
+
+/// One preset for contact shading, tessellation and supersampling. MSAA stays independent.
+fn graphics_preset(_s: &mut Session, p: &Value) -> Result<Value> {
+    let preset = p.get("preset").and_then(Value::as_str);
+    let enabled = match preset {
+        Some("quality") => true,
+        Some("performance") => false,
+        _ => return Err(bad("view.graphics_preset", "preset must be performance or quality")),
+    };
+    Ok(json!({"preset": preset, "enabled": enabled, "display_quality": if enabled { "fine" } else { "normal" },
+        "supersampling": if enabled { 2.0 } else { 1.0 }, "supersampling_adaptive": true}))
+}
+
+#[cfg(test)]
+mod graphics_preset_tests {
+    use super::*;
+
+    #[test]
+    fn presets_validate_without_changing_design_or_history() {
+        let mut s = Session::default();
+        let before = s.doc.to_json();
+        for (preset, enabled) in [("quality", true), ("performance", false)] {
+            assert_eq!(
+                s.execute("view.graphics_preset", &json!({"preset":preset})).unwrap(),
+                json!({"preset":preset,"enabled":enabled,"display_quality":if enabled { "fine" } else { "normal" },
+                    "supersampling":if enabled { 2.0 } else { 1.0 },"supersampling_adaptive":true})
+            );
+        }
+        for params in [json!({}), json!({"preset":"fast"}), json!({"preset":true}), json!({"preset":null})] {
+            assert!(s.execute("view.graphics_preset", &params).is_err());
+        }
+        assert_eq!(s.doc.to_json(), before);
+        assert!(s.undo.is_empty());
     }
 }

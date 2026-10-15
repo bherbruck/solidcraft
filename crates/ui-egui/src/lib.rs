@@ -564,6 +564,14 @@ impl SolveApp {
         let r = self.session.execute(id, &params).map_err(|e| e.to_string());
         self.big_operation |= now_ms() - t0 >= recovery_ui::BIG_OPERATION_MS;
         if let Ok(v) = &r {
+            if matches!(id, "view.ambient_occlusion" | "view.graphics_preset") {
+                self.preferences.ambient_occlusion = v.get("enabled").and_then(Value::as_bool).unwrap_or(false);
+                if id == "view.graphics_preset" {
+                    self.preferences.display_quality = v.get("display_quality").and_then(Value::as_str).unwrap_or("normal").to_string();
+                    self.preferences.supersampling = v.get("supersampling").and_then(Value::as_f64).unwrap_or(1.0) as f32;
+                    self.preferences.supersampling_adaptive = v.get("supersampling_adaptive").and_then(Value::as_bool).unwrap_or(true);
+                }
+            }
             if id == "view.navigate" {
                 let to: Camera = serde_json::from_value(v.get("camera").cloned().unwrap_or_default()).map_err(|e| e.to_string())?;
                 if v.get("continuous").and_then(Value::as_bool).unwrap_or(false) {
@@ -648,6 +656,11 @@ impl SolveApp {
         {
             let label = self.tr_label(info.label).to_string();
             self.set_status(format!("{label}: {why}"), true);
+            return;
+        }
+        // A display toggle leaves the current modelling tool and camera in place.
+        if id == "view.ambient_occlusion" {
+            let _ = self.run(id, json!({"enabled": !self.preferences.ambient_occlusion}));
             return;
         }
         // Another command ends Edit Text (its dialog is not a feature edit to keep).

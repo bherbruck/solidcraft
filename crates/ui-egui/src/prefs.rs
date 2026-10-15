@@ -250,6 +250,8 @@ pub struct Prefs {
     pub space_mouse_speed: f32,
     /// Anti-aliasing samples (applies on restart).
     pub msaa: u32,
+    /// Soft contact shading in the GPU viewport; optional and applied immediately.
+    pub ambient_occlusion: bool,
     /// How finely the viewport tessellates curved faces and edges: `coarse`, `normal`, `fine` or
     /// `ultra` (#1287). Only the display plan the viewport draws; never the design or exports.
     pub display_quality: String,
@@ -343,6 +345,7 @@ impl Default for Prefs {
             space_mouse_enabled: true,
             space_mouse_speed: 1.0,
             msaa: 4,
+            ambient_occlusion: false,
             display_quality: "normal".into(),
             supersampling: 1.0,
             supersampling_adaptive: true,
@@ -490,6 +493,7 @@ fn defaults(app: &mut SolveApp, page: usize) {
         PAGE_GRAPHICS => {
             let msaa = p.msaa != d.msaa;
             p.msaa = d.msaa;
+            p.ambient_occlusion = d.ambient_occlusion;
             p.display_quality = d.display_quality;
             p.supersampling = d.supersampling;
             p.supersampling_adaptive = d.supersampling_adaptive;
@@ -1094,6 +1098,9 @@ fn page(app: &mut SolveApp, ui: &mut egui::Ui, t: &Tokens) {
             ui.end_row();
         }
         4 => {
+            ui.label(app.tr("ui.graphics_preset"));
+            graphics_preset_selector(app, ui);
+            ui.end_row();
             ui.label(crate::i18n::tr_label("Visual style"));
             let styles = ["Shaded with edges", "Shaded", "Wireframe", "Shaded with hidden edges"];
             let selected_label = crate::i18n::tr_label(styles[usize::from(app.ui.visual_style.min(3))]);
@@ -1109,9 +1116,35 @@ fn page(app: &mut SolveApp, ui: &mut egui::Ui, t: &Tokens) {
             ui.label(crate::i18n::tr_label("Ground shadow"));
             ui.checkbox(&mut app.ui.ground_shadow, "");
             ui.end_row();
+            ui.label(crate::i18n::tr_label("Ambient occlusion"));
+            ambient_occlusion_checkbox(app, ui, "");
+            ui.end_row();
             ui.label(crate::i18n::tr_label("Perspective view"));
             ui.checkbox(&mut app.ui.perspective, "");
             ui.end_row();
+            // Keep accessibility controls visible before the longer rendering-quality controls.
+            ui.label("");
+            ui.end_row();
+            ui.label(RichText::new(app.tr("ui.colour_vision")).strong());
+            ui.label("");
+            ui.end_row();
+            ui.label(app.tr("ui.colour_vision_mode"));
+            let mode = app.preferences.color_vision;
+            let response = egui::ComboBox::from_id_salt("pref_color_vision").selected_text(app.tr(mode.label_id())).show_ui(ui, |ui| {
+                for m in crate::theme::ColorVision::ALL {
+                    ui.selectable_value(&mut app.preferences.color_vision, m, crate::i18n::tr(m.label_id())).on_hover_text(crate::i18n::tr(m.help_id()));
+                }
+            });
+            crate::scenario::publish_handle("prefs:color_vision", response.response.rect.center());
+            if app.preferences.color_vision != mode {
+                // At once, like the theme: the next frame draws in the new colours.
+                ui.ctx().request_repaint();
+            }
+            ui.end_row();
+            ui.label(app.tr("ui.colour_vision_sample"));
+            colour_vision_sample(ui, t);
+            ui.end_row();
+            note(ui, app.tr("ui.colour_vision_note"));
             ui.label(app.tr("ui.anti_aliasing"));
             egui::ComboBox::from_id_salt("pref_msaa").selected_text(format!("{}×", app.preferences.msaa)).show_ui(ui, |ui| {
                 for m in MSAA {
@@ -1159,28 +1192,6 @@ fn page(app: &mut SolveApp, ui: &mut egui::Ui, t: &Tokens) {
                 _ => "CPU (software)".to_string(),
             });
             ui.end_row();
-            // Colour vision (#778): its own section at the end of the page.
-            ui.label("");
-            ui.end_row();
-            ui.label(RichText::new(app.tr("ui.colour_vision")).strong());
-            ui.label("");
-            ui.end_row();
-            ui.label(app.tr("ui.colour_vision_mode"));
-            let mode = app.preferences.color_vision;
-            egui::ComboBox::from_id_salt("pref_color_vision").selected_text(app.tr(mode.label_id())).show_ui(ui, |ui| {
-                for m in crate::theme::ColorVision::ALL {
-                    ui.selectable_value(&mut app.preferences.color_vision, m, crate::i18n::tr(m.label_id())).on_hover_text(crate::i18n::tr(m.help_id()));
-                }
-            });
-            if app.preferences.color_vision != mode {
-                // At once, like the theme: the next frame draws in the new colours.
-                ui.ctx().request_repaint();
-            }
-            ui.end_row();
-            ui.label(app.tr("ui.colour_vision_sample"));
-            colour_vision_sample(ui, t);
-            ui.end_row();
-            note(ui, app.tr("ui.colour_vision_note"));
         }
         5 => {
             ui.label(crate::i18n::tr_label("Project face edges into new sketches"));
@@ -1911,5 +1922,157 @@ mod ui_scale_regression_tests {
         h.call("ui.prefs", json!({"button":"cancel"}));
         assert_eq!(h.app.preferences.ui_scale, 1.0, "Cancel restores the original scale");
         assert_eq!(h.ctx.zoom_factor(), 1.0);
+    }
+}
+
+/// Both display-setting surfaces dispatch the same programmatic command.
+pub(crate) fn ambient_occlusion_checkbox(app: &mut SolveApp, ui: &mut egui::Ui, label: &str) {
+    let mut enabled = app.preferences.ambient_occlusion;
+    let response = ui
+        .checkbox(&mut enabled, crate::i18n::tr_label(label))
+        .on_hover_text(crate::i18n::tr_label("Soft shading where opaque surfaces meet. Requires the GPU viewport."));
+    crate::scenario::publish_handle("view:ambient_occlusion", response.rect.center());
+    if response.changed() {
+        let _ = app.run("view.ambient_occlusion", json!({"enabled": enabled}));
+    }
+}
+
+#[cfg(test)]
+mod ambient_occlusion_tests {
+    use super::*;
+
+    #[test]
+    fn ambient_occlusion_is_optional_persistent_and_cancelable() {
+        let old: Prefs = serde_json::from_value(json!({"msaa": 4})).unwrap();
+        assert!(!old.ambient_occlusion);
+        let mut h = crate::scenario::Harness::new();
+        let camera = h.app.cam;
+        let design = h.app.session.doc.to_json();
+        h.call("ui.prefs", json!({"open":"Graphics"}));
+        let checkbox = crate::scenario::handle_at("view:ambient_occlusion").unwrap();
+        h.call("ui.click", json!({"x":checkbox.x,"y":checkbox.y}));
+        assert!(h.app.preferences.ambient_occlusion);
+        let mut restored = SolveApp::new(solidcraft_engine::Session::default(), Default::default());
+        restored.load_prefs(&h.app.prefs());
+        assert!(restored.preferences.ambient_occlusion);
+        h.call("ui.prefs", json!({"button":"cancel"}));
+        assert!(!h.app.preferences.ambient_occlusion);
+        h.call("ui.prefs", json!({"open":"Graphics", "ambient_occlusion":true}));
+        h.call("ui.prefs", json!({"button":"apply"}));
+        h.call("ui.prefs", json!({"button":"defaults"}));
+        assert!(!h.app.preferences.ambient_occlusion);
+        h.call("ui.prefs", json!({"button":"cancel"}));
+        assert!(h.app.preferences.ambient_occlusion);
+        h.call("engine.execute", json!({"command":"view.ambient_occlusion","params":{"enabled":false}}));
+        assert!(!h.app.preferences.ambient_occlusion);
+        h.call("engine.execute", json!({"command":"view.ambient_occlusion","params":{"enabled":"yes"}}));
+        assert!(!h.app.preferences.ambient_occlusion);
+        h.app.start("view.ambient_occlusion");
+        assert!(h.app.preferences.ambient_occlusion);
+        assert_eq!(h.app.cam, camera);
+        assert_eq!(h.app.session.doc.to_json(), design);
+        assert!(h.app.session.undo.is_empty());
+    }
+}
+
+/// Manual edits are preserved and shown as Custom rather than claiming to match a preset.
+fn graphics_preset(prefs: &Prefs) -> &'static str {
+    match (prefs.ambient_occlusion, prefs.display_quality.as_str(), prefs.supersampling, prefs.supersampling_adaptive) {
+        (false, "normal", 1.0, _) => "performance",
+        (true, "fine", 2.0, true) => "quality",
+        _ => "custom",
+    }
+}
+
+pub(crate) fn graphics_preset_selector(app: &mut SolveApp, ui: &mut egui::Ui) {
+    let current = graphics_preset(&app.preferences);
+    let label = format!("ui.graphics_{current}");
+    let response = egui::ComboBox::from_id_salt("graphics_preset")
+        .selected_text(app.tr(&label))
+        .show_ui(ui, |ui| {
+            for (preset, label) in [("performance", "ui.graphics_performance"), ("quality", "ui.graphics_quality")] {
+                let item = ui.selectable_label(current == preset, app.tr(label));
+                crate::scenario::publish_handle(&format!("view:graphics_preset:{preset}"), item.rect.center());
+                if item.clicked() {
+                    let _ = app.run("view.graphics_preset", json!({"preset":preset}));
+                }
+            }
+        })
+        .response
+        .on_hover_text(app.tr("ui.graphics_preset_help"));
+    crate::scenario::publish_handle("view:graphics_preset", response.rect.center());
+}
+
+#[cfg(test)]
+mod graphics_preset_tests {
+    use super::*;
+
+    #[test]
+    fn viewport_preset_popup_accepts_quality_and_performance() {
+        let mut h = crate::scenario::Harness::new();
+        h.call("ui.inspect", json!({}));
+        for handle in ["nav:view", "view:graphics_preset", "view:graphics_preset:quality"] {
+            let pos = crate::scenario::handle_at(handle).unwrap();
+            h.call("ui.click", json!({"x":pos.x,"y":pos.y}));
+        }
+        assert!(h.app.preferences.ambient_occlusion);
+        for handle in ["view:graphics_preset", "view:graphics_preset:performance"] {
+            let pos = crate::scenario::handle_at(handle).unwrap();
+            h.call("ui.click", json!({"x":pos.x,"y":pos.y}));
+        }
+        assert!(!h.app.preferences.ambient_occlusion);
+    }
+
+    #[test]
+    fn quality_selector_enables_ao_and_supports_persistence_and_cancel() {
+        let mut h = crate::scenario::Harness::new();
+        let camera = h.app.cam;
+        let design = h.app.session.doc.to_json();
+        let msaa = h.app.preferences.msaa;
+        h.call("ui.prefs", json!({"open":"Graphics"}));
+        for handle in ["view:graphics_preset", "view:graphics_preset:quality"] {
+            let pos = crate::scenario::handle_at(handle).unwrap();
+            h.call("ui.click", json!({"x":pos.x,"y":pos.y}));
+        }
+        assert!(h.app.preferences.ambient_occlusion);
+        let mut restored = SolveApp::new(solidcraft_engine::Session::default(), Default::default());
+        restored.load_prefs(&h.app.prefs());
+        assert!(restored.preferences.ambient_occlusion);
+        h.call("ui.prefs", json!({"button":"cancel"}));
+        assert_eq!(graphics_preset(&h.app.preferences), "performance");
+        assert!(!h.app.preferences.ambient_occlusion);
+        h.call("engine.execute", json!({"command":"view.graphics_preset","params":{"preset":"quality"}}));
+        assert!(h.app.preferences.ambient_occlusion);
+        h.call("engine.execute", json!({"command":"view.graphics_preset","params":{"preset":"invalid"}}));
+        assert!(h.app.preferences.ambient_occlusion);
+        h.call("engine.execute", json!({"command":"view.graphics_preset","params":{"preset":"performance"}}));
+        assert!(!h.app.preferences.ambient_occlusion);
+        assert_eq!(graphics_preset(&h.app.preferences), "performance");
+        assert_eq!(h.app.preferences.display_quality, "normal");
+        assert_eq!(h.app.preferences.supersampling, 1.0);
+        h.call("engine.execute", json!({"command":"view.graphics_preset","params":{"preset":"quality"}}));
+        assert_eq!(graphics_preset(&h.app.preferences), "quality");
+        assert_eq!(h.app.preferences.display_quality, "fine");
+        assert_eq!(h.app.preferences.supersampling, 2.0);
+        assert!(h.app.preferences.supersampling_adaptive);
+        for edit in [
+            json!({"display_quality":"ultra"}),
+            json!({"supersampling":1.5}),
+            json!({"supersampling_adaptive":false}),
+            json!({"ambient_occlusion":false}),
+        ] {
+            h.call("engine.execute", json!({"command":"view.graphics_preset","params":{"preset":"quality"}}));
+            h.call("ui.prefs", edit);
+            assert_eq!(graphics_preset(&h.app.preferences), "custom");
+        }
+        assert_eq!(graphics_preset(&restored.preferences), "quality");
+        h.call("ui.prefs", json!({"open":"Graphics"}));
+        h.call("ui.prefs", json!({"button":"defaults"}));
+        assert_eq!(graphics_preset(&h.app.preferences), "performance");
+        h.call("ui.prefs", json!({"button":"ok"}));
+        assert_eq!(h.app.preferences.msaa, msaa);
+        assert_eq!(h.app.cam, camera);
+        assert_eq!(h.app.session.doc.to_json(), design);
+        assert!(h.app.session.undo.is_empty());
     }
 }
