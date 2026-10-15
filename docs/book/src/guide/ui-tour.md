@@ -24,14 +24,17 @@
   selects it (Shift or Ctrl adds), and in a command's dialog it goes to the active selection box.
   Esc or a click elsewhere closes the list. Clicking again on the same spot, with nothing changed
   in between, selects the next thing in that list. The
-  wheel zooms at the cursor, the middle button pans and right-drag orbits freely (the mouse
-  preset in Preferences switches to SolidWorks, Inventor, Alias, Blender, Tinkercad, OpenSCAD or Touchpad style). On a
-  trackpad, pinch zooms and two-finger scroll pans (Navigation › Two-finger scroll pans;
-  off: scroll zooms like the wheel); mouse wheels zoom and the thumb wheel pans sideways.
+  wheel zooms at the cursor, the middle button pans and right-drag orbits freely in the default
+  Fusion preset. **Preferences › Navigation** lists each preset's mouse and trackpad gestures.
+  On a trackpad, pinch zooms; Fusion uses two-finger movement to pan and Shift+two-finger
+  movement to orbit, without clicking. Ctrl/Cmd+vertical movement zooms. Turn off
+  **Use preset trackpad gestures** to make vertical movement zoom like the wheel.
+  Mouse thumb wheels pan sideways.
   Shift+middle orbits freely
   in the default and Inventor presets. In every preset, Ctrl+left drag (Cmd on macOS) that starts
-  on empty space orbits; a Ctrl+click still adds to the selection. Shift+right-drag snaps to the nearest standard or
-  diagonal view; Shift does not request snapping when the preset already requires it to orbit.
+  on empty space orbits; a Ctrl+click still adds to the selection. Adding Shift to
+  an orbit snaps to the nearest standard or diagonal view when the preset does
+  not already require Shift for that orbit or use it to pan.
   With **Touchpad** selected in Preferences › Navigation, hold **Shift** and move the pointer to
   pan, or hold **Alt** (**Option** on macOS) and move it to orbit—no mouse button is needed.
   Vertical two-finger scrolling zooms in this preset, regardless of the saved two-finger pan

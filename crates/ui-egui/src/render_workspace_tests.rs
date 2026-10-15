@@ -570,6 +570,19 @@ fn render_preview_navigates_like_the_modelling_viewport_in_every_preset() {
             }
             assert_ne!(design.cam, before, "{preset}: the wheel zooms");
             assert_eq!(design.cam, render.cam, "{preset} {around:?}: wheel zoom to the cursor");
+            for mods in [none, Modifiers::SHIFT, Modifiers::CTRL] {
+                let before = design.cam;
+                both(vec![Event::PointerMoved(empty)], mods, &mut design, &mut render);
+                for phase in [egui::TouchPhase::Start, egui::TouchPhase::Move, egui::TouchPhase::End] {
+                    let gesture = Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: vec2(25.0, 15.0), modifiers: mods, phase };
+                    both(vec![gesture], mods, &mut design, &mut render);
+                }
+                for _ in 0..30 {
+                    both(vec![], none, &mut design, &mut render);
+                }
+                assert_ne!(design.cam, before, "{preset}: two-finger movement with {mods:?}");
+                assert_eq!(design.cam, render.cam, "{preset} {around:?}: two-finger movement with {mods:?}");
+            }
             for mods in [Modifiers::SHIFT, Modifiers::ALT] {
                 both(vec![Event::PointerMoved(empty)], mods, &mut design, &mut render);
                 both(vec![Event::PointerMoved(empty + vec2(25.0, 15.0))], mods, &mut design, &mut render);

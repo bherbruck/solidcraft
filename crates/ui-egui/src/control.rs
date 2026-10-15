@@ -624,17 +624,36 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
         }
         "ui.scroll" => {
             let (Some(x), Some(y)) = (f("x"), f("y")) else { return err("missing x/y") };
+            let unit = match s("unit") {
+                None | Some("line") => egui::MouseWheelUnit::Line,
+                Some("point") => egui::MouseWheelUnit::Point,
+                _ => return err("unit must be line or point"),
+            };
+            let phase = match s("phase") {
+                None | Some("move") => egui::TouchPhase::Move,
+                Some("start") => egui::TouchPhase::Start,
+                Some("end") => egui::TouchPhase::End,
+                Some("cancel") => egui::TouchPhase::Cancel,
+                _ => return err("phase must be start, move, end or cancel"),
+            };
+            let delta = egui::vec2(f("delta_x").unwrap_or(0.0) as f32, f("delta").unwrap_or(-100.0) as f32);
+            if !delta.is_finite() || delta.x.abs() > 1e4 || delta.y.abs() > 1e4 || x.abs() > 1e6 || y.abs() > 1e6 {
+                return err("scroll delta must be within ±10000 and x/y within ±1000000 screen points");
+            }
+            let modifiers = egui::Modifiers {
+                shift: b("shift"),
+                alt: b("alt"),
+                ctrl: b("ctrl"),
+                command: b("cmd") || (b("ctrl") && !cfg!(target_os = "macos")),
+                mac_cmd: b("cmd"),
+            };
+            app.synthetic.push(egui::Event::ModifiersChanged(modifiers));
             app.synthetic.push(egui::Event::PointerMoved(egui::pos2(x as f32, y as f32)));
             // Mouse-wheel semantics (lines): zooms regardless of the trackpad pan
             // preference, so scripts and agents keep working. Trackpads report points.
             let speed = ctx.options(|o| o.input_options.line_scroll_speed).max(1.0);
-            let lines = f("delta").unwrap_or(-100.0) / f64::from(speed);
-            app.synthetic.push(egui::Event::MouseWheel {
-                unit: egui::MouseWheelUnit::Line,
-                delta: egui::vec2(0.0, lines as f32),
-                modifiers: Default::default(),
-                phase: egui::TouchPhase::Move,
-            });
+            let delta = if matches!(unit, egui::MouseWheelUnit::Line) { delta / speed } else { delta };
+            app.synthetic.push(egui::Event::MouseWheel { unit, delta, modifiers, phase });
             ok(Value::Null)
         }
         "ui.key" => {
