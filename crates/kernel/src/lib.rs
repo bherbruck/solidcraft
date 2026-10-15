@@ -119,6 +119,7 @@ mod surface_extend;
 mod surface_kind;
 mod surface_offset;
 mod surface_ruled;
+mod surface_trim;
 mod surface_untrim;
 mod surfaces;
 mod sweep_path;
@@ -189,10 +190,11 @@ pub use surface_extend::{ExtendLimit, ExtendMode, ExtendOptions, extend_surface}
 pub use surface_kind::{EdgeCircle, FaceSurface, edge_circle, face_surface};
 pub use surface_offset::offset_surface;
 pub use surface_ruled::{Ruled, RuledCorners, RuledMode, ruled_surface};
+pub use surface_trim::{TrimKeep, mutual_trim, trim, trim_keep};
 pub use surface_untrim::{UntrimHoles, untrim};
 pub use surfaces::{
     copy_faces, extend, extrude_sheet, loft_sheet, patch_edges, patch_region, remove_faces, reverse_faces, revolve_sheet, stitch, sweep_sheet,
-    sweep_sheet_points, sweep_sheet_points_with, sweep_sheet_with, thicken, trim, unstitch,
+    sweep_sheet_points, sweep_sheet_points_with, sweep_sheet_with, thicken, unstitch,
 };
 pub use sweep_path::{RailFit, SweepControl, SweepOrientation, sweep_path, sweep_path_with};
 pub use topo::{CylinderFace, cylinder_end_at, cylinder_face_at};
