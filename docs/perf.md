@@ -49,6 +49,30 @@ it) is the same with both binaries apart from the per-feature milliseconds: bodi
 areas, centres, bounding boxes, topology counts and warnings. `bench-open` meshes the same
 triangle counts, and the bicycles both binaries save differ only in the document's name.
 
+## STEP import: bounded surface boundaries and periodic projections (2026-10-15)
+
+Generated closing curves share the edge sampler's 24-level and 20,000-point limits,
+preventing runaway subdivision across rational surface poles. Periodic trim parameters
+use the nearest equivalent to the previous point, avoiding thousands of unnecessary turns.
+
+Boundary projection accepts local and cached answers within the caller's chord tolerance
+and surface domain before global retries.
+Global retries reuse a lazy 51×51 surface sample grid across each face's loops, avoiding
+repeated B-spline/NURBS evaluation to choose a seed. Failed cached searches retain the
+surface's native bounded projection and continuation fallback. Projection writes directly
+to the trim buffer without per-point allocations or copying the whole input loop.
+
+Release CLI measurements from October 14–15, 2026, on the same machine, before projection caching:
+
+| STEP model | Phase | Before | After |
+|---|---|---:|---:|
+| 9.47 MB, 29 bodies | Import, evaluation and display meshing | Still importing at 54 s | 5.16–5.41 s (3 runs) |
+| 63.86 MB, 1,058 bodies | Import and body preparation | Stopped while importing at 181.6 s | 89.9 s (1 run) |
+
+The assembly comparison used upstream `e4ef6cfe2946`, one run per version.
+The corrected run included temporary profiling output; its subsequent evaluation
+took 0.26 s and display meshing took 11.57 s.
+
 ## STEP assemblies: a repeated part is meshed once (2026-10-14)
 
 The reader already converts each B-rep item once and keeps it for the instances that list it
