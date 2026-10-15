@@ -1183,6 +1183,9 @@ impl StepReading {
             .filter(|e| matches!(e.name(), "MANIFOLD_SOLID_BREP" | "BREP_WITH_VOIDS" | "FACETED_BREP" | "SHELL_BASED_SURFACE_MODEL"))
             .count();
         rd.watch = watch.clone();
+        if rd.stop() {
+            return Err(crate::watch::cancelled_error("STEP import"));
+        }
         rd.index();
         // Roots: product definitions that are nobody's component.
         let child_pds: HashSet<u64> =

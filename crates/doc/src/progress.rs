@@ -18,9 +18,7 @@ pub struct Progress {
     /// The feature the evaluation waits at until cancelled ([`Progress::hold_at`]).
     hold: AtomicUsize,
     /// Long work inside one feature (reading a large STEP file): its step and how far it is.
-    work_stage: std::sync::Mutex<&'static str>,
-    work_done: AtomicUsize,
-    work_total: AtomicUsize,
+    work: std::sync::Mutex<Option<(&'static str, usize, usize)>>,
     /// A window wants the model as far as it is built, to show while the rest is ([`Progress::want_partial`]).
     partial_wanted: AtomicBool,
     /// The latest such model and when it was offered.
@@ -45,9 +43,7 @@ impl Default for Progress {
             done: AtomicUsize::new(0),
             total: AtomicUsize::new(0),
             hold: AtomicUsize::new(usize::MAX),
-            work_stage: std::sync::Mutex::new(""),
-            work_done: AtomicUsize::new(0),
-            work_total: AtomicUsize::new(0),
+            work: std::sync::Mutex::new(None),
             partial_wanted: AtomicBool::new(false),
             partial: std::sync::Mutex::new((None, None)),
         }
@@ -82,9 +78,12 @@ impl Progress {
     /// Long work inside a feature, such as reading a large STEP file: (step, done, total);
     /// `None` while there is none to show.
     pub fn work(&self) -> Option<(&'static str, usize, usize)> {
-        let total = self.work_total.load(Ordering::Relaxed);
-        let stage = self.work_stage.lock().map(|s| *s).unwrap_or("");
-        (total > 0 && !stage.is_empty()).then(|| (stage, self.work_done.load(Ordering::Relaxed).min(total), total))
+        self.work.lock().ok().and_then(|w| *w)
+    }
+    fn report_work(&self, stage: &'static str, done: usize, total: usize) {
+        if let Ok(mut work) = self.work.lock() {
+            *work = Some((stage, done.min(total), total));
+        }
     }
 }
 
@@ -96,11 +95,7 @@ impl solidcraft_kernel::watch::Watch for KernelWatch {
         self.0.is_cancelled()
     }
     fn progress(&self, stage: &'static str, done: usize, total: usize) {
-        if let Ok(mut s) = self.0.work_stage.lock() {
-            *s = stage;
-        }
-        self.0.work_total.store(total, Ordering::Relaxed);
-        self.0.work_done.store(done, Ordering::Relaxed);
+        self.0.report_work(stage, done, total);
     }
 }
 
@@ -112,6 +107,17 @@ struct Current {
 
 thread_local! {
     static CURRENT: RefCell<Option<Current>> = const { RefCell::new(None) };
+}
+
+/// Report a step of file work on this thread. True when its watcher asked to stop.
+/// Without a watch, work continues without recording progress.
+pub fn work_step(stage: &'static str, done: usize, total: usize) -> bool {
+    CURRENT.with(|c| {
+        let c = c.borrow();
+        let Some(cur) = c.as_ref() else { return false };
+        cur.progress.report_work(stage, done, total);
+        cur.progress.is_cancelled()
+    })
 }
 
 /// Run `f` with `progress` watching every evaluation it makes on this thread.
@@ -158,6 +164,9 @@ impl Evaluation {
             let c = c.borrow();
             let Some(cur) = c.as_ref() else { return false };
             if self.outer {
+                if let Ok(mut work) = cur.progress.work.lock() {
+                    *work = None;
+                }
                 cur.progress.done.store(index, Ordering::Relaxed);
                 while index == cur.progress.hold.load(Ordering::Relaxed) && !cur.progress.is_cancelled() {
                     #[cfg(not(target_arch = "wasm32"))]

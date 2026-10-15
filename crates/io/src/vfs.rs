@@ -14,6 +14,13 @@ mod imp {
     /// blocks the caller instead. Refuse anything that is not a regular file, and never read
     /// more than the caller's cap plus the byte that proves it was exceeded.
     pub fn read(path: &str, max: usize) -> Result<Vec<u8>> {
+        read_with_progress(path, max, |done, total| solidcraft_doc::progress::work_step("reading", done, total))
+    }
+
+    /// Read a regular file, reporting bytes read and file size. Returning true stops the read.
+    pub(super) fn read_with_progress(path: &str, max: usize, mut stop: impl FnMut(usize, usize) -> bool) -> Result<Vec<u8>> {
+        use std::io::Read;
+
         check(path)?;
         // Cheap and non-blocking: refuse before opening, in case the open itself would block.
         let meta = std::fs::metadata(path)?;
@@ -25,13 +32,30 @@ mod imp {
         }
         let f = std::fs::File::open(path)?;
         // The path may have been swapped between the two calls; the handle decides.
-        if !f.metadata()?.is_file() {
+        let meta = f.metadata()?;
+        if !meta.is_file() {
             return Err(Error::new(ErrorKind::InvalidInput, "not a regular file"));
         }
-        let mut out = Vec::with_capacity(meta.len().min(16 << 20) as usize);
-        std::io::Read::read_to_end(&mut std::io::Read::take(f, max as u64 + 1), &mut out)?;
-        if out.len() > max {
+        if meta.len() > max as u64 {
             return Err(Error::new(ErrorKind::InvalidData, "file too large"));
+        }
+        let total = meta.len() as usize;
+        if stop(0, total) {
+            return Err(Error::new(ErrorKind::Interrupted, "file read cancelled"));
+        }
+        let mut out = Vec::with_capacity(meta.len().min(16 << 20) as usize);
+        let mut reader = f.take((max as u64).saturating_add(1));
+        loop {
+            let n = reader.by_ref().take(256 << 10).read_to_end(&mut out)?;
+            if out.len() > max {
+                return Err(Error::new(ErrorKind::InvalidData, "file too large"));
+            }
+            if n == 0 {
+                break;
+            }
+            if stop(out.len(), total) {
+                return Err(Error::new(ErrorKind::Interrupted, "file read cancelled"));
+            }
         }
         Ok(out)
     }
@@ -75,11 +99,22 @@ mod imp {
 
     /// At most `max` bytes, to match the native signature.
     pub fn read(path: &str, max: usize) -> Result<Vec<u8>> {
-        let bytes = FILES.with(|f| f.borrow().get(path).cloned()).ok_or_else(|| missing(path))?;
-        if bytes.len() > max {
-            return Err(Error::new(ErrorKind::InvalidData, "file too large"));
-        }
-        Ok(bytes)
+        FILES.with(|f| {
+            let files = f.borrow();
+            let bytes = files.get(path).ok_or_else(|| missing(path))?;
+            let total = bytes.len();
+            if total > max {
+                return Err(Error::new(ErrorKind::InvalidData, "file too large"));
+            }
+            if solidcraft_doc::progress::work_step("reading", 0, total) {
+                return Err(Error::new(ErrorKind::Interrupted, "file read cancelled"));
+            }
+            let out = bytes.clone();
+            if solidcraft_doc::progress::work_step("reading", total, total) {
+                return Err(Error::new(ErrorKind::Interrupted, "file read cancelled"));
+            }
+            Ok(out)
+        })
     }
     pub fn write(path: &str, bytes: &[u8]) -> Result<()> {
         FILES.with(|f| f.borrow_mut().insert(path.to_string(), bytes.to_vec()));
@@ -445,6 +480,36 @@ pub fn read_to_string(path: &str, max: usize) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn a_file_read_reports_bytes_before_completion_and_can_be_cancelled_between_chunks() {
+        let path = std::env::temp_dir().join(format!("solidcraft-vfs-progress-{}", std::process::id()));
+        let path = path.to_string_lossy();
+        let bytes: Vec<_> = (0..1_000_003).map(|i| (i % 251) as u8).collect();
+        super::write(&path, &bytes).unwrap();
+        let mut reports = Vec::new();
+        let read = super::imp::read_with_progress(&path, bytes.len(), |done, total| {
+            reports.push((done, total));
+            false
+        })
+        .unwrap();
+        assert_eq!(read, bytes);
+        assert_eq!(reports.first(), Some(&(0, bytes.len())));
+        assert_eq!(reports.last(), Some(&(bytes.len(), bytes.len())));
+        assert!(reports.iter().any(|&(done, total)| done > 0 && done < total));
+        assert!(reports.windows(2).all(|p| p[0].0 < p[1].0 && p[1].1 == bytes.len()));
+
+        let error = super::imp::read_with_progress(&path, bytes.len(), |done, _| done > 0).unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::Interrupted);
+        let progress = std::sync::Arc::new(solidcraft_doc::progress::Progress::default());
+        solidcraft_doc::progress::watch(progress.clone(), || super::read(&path, bytes.len())).unwrap();
+        assert_eq!(progress.work(), Some(("reading", bytes.len(), bytes.len())));
+        progress.cancel();
+        let error = solidcraft_doc::progress::watch(progress, || super::read(&path, bytes.len())).unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::Interrupted);
+        super::remove(&path).unwrap();
+    }
+
     #[test]
     fn files_round_trip() {
         let dir = std::env::temp_dir().join(format!("solidcraft-vfs-{}", std::process::id()));
