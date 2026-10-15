@@ -204,6 +204,13 @@ surface_ruled
 surface_trim
   remap_refs: plane.base.base.name
   remap_bodies: body, tool.body
+surface_trim_curves
+  sketches: [1]
+  remap_refs: curves.sketch, plane.base.base.name
+  remap_bodies: body
+surface_trim_mutual
+  remap_refs: plane.base.base.name
+  remap_bodies: body, with
 move
   remap_bodies: bodies[0]
 import

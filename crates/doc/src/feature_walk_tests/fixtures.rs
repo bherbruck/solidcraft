@@ -184,6 +184,15 @@ pub(super) fn fixtures() -> Vec<(&'static str, Value)> {
                 "direction": [0, 0, 1], "face": [1, 0, 0]}),
         ),
         ("surface_trim", json!({"type": "surface_trim", "body": "B", "plane": plane("trim"), "keep": o})),
+        (
+            "surface_trim_curves",
+            json!({"type": "surface_trim", "body": "B", "plane": plane("trim"), "keep": o, "keep_more": [o],
+                "curves": {"sketch": 1, "curves": ["l1"], "direction": [0, 0, 1]}}),
+        ),
+        (
+            "surface_trim_mutual",
+            json!({"type": "surface_trim", "body": "B", "plane": plane("trim"), "keep": o, "with": "B", "keep_with": [o, o], "stitch": true, "extend": true}),
+        ),
         ("move", json!({"type": "move", "bodies": ["B"], "translate": ["move.x", "move.y", "move.z"], "angle": "move.angle"})),
         ("import", json!({"type": "import", "file": "a.step", "step": ""})),
         ("mesh_convert", json!({"type": "mesh_convert", "body": "B", "tolerance": "mesh_convert.tolerance"})),

@@ -752,7 +752,7 @@ pub fn for_feature(app: &SolveApp, kind: &FeatureKind, frame: &Mat) -> Option<(K
             }
             return Some((Kind::Surface(k), ins, extra));
         }
-        FeatureKind::SurfaceTrim { body, plane, tool, keep } => (
+        FeatureKind::SurfaceTrim { body, plane, tool, keep, .. } => (
             Surf::Trim,
             vec![
                 vec![Sel::Body { name: body.to_string() }],

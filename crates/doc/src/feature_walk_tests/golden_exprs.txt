@@ -374,6 +374,16 @@ surface_trim
     Angle = trim.angle (Angle)
     Offset = trim.offset (Length)
   expressions: trim.angle, trim.offset
+surface_trim_curves
+  inputs:
+    Angle = trim.angle (Angle)
+    Offset = trim.offset (Length)
+  expressions: trim.angle, trim.offset
+surface_trim_mutual
+  inputs:
+    Angle = trim.angle (Angle)
+    Offset = trim.offset (Length)
+  expressions: trim.angle, trim.offset
 move
   inputs:
     X distance = move.x (Length)
