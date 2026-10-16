@@ -785,6 +785,14 @@ impl PolyBoundary {
     }
 
     /// Inserts points and adds constraint into triangulation.
+    ///
+    /// SolidCraft: every segment of every loop becomes a constraint. A segment that crosses or
+    /// overlaps one already added (a boundary polyline that hooks back on itself, as an
+    /// intersection edge can by a few micrometres past its vertex) is split where they meet,
+    /// so the boundary stays whole. truck instead dropped the segment and joined its start to
+    /// the first later node it could reach: one hook at a loop's start dropped the 130 nodes of
+    /// a trimming curve behind a single constraint across the face, and the grid points along
+    /// it were fanned into slivers spanning the face (millimetres off a tube's surface).
     fn insert_to(&self, triangulation: &mut Cdt, scale: UvScale) {
         let poly2tri: Vec<_> = self
             .0
@@ -792,7 +800,6 @@ impl PolyBoundary {
             .flatten()
             .map(|pt| triangulation.insert(scale.to_cdt(*pt)).ok())
             .collect();
-        let mut prev: Option<usize> = None;
         let mut counter = 0;
         self.0
             .iter()
@@ -803,20 +810,14 @@ impl PolyBoundary {
                 range.circular_tuple_windows()
             })
             .for_each(|(i, j)| {
-                let Some(vj) = poly2tri[j] else { return };
-                if let Some(p) = prev {
-                    let Some(v) = poly2tri[p] else { return };
-                    if triangulation.can_add_constraint(v, vj) {
-                        triangulation.add_constraint(v, vj);
-                        prev = None;
-                    }
+                let (Some(vi), Some(vj)) = (poly2tri[i], poly2tri[j]) else { return };
+                if vi == vj {
+                    return;
+                }
+                if triangulation.can_add_constraint(vi, vj) {
+                    triangulation.add_constraint(vi, vj);
                 } else {
-                    let Some(vi) = poly2tri[i] else { return };
-                    if triangulation.can_add_constraint(vi, vj) {
-                        triangulation.add_constraint(vi, vj);
-                    } else {
-                        prev = Some(i);
-                    }
+                    triangulation.add_constraint_and_split(vi, vj, |p| p);
                 }
             });
     }

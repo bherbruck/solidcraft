@@ -475,3 +475,34 @@ fn box_intersect_splits_the_end_off_a_raked_wedge_after_its_end_rounds() {
         }
     }
 }
+
+/// The reference mesh of loft bodies joined into a bike frame covers each face once: within 1%
+/// of the area of a mesh at a tenth of the tolerance. The trimmed loft sides were meshed with a
+/// flat sheet through the down tube (Delaunay in raw parameters on a strip stretched twentyfold:
+/// two and a half times the area), and the seat tube's side with slivers across it (a boundary
+/// polyline hooking back past its vertex dropped a trimming curve's constraints).
+#[test]
+fn joined_loft_frames_reference_mesh_covers_each_face_once() {
+    for (script, name) in [
+        (include_str!("../../../examples/regressions/loft_join_bracket_hull_triangle.json"), "DT2"),
+        (include_str!("../../../examples/regressions/front_triangle_hull_triangle.json"), "FrontTriangle"),
+    ] {
+        let s = replay(script);
+        let state = s.model.state();
+        let body = &state.body(name).unwrap().body;
+        let per_face = |m: &solidcraft_geom::Mesh| {
+            let mut a = vec![0.0; body.face_count()];
+            for (t, f) in m.triangles.iter().zip(&m.tri_face) {
+                let [p0, p1, p2] = t.map(|i| m.positions[i as usize]);
+                a[*f as usize] += (p1 - p0).cross(p2 - p0).len() / 2.0;
+            }
+            a
+        };
+        let size = body.size();
+        let mesh = per_face(&body.reference_display_mesh_angular(size * 3e-4, 12f64.to_radians()).unwrap());
+        let fine = per_face(&body.reference_display_mesh_angular(size * 3e-5, 3f64.to_radians()).unwrap());
+        for (fi, (m, f)) in mesh.iter().zip(&fine).enumerate() {
+            assert!((m - f).abs() <= 0.01 * f.max(1.0), "{name} face {fi}: mesh {m:.0} mm², finer mesh {f:.0} mm²");
+        }
+    }
+}

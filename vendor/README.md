@@ -158,6 +158,12 @@ Changes:
   ways). In raw parameters, a loft side ruled across (about 30 mm) and long along the loft
   (about 600 mm) is a strip stretched twentyfold, and a trimming node was fanned to boundary
   nodes hundreds of millimetres away: a flat sheet through a joined tube.
+- `tessellation/triangulation.rs`: every segment of a face's boundary becomes a constraint; one
+  that crosses or overlaps a constraint already added (an intersection edge's polyline can hook
+  back a few micrometres past its vertex) is split where they meet. truck dropped such a
+  segment and joined its start to the first later node it could reach, which on a joined tube
+  left a trimming curve's 130 nodes behind one constraint across the face: slivers from it
+  sagged millimetres off the surface.
 - `lib.rs`: compiler warnings no longer fail the build. Example, test and bench targets are
   dropped (their sources are not vendored).
 - `tessellation/triangulation.rs`: adaptive division also splits a cell that bows off its
