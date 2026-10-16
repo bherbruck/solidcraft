@@ -785,15 +785,12 @@ impl PolyBoundary {
     }
 
     /// Inserts points and adds constraint into triangulation.
-    fn insert_to(&self, triangulation: &mut Cdt) {
+    fn insert_to(&self, triangulation: &mut Cdt, scale: UvScale) {
         let poly2tri: Vec<_> = self
             .0
             .iter()
             .flatten()
-            .map(|pt| {
-                let p = [spade_round(pt.x), spade_round(pt.y)];
-                triangulation.insert(SPoint2::from(p)).ok()
-            })
+            .map(|pt| triangulation.insert(scale.to_cdt(*pt)).ok())
             .collect();
         let mut prev: Option<usize> = None;
         let mut counter = 0;
@@ -823,6 +820,61 @@ impl PolyBoundary {
                 }
             });
     }
+}
+
+/// SolidCraft: the (u, v) scale the constrained Delaunay triangulation works in. Delaunay in
+/// raw parameters is Delaunay in 3D only where the surface moves as fast along u as along v; a
+/// loft side 30 mm across its unit u range and 600 mm along its unit v range is a strip
+/// stretched twentyfold, and a trimming node partway along u was fanned to boundary nodes
+/// hundreds of millimetres away, by triangles that cut through the surface. Each parameter is
+/// scaled by the surface's mean speed along it over the boundary's box, rounded to a power of two
+/// so the scaling and its inverse are exact.
+#[derive(Clone, Copy, Debug)]
+struct UvScale([f64; 2]);
+
+impl UvScale {
+    const IDENTITY: UvScale = UvScale([1.0, 1.0]);
+    /// Most binary orders of magnitude between the two scales.
+    const MAX_EXPONENT: f64 = 30.0;
+    /// Samples per direction over the boundary's box.
+    const SAMPLES: usize = 5;
+
+    fn of(surface: &impl PreMeshableSurface, polyline: &PolyBoundary) -> Self {
+        let bdb: BoundingBox<Point2> = polyline.0.iter().flatten().collect();
+        let (min, max) = (bdb.min(), bdb.max());
+        if !(min.x.is_finite() && min.y.is_finite() && max.x.is_finite() && max.y.is_finite()) {
+            return Self::IDENTITY;
+        }
+        let n = Self::SAMPLES;
+        let (mut su, mut sv, mut count) = (0.0, 0.0, 0usize);
+        for i in 0..n {
+            for j in 0..n {
+                let (s, t) = (i as f64 / (n - 1) as f64, j as f64 / (n - 1) as f64);
+                let (u, v) = (min.x + (max.x - min.x) * s, min.y + (max.y - min.y) * t);
+                let (du, dv) = (surface.uder(u, v).magnitude(), surface.vder(u, v).magnitude());
+                if du.is_finite() && dv.is_finite() {
+                    su += du;
+                    sv += dv;
+                    count += 1;
+                }
+            }
+        }
+        // Speeds' ratio, as a power of two; none where either speed vanishes throughout.
+        let ratio = su / sv;
+        if count == 0 || !(ratio.is_finite() && ratio > 0.0) {
+            return Self::IDENTITY;
+        }
+        let e = ratio.log2().round().clamp(-Self::MAX_EXPONENT, Self::MAX_EXPONENT);
+        // The faster parameter keeps its values; the slower one is shrunk.
+        match e >= 0.0 {
+            true => UvScale([1.0, (-e).exp2()]),
+            false => UvScale([e.exp2(), 1.0]),
+        }
+    }
+
+    fn to_cdt(self, p: Point2) -> SPoint2 { SPoint2::new(spade_round(p.x * self.0[0]), spade_round(p.y * self.0[1])) }
+
+    fn from_cdt(self, p: SPoint2) -> Point2 { Point2::new(p.x / self.0[0], p.y / self.0[1]) }
 }
 
 fn spade_round(x: f64) -> f64 {
@@ -867,13 +919,15 @@ pub(super) fn preview_face<S: RobustMeshableSurface>(surface: &S, loops: &[Vec<P
 // SolidCraft: the normal entry point supplies None, preserving adaptive meshing.
 fn trimming_with_steps<S: PreMeshableSurface>(surface: &S, polyboundary: &PolyBoundary, tol: Deflection, cap: usize, steps: Option<usize>) -> PolygonMesh {
     let mut triangulation = Cdt::new();
-    polyboundary.insert_to(&mut triangulation);
-    insert_surface(&mut triangulation, surface, polyboundary, tol, cap, steps);
+    let scale = UvScale::of(surface, polyboundary);
+    polyboundary.insert_to(&mut triangulation, scale);
+    insert_surface(&mut triangulation, surface, polyboundary, tol, cap, steps, scale);
     let mut mesh = triangulation_into_polymesh(
         triangulation.vertices(),
         triangulation.inner_faces(),
         surface,
         polyboundary,
+        scale,
     );
     mesh.make_face_compatible_to_normal();
     mesh
@@ -887,6 +941,7 @@ fn insert_surface(
     tol: Deflection,
     cap: usize,
     steps: Option<usize>,
+    scale: UvScale,
 ) {
     let bdb: BoundingBox<Point2> = polyline.0.iter().flatten().collect();
     let range = ((bdb.min()[0], bdb.max()[0]), (bdb.min()[1], bdb.max()[1]));
@@ -912,7 +967,7 @@ fn insert_surface(
         .map(|u| {
             vdiv.iter()
                 .map(|v| match polyline.include(Point2::new(u, *v)) {
-                    true => triangulation.insert(SPoint2::new(u, *v)).ok(),
+                    true => triangulation.insert(scale.to_cdt(Point2::new(u, *v))).ok(),
                     false => None,
                 })
                 .collect()
@@ -1231,6 +1286,7 @@ fn triangulation_into_polymesh<'a>(
     triangles: InnerFaceIterator<'a, SPoint2, (), CdtEdge<()>, ()>,
     surface: &impl ParametricSurface3D,
     polyline: &PolyBoundary,
+    scale: UvScale,
 ) -> PolygonMesh {
     let mut positions = Vec::<Point3>::new();
     let mut uv_coords = Vec::<Vector2>::new();
@@ -1238,7 +1294,7 @@ fn triangulation_into_polymesh<'a>(
     let vmap: HashMap<_, _> = vertices
         .enumerate()
         .map(|(i, v)| {
-            let p = *v.as_ref();
+            let p = scale.from_cdt(*v.as_ref());
             let uv = Vector2::new(p.x, p.y);
             positions.push(surface.subs(uv[0], uv[1]));
             uv_coords.push(uv);
@@ -1249,8 +1305,7 @@ fn triangulation_into_polymesh<'a>(
     let tri_faces: Vec<[StandardVertex; 3]> = triangles
         .map(|tri| tri.vertices())
         .filter(|tri| {
-            fn sp2cg(p: SPoint2) -> Point2 { Point2::new(p.x, p.y) }
-            let tri = array![i => sp2cg(*tri[i].as_ref()); 3];
+            let tri = array![i => scale.from_cdt(*tri[i].as_ref()); 3];
             let (a, b) = (tri[1] - tri[0], tri[2] - tri[0]);
             let c = tri[0] + (a + b) / 3.0;
             let area = a.x * b.y - a.y * b.x;

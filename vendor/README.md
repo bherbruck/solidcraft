@@ -153,6 +153,11 @@ Changes:
   old test is kept as `tessellation::include_test_hooks`, behind a `test-hooks` feature that
   only `solidcraft-kernel`'s tests turn on, and `crates/kernel/tests/tess_include_equivalence.rs`
   compares the two.
+- `tessellation/triangulation.rs`: the constrained Delaunay triangulation of a trimmed face
+  works in (u, v) scaled by the surface's mean speed along each (a power of two, so exact both
+  ways). In raw parameters, a loft side ruled across (about 30 mm) and long along the loft
+  (about 600 mm) is a strip stretched twentyfold, and a trimming node was fanned to boundary
+  nodes hundreds of millimetres away: a flat sheet through a joined tube.
 - `lib.rs`: compiler warnings no longer fail the build. Example, test and bench targets are
   dropped (their sources are not vendored).
 - `tessellation/triangulation.rs`: adaptive division also splits a cell that bows off its
