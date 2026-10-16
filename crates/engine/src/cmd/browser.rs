@@ -42,6 +42,9 @@ pub static COMMANDS: &[CommandSpec] = &[
          or joints?: [joint id or name] (their glyphs; they still constrain and move parts); \
          or folder?: bodies|sketches|construction|origin|joints (all of it); or paths?: [[occurrence ids]] (exact placements and descendants), isolate?: bool (requires paths and visible:true). Saved with the design; not an undo step",
     ),
+    CommandSpec::new("browser.find", "Search the Browser", find).noundo().params(
+        "text?: what the names hold, ignoring case (with * for any text or ? for any one character it must match the whole name: *:1 ends in :1; at most 256 characters);          kinds?: [component|body|sketch|construction|joint] (default every kind; give text, kinds or both)          → {found: [{kind, name, key, path, item?}], total, incomplete}: every placement of a component is its own match, path is the placement it is in,          item is what select.set takes (a joint has none; its key is its id); at most 10000 listed, total counts them all",
+    ),
 ];
 
 const FOLDERS: [&str; 3] = ["bodies", "sketches", "construction"];
@@ -195,6 +198,33 @@ fn shown_item(s: &Session, key: &str) -> Option<Shown> {
         return Some(Shown::Joint(j.id));
     }
     ORIGIN.iter().find(|o| o.eq_ignore_ascii_case(key)).map(|o| Shown::Origin(o.to_string()))
+}
+
+fn find(s: &mut Session, p: &Value) -> Result<Value> {
+    use crate::browser_find::{Kind, MAX_PATTERN_CHARS, Pattern};
+    let cmd = "browser.find";
+    let pattern = match p.get("text") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(text)) if text.chars().count() > MAX_PATTERN_CHARS => {
+            return Err(bad(cmd, format!("`text` is longer than {MAX_PATTERN_CHARS} characters")));
+        }
+        Some(Value::String(text)) => Pattern::new(text),
+        Some(_) => return Err(bad(cmd, "`text` must be a string")),
+    };
+    let kinds = match p.get("kinds") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(a)) if a.len() <= Kind::ALL.len() => a
+            .iter()
+            .map(|k| k.as_str().and_then(Kind::from_id))
+            .collect::<Option<Vec<Kind>>>()
+            .ok_or_else(|| bad(cmd, "`kinds` takes component, body, sketch, construction and joint"))?,
+        Some(_) => return Err(bad(cmd, "`kinds` must list at most 5 of component, body, sketch, construction and joint")),
+    };
+    if pattern.is_none() && kinds.is_empty() {
+        return Err(bad(cmd, "give `text` (not blank), `kinds` or both"));
+    }
+    let search = crate::browser_find::find(s, pattern.as_ref(), &kinds);
+    serde_json::to_value(search).map_err(|e| crate::EngineError::Other(e.to_string()))
 }
 
 fn visibility(s: &mut Session, p: &Value) -> Result<Value> {

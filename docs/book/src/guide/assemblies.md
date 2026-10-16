@@ -144,3 +144,17 @@ measures the complete assembly. Volumes are summed, including overlapping bodies
 measuring their union. The same workflow is available through `component.properties` and
 `occurrence.properties`; see
 [placement and measurement details](https://github.com/bherbruck/solidcraft/blob/main/docs/assembly-properties.md).
+
+## Finding things in the browser
+
+The field at the top of the browser finds components, bodies, sketches, construction planes and
+joints by name (Ctrl+F with the pointer over the browser). It finds the text anywhere in a name,
+ignoring case. With `*` (any text) or `?` (any one character) in it, the whole name must match:
+`*:1` finds every first instance. Each placement of a component is found on its own, so a bolt
+placed six times is listed six times, each under the components that hold it.
+
+Only the matches and their parents stay in the tree, opened for the search; closing a row there
+leaves the tree's own folds as they were. The chips narrow the search to one kind, or with
+nothing typed list everything of that kind. **Select all** selects what was found, and **Hide
+others** hides every body it didn't find. Esc or **×** ends the search. Scripts and agents search
+the same way with `browser.find`.

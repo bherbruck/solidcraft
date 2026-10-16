@@ -135,6 +135,13 @@ pub(crate) fn brand_mark(p: &egui::Painter, c: Pos2) {
     ));
 }
 
+/// A magnifying glass (search), about 12 px across, centred on `c`.
+pub(crate) fn magnifier(p: &egui::Painter, c: Pos2, col: Color32) {
+    let s = Stroke::new(1.4, col);
+    p.circle_stroke(c + vec2(-1.5, -1.5), 4.5, s);
+    p.line_segment([c + vec2(1.8, 1.8), c + vec2(5.5, 5.5)], s);
+}
+
 pub(crate) fn cross(p: &egui::Painter, r: Rect, s: Stroke) {
     p.line_segment([r.left_top(), r.right_bottom()], s);
     p.line_segment([r.right_top(), r.left_bottom()], s);

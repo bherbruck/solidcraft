@@ -349,6 +349,7 @@ mod tests {
             include_str!("documents.rs"),
             include_str!("dialogs.rs"),
             include_str!("browser.rs"),
+            include_str!("browser_search.rs"),
             include_str!("sketch_palette.rs"),
             include_str!("design_properties.rs"),
             include_str!("home.rs"),

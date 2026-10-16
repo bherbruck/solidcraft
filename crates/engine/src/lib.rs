@@ -7,6 +7,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![forbid(unsafe_code)]
 
+pub mod browser_find;
 pub mod capture;
 pub mod cmd;
 pub mod control_auth;
@@ -947,6 +948,8 @@ impl Session {
 
 #[cfg(test)]
 mod boolean_regression_tests;
+#[cfg(test)]
+mod browser_find_tests;
 #[cfg(test)]
 mod construct_tests;
 #[cfg(test)]

@@ -1237,9 +1237,14 @@ pub fn timeline_joints_vertical(app: &mut SolveApp, ui: &mut egui::Ui) {
 /// edits, drives, suppresses or deletes).
 pub fn browser_joints(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize) {
     use crate::browser::{Row, draw_row, is_open, toggle};
-    let joints: Vec<(u64, String, JointKind, bool)> =
+    let mut joints: Vec<(u64, String, JointKind, bool)> =
         app.session.doc.assembly.joints.iter().map(|j| (j.id, j.name.clone(), j.kind, j.suppressed)).collect();
     app.tree.picked_joints.retain(|p| joints.iter().any(|j| j.0 == *p));
+    // A search keeps the joints that match; the folder's eye then acts on those.
+    let searching = app.tree.search.on();
+    if let Some(hits) = app.tree.search.hits() {
+        joints.retain(|j| hits.joint(j.0));
+    }
     if joints.is_empty() {
         return;
     }
@@ -1252,9 +1257,12 @@ pub fn browser_joints(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize) {
     let r = draw_row(
         ui,
         ui.id().with(key),
-        &Row { depth, fold: Some(open), eye: Some(any_visible), icon: "folder", label: "Joints", ..Default::default() },
+        &Row { depth, fold: Some(open), eye: Some(any_visible), icon: "folder", label: "Joints", dim: searching, ..Default::default() },
     );
-    if r.eye {
+    if r.eye && searching {
+        let ids: Vec<u64> = joints.iter().map(|j| j.0).collect();
+        let _ = app.run("browser.visibility", json!({ "joints": ids, "visible": !any_visible }));
+    } else if r.eye {
         let _ = app.run("browser.visibility", json!({ "folder": "joints", "visible": !any_visible }));
     } else if r.fold || r.clicked {
         toggle(app, key, true);
