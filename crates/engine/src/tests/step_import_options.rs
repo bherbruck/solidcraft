@@ -170,8 +170,8 @@ fn wrong_up_and_names_are_refused() {
     assert_eq!(kinds(&s), ["BoxFeature", "BaseFeature"]);
 }
 
-/// `names` says what the bodies are called: the solid's own name (the default), the part's, or
-/// the assembly occurrence's. Repeated names are numbered as ever.
+/// Explicit naming choices select the solid, part or occurrence; automatic naming keeps
+/// meaningful solid names.
 #[test]
 fn the_bodies_are_named_after_the_solid_the_product_or_the_instance() {
     let path = frame_file("names");
@@ -185,6 +185,7 @@ fn the_bodies_are_named_after_the_solid_the_product_or_the_instance() {
     // The post is placed twice: one component, two occurrences, its body built once (#1386).
     let solids = ["Cut-Extrude3", "Boss-Extrude1"];
     assert_eq!(named(json!({"path": path})), solids);
+    assert_eq!(named(json!({"path": path, "names": "auto"})), solids);
     assert_eq!(named(json!({"path": path, "names": "solid"})), solids);
     assert_eq!(named(json!({"path": path, "names": "product"})), ["Plate", "Post"]);
     assert_eq!(named(json!({"path": path, "names": "Instance"})), ["Plate-1", "Post-1"]);
@@ -201,4 +202,30 @@ fn the_bodies_are_named_after_the_solid_the_product_or_the_instance() {
     // A feature finds them by those names.
     run(&mut again, "solid.move", json!({"bodies": ["Post-1"], "translate": [0, 0, 5]}));
     assert_eq!(body_names(&again), ["Plate-1", "Post-1"]);
+}
+
+/// Generated body labels become part names, and the saved assembly retains its components
+/// and repeated placements without needing the source file.
+#[test]
+fn automatic_part_names_and_assembly_survive_reopening() {
+    let path = frame_file("automatic");
+    let text = std::fs::read_to_string(&path).unwrap().replace("'Cut-Extrude3'", "'Body1'").replace("'Boss-Extrude1'", "'Body 2 (3)'");
+    std::fs::write(&path, text).unwrap();
+    let mut s = Session::default();
+    let r = run(&mut s, "file.insert_step", json!({"path": path}));
+    assert_eq!(body_names(&s), ["Plate", "Post"]);
+    let top = r["component"].as_u64().unwrap();
+    let parts: Vec<_> = s.doc.components.iter().filter(|c| c.parent == top).collect();
+    assert_eq!(parts.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["Plate", "Post"]);
+    assert_eq!(s.doc.occurrences.iter().filter(|o| o.component == parts[1].id && o.parent == top).count(), 2);
+    let design = std::path::Path::new(&path).with_file_name("automatic.solidcraft");
+    run(&mut s, "file.save_as", json!({"path": design.to_string_lossy()}));
+    std::fs::remove_file(&path).unwrap();
+    let mut again = Session::default();
+    run(&mut again, "doc.open", json!({"path": design.to_string_lossy()}));
+    assert_eq!(body_names(&again), ["Plate", "Post"]);
+    assert_eq!(again.doc.components, s.doc.components);
+    assert_eq!(again.doc.occurrences, s.doc.occurrences);
+    assert!(near(extent(&again).0, [0.0, 0.0, 0.0]) && near(extent(&again).1, [40.0, 34.0, 20.0]));
+    assert!((total_volume(&mut again) - (40.0 * 4.0 * 20.0 + 2.0 * 4.0 * 30.0 * 4.0)).abs() < 1e-6);
 }

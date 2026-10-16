@@ -102,8 +102,10 @@ pub fn is_iges_path(path: &str) -> bool {
 /// nothing), so the caller chooses.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum StepNames {
-    /// The solid's own name in the file, else the name of the product that holds it.
+    /// Keep meaningful solid names; replace placeholders with the nearest named product.
     #[default]
+    Auto,
+    /// The solid's own name in the file, else the name of the product that holds it.
     Solid,
     /// The name of the product (part) that holds the body, else the solid's name.
     Product,
@@ -113,9 +115,10 @@ pub enum StepNames {
 }
 
 impl StepNames {
-    /// `solid`, `product` or `instance` (any case); `None` for anything else.
+    /// `auto`, `solid`, `product` or `instance` (any case); `None` for anything else.
     pub fn parse(s: &str) -> Option<StepNames> {
         match s.trim().to_ascii_lowercase().as_str() {
+            "auto" => Some(StepNames::Auto),
             "solid" => Some(StepNames::Solid),
             "product" => Some(StepNames::Product),
             "instance" => Some(StepNames::Instance),
@@ -127,7 +130,16 @@ impl StepNames {
 /// A name that says nothing about its body: empty, or the placeholder a file or the importer
 /// gives to something it has no name for.
 fn generic_name(n: &str) -> bool {
-    n.trim().is_empty() || n.starts_with('(') || n.eq_ignore_ascii_case("import") || n.eq_ignore_ascii_case("unnamed")
+    let n = n.trim();
+    n.is_empty()
+        || n.starts_with('(')
+        || n.eq_ignore_ascii_case("import")
+        || n.eq_ignore_ascii_case("unnamed")
+        || ["body", "solid", "shell"].iter().any(|prefix| {
+            n.get(..prefix.len()).is_some_and(|s| s.eq_ignore_ascii_case(prefix))
+                && n.get(prefix.len()..)
+                    .is_some_and(|s| s.chars().all(|c| c.is_ascii_digit() || c.is_ascii_whitespace() || matches!(c, '_' | '-' | '(' | ')')))
+        })
 }
 
 /// The name an imported body gets under the `names` choice; the solid's name when the chosen
@@ -135,6 +147,8 @@ fn generic_name(n: &str) -> bool {
 fn body_name(b: &solidcraft_kernel::ImportedBody, names: StepNames) -> String {
     let usable = |n: &&String| !generic_name(n);
     let chosen = match names {
+        StepNames::Auto if !generic_name(&b.name) => Some(&b.name),
+        StepNames::Auto => b.path.iter().rev().find(usable).or_else(|| b.instance.as_ref().filter(usable)),
         StepNames::Solid => None,
         StepNames::Product => b.path.last().filter(usable),
         StepNames::Instance => b.instance.as_ref().filter(usable).or(b.path.last().filter(usable)),
@@ -147,8 +161,7 @@ pub struct StepFeature {
     /// Timeline name: the root product's name, else the file name.
     pub name: String,
     pub kind: solidcraft_doc::FeatureKind,
-    /// Body names from the file, as [`StepNames`] chose them (by default the solid names, else
-    /// the product names).
+    /// Body names from the file, as [`StepNames`] chose them (automatic by default).
     pub body_names: Vec<String>,
     pub warnings: Vec<String>,
     /// The file as read. Hold it until the feature has been evaluated: the timeline then reuses
@@ -720,7 +733,7 @@ mod tests {
         let step = String::from_utf8(export_with_metadata(&m.state(), &[], Format::Step, "t", &meta).unwrap()).unwrap();
         assert!(step.contains("FILE_DESCRIPTION(('Vented Geh\\X2\\00E4\\X0\\use for a Pi'),'2;1');"), "{}", &step[..300]);
         assert!(step.contains("FILE_NAME('t.step','',('Jane O''Brien'),('ACME'),"), "{}", &step[..300]);
-        assert_eq!(step_import_feature(step.as_bytes(), "t.step").unwrap().body_names, ["Body1"], "still reads back");
+        assert_eq!(step_import_feature(step.as_bytes(), "t.step").unwrap().body_names, ["t"], "still reads back");
         let iges = String::from_utf8(export_with_metadata(&m.state(), &[], Format::Iges, "t", &meta).unwrap()).unwrap();
         assert!(iges.contains("12HJane O'Brien") && iges.contains("4HACME"));
         let model_xml = |bytes: Vec<u8>| {
@@ -763,7 +776,7 @@ mod tests {
         let f = step_import_feature(s.as_bytes(), "/tmp/My Part.step").unwrap();
         // Named after the exported product (the export was called `t`).
         assert_eq!(f.name, "t");
-        assert_eq!(f.body_names, ["Body1"]);
+        assert_eq!(f.body_names, ["t"]);
         assert_eq!(f.body_names.len(), 1);
         assert!(matches!(&f.kind, FeatureKind::Import { file, .. } if file == "My Part.step"));
         let mut imported = Document::new("Imported STEP round trip");
@@ -813,9 +826,8 @@ mod tests {
         step_export_products(&products, 0, &StepHeader::default()).unwrap()
     }
 
-    /// The bodies of a STEP file are named after the solid (the default), the product that holds
-    /// them, or the assembly occurrence; a name the file leaves out or fills with a placeholder
-    /// falls back to the next one.
+    /// Automatic names keep meaningful solid labels and replace placeholders with part names.
+    /// Explicit choices still select the solid, product or occurrence.
     #[test]
     fn step_import_names_follow_the_choice() {
         let text = frame_step();
@@ -823,10 +835,15 @@ mod tests {
         assert_eq!(names(&text, StepNames::Solid), ["Cut-Extrude3", "Boss-Extrude1", "Boss-Extrude1"]);
         assert_eq!(names(&text, StepNames::Product), ["Plate", "Post", "Post"]);
         assert_eq!(names(&text, StepNames::Instance), ["Plate-1", "Post-1", "Post-2"]);
-        // Without a choice it is the solid's name, as before.
+        // Meaningful solid names survive automatic naming, including SolidCraft exports.
         assert_eq!(step_import_feature(text.as_bytes(), "frame.step").unwrap().body_names, names(&text, StepNames::Solid));
+        let generic = text.replace("'Cut-Extrude3'", "'Body1'").replace("'Boss-Extrude1'", "'Body 2 (3)'");
+        assert_eq!(step_import_feature(generic.as_bytes(), "frame.step").unwrap().body_names, ["Plate", "Post", "Post"]);
+        assert_eq!(names(&generic, StepNames::Solid), ["Body1", "Body 2 (3)", "Body 2 (3)"]);
+        let named = generic.replace("'Body1'", "'Body housing'");
+        assert_eq!(names(&named, StepNames::Auto), ["Body housing", "Post", "Post"]);
         // The timeline entry is the root product's name whatever the bodies are called.
-        for choice in [StepNames::Solid, StepNames::Product, StepNames::Instance] {
+        for choice in [StepNames::Auto, StepNames::Solid, StepNames::Product, StepNames::Instance] {
             assert_eq!(step_import_feature_named(text.as_bytes(), "frame.step", choice).unwrap().name, "Frame");
         }
         // A product the file leaves unnamed says nothing: its bodies keep the solid's name.
@@ -838,6 +855,8 @@ mod tests {
         assert_eq!(names(&part, StepNames::Solid), ["Body1"]);
         assert_eq!(names(&part, StepNames::Product), ["Bracket"]);
         assert_eq!(names(&part, StepNames::Instance), ["Bracket"]);
+        assert_eq!(names(&part, StepNames::Auto), ["Bracket"]);
+        assert_eq!(StepNames::parse(" AuTo "), Some(StepNames::Auto));
         assert_eq!(StepNames::parse(" Product "), Some(StepNames::Product));
         assert_eq!(StepNames::parse("INSTANCE"), Some(StepNames::Instance));
         assert_eq!(StepNames::parse("label"), None);
