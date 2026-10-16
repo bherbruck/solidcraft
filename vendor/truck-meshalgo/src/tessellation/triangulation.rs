@@ -12,6 +12,7 @@ use rayon::prelude::*;
 
 type SPoint2 = spade::Point2<f64>;
 type Cdt = ConstrainedDelaunayTriangulation<SPoint2>;
+type VertexId = spade::handles::FixedVertexHandle;
 type MeshedShell = Shell<Point3, PolylineCurve, Option<PolygonMesh>>;
 type MeshedCShell = CompressedShell<Point3, PolylineCurve, Option<PolygonMesh>>;
 
@@ -392,7 +393,7 @@ fn shell_create_polygon<S: PreMeshableSurface>(
         let mut mesh = trimming_tessellation(surface, &boundary, tol, cap);
         // Display and export meshes only, as the ruling grid lines: the meshes Boolean
         // operations intersect keep truck's points.
-        if tol.rulings {
+        if tol.display {
             let points: Vec<Point3> = wires.iter().flat_map(Wire::edge_iter).flat_map(|e| e.curve().0).collect();
             onto_edges(&mut mesh, &boundary, &points, tol.chord);
         }
@@ -784,22 +785,24 @@ impl PolyBoundary {
             .unwrap_or(false)
     }
 
-    /// Inserts points and adds constraint into triangulation.
+    /// Inserts the loops' points into the triangulation.
     ///
-    /// SolidCraft: every segment of every loop becomes a constraint. A segment that crosses or
-    /// overlaps one already added (a boundary polyline that hooks back on itself, as an
-    /// intersection edge can by a few micrometres past its vertex) is split where they meet,
-    /// so the boundary stays whole. truck instead dropped the segment and joined its start to
-    /// the first later node it could reach: one hook at a loop's start dropped the 130 nodes of
-    /// a trimming curve behind a single constraint across the face, and the grid points along
-    /// it were fanned into slivers spanning the face (millimetres off a tube's surface).
-    fn insert_to(&self, triangulation: &mut Cdt, scale: UvScale) {
-        let poly2tri: Vec<_> = self
-            .0
-            .iter()
-            .flatten()
-            .map(|pt| triangulation.insert(scale.to_cdt(*pt)).ok())
-            .collect();
+    /// SolidCraft: [`Self::add_constraints`] then joins them. For a display mesh (`split`), every segment of every loop becomes a
+    /// constraint. A segment that crosses or overlaps one already added (a boundary polyline that
+    /// hooks back on itself, as an intersection edge can by a few micrometres past its vertex) is
+    /// split where they meet, so the boundary stays whole. Otherwise, as truck does, such a
+    /// segment is dropped and its start joined to the first later node it can reach: one hook at
+    /// a loop's start dropped the 130 nodes of a trimming curve behind a single constraint across
+    /// the face, and the grid points along it were fanned into slivers spanning the face
+    /// (millimetres off a tube's surface). The meshes Boolean operations intersect keep truck's
+    /// way, which their results are recorded with.
+    fn insert_points(&self, triangulation: &mut Cdt, scale: UvScale) -> Vec<Option<VertexId>> {
+        self.0.iter().flatten().map(|pt| triangulation.insert(scale.to_cdt(*pt)).ok()).collect()
+    }
+
+    /// Adds the loops' segments between the vertices [`Self::insert_points`] gave.
+    fn add_constraints(&self, triangulation: &mut Cdt, poly2tri: &[Option<VertexId>], split: bool) {
+        let mut prev: Option<usize> = None;
         let mut counter = 0;
         self.0
             .iter()
@@ -810,14 +813,27 @@ impl PolyBoundary {
                 range.circular_tuple_windows()
             })
             .for_each(|(i, j)| {
-                let (Some(vi), Some(vj)) = (poly2tri[i], poly2tri[j]) else { return };
-                if vi == vj {
-                    return;
-                }
-                if triangulation.can_add_constraint(vi, vj) {
-                    triangulation.add_constraint(vi, vj);
+                let Some(vj) = poly2tri[j] else { return };
+                if split {
+                    let Some(vi) = poly2tri[i].filter(|vi| *vi != vj) else { return };
+                    if triangulation.can_add_constraint(vi, vj) {
+                        triangulation.add_constraint(vi, vj);
+                    } else {
+                        triangulation.add_constraint_and_split(vi, vj, |p| p);
+                    }
+                } else if let Some(p) = prev {
+                    let Some(v) = poly2tri[p] else { return };
+                    if triangulation.can_add_constraint(v, vj) {
+                        triangulation.add_constraint(v, vj);
+                        prev = None;
+                    }
                 } else {
-                    triangulation.add_constraint_and_split(vi, vj, |p| p);
+                    let Some(vi) = poly2tri[i] else { return };
+                    if triangulation.can_add_constraint(vi, vj) {
+                        triangulation.add_constraint(vi, vj);
+                    } else {
+                        prev = Some(i);
+                    }
                 }
             });
     }
@@ -920,9 +936,23 @@ pub(super) fn preview_face<S: RobustMeshableSurface>(surface: &S, loops: &[Vec<P
 // SolidCraft: the normal entry point supplies None, preserving adaptive meshing.
 fn trimming_with_steps<S: PreMeshableSurface>(surface: &S, polyboundary: &PolyBoundary, tol: Deflection, cap: usize, steps: Option<usize>) -> PolygonMesh {
     let mut triangulation = Cdt::new();
-    let scale = UvScale::of(surface, polyboundary);
-    polyboundary.insert_to(&mut triangulation, scale);
-    insert_surface(&mut triangulation, surface, polyboundary, tol, cap, steps, scale);
+    // Display meshes only (see `Deflection::display`).
+    let scale = if tol.display { UvScale::of(surface, polyboundary) } else { UvScale::IDENTITY };
+    let poly2tri = polyboundary.insert_points(&mut triangulation, scale);
+    if tol.display {
+        // Every point before any constraint, the usual order for a constrained Delaunay
+        // triangulation: a boundary segment is then split only where it really crosses another,
+        // and no grid point is inserted onto a split, whose computed crossing is inexact. Grid
+        // lines run through boundary points (`with_boundary_lines`), and inserting their points
+        // after the splits met triangles of no area and broke the triangulation's invariants.
+        let grid = insert_surface(&mut triangulation, surface, polyboundary, tol, cap, steps, scale);
+        polyboundary.add_constraints(&mut triangulation, &poly2tri, true);
+        add_grid_constraints(&mut triangulation, &grid);
+    } else {
+        polyboundary.add_constraints(&mut triangulation, &poly2tri, false);
+        let grid = insert_surface(&mut triangulation, surface, polyboundary, tol, cap, steps, scale);
+        add_grid_constraints(&mut triangulation, &grid);
+    }
     let mut mesh = triangulation_into_polymesh(
         triangulation.vertices(),
         triangulation.inner_faces(),
@@ -934,7 +964,7 @@ fn trimming_with_steps<S: PreMeshableSurface>(surface: &S, polyboundary: &PolyBo
     mesh
 }
 
-/// Inserts parameter divisions into triangulation.
+/// Inserts parameter divisions into triangulation; SolidCraft: returns their vertices, row by row, for [`add_grid_constraints`].
 fn insert_surface(
     triangulation: &mut Cdt,
     surface: impl PreMeshableSurface,
@@ -943,11 +973,11 @@ fn insert_surface(
     cap: usize,
     steps: Option<usize>,
     scale: UvScale,
-) {
+) -> Vec<Vec<Option<VertexId>>> {
     let bdb: BoundingBox<Point2> = polyline.0.iter().flatten().collect();
     let range = ((bdb.min()[0], bdb.max()[0]), (bdb.min()[1], bdb.max()[1]));
     if !(range.0 .0.is_finite() && range.0 .1.is_finite() && range.1 .0.is_finite() && range.1 .1.is_finite()) {
-        return;
+        return Vec::new();
     }
     // SolidCraft: fixed preview grids skip both adaptive division and balancing.
     let (udiv, vdiv) = if let Some(n) = steps {
@@ -957,14 +987,13 @@ fn insert_surface(
         let (u, v) = bounded_surface_division(&surface, range, tol, cap);
         let (u_ruled, v_ruled) = (u.len() <= 3, v.len() <= 3);
         let (u, v) = balanced_grid(&surface, u, v, cap);
-        let v = with_ruling_vertices(v, polyline, 1, tol.rulings && v_ruled, u.len(), cap);
-        let u = with_ruling_vertices(u, polyline, 0, tol.rulings && u_ruled, v.len(), cap);
-        let v = with_boundary_lines(v, polyline, 1, tol.rulings && v_ruled && !u_ruled, u.len(), cap);
-        let u = with_boundary_lines(u, polyline, 0, tol.rulings && u_ruled && !v_ruled, v.len(), cap);
+        let v = with_ruling_vertices(v, polyline, 1, tol.display && v_ruled, u.len(), cap);
+        let u = with_ruling_vertices(u, polyline, 0, tol.display && u_ruled, v.len(), cap);
+        let v = with_boundary_lines(v, polyline, 1, tol.display && v_ruled && !u_ruled, u.len(), cap);
+        let u = with_boundary_lines(u, polyline, 0, tol.display && u_ruled && !v_ruled, v.len(), cap);
         (u, v)
     };
-    let insert_res: Vec<Vec<Option<_>>> = udiv
-        .into_iter()
+    udiv.into_iter()
         .map(|u| {
             vdiv.iter()
                 .map(|v| match polyline.include(Point2::new(u, *v)) {
@@ -973,7 +1002,12 @@ fn insert_surface(
                 })
                 .collect()
         })
-        .collect();
+        .collect()
+}
+
+/// SolidCraft: joins neighbouring grid points [`insert_surface`] inserted, where no constraint
+/// is in the way (truck did this at the end of `insert_surface`).
+fn add_grid_constraints(triangulation: &mut Cdt, insert_res: &[Vec<Option<VertexId>>]) {
     insert_res.windows(2).for_each(|vec| {
         vec[0].windows(2).zip(&vec[1]).for_each(|(a, z)| {
             if let Some(x) = a[0] {
