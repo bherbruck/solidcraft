@@ -3,7 +3,7 @@
 //! drags, toolbar starts) the way a person would use it, with checks on the result.
 //!
 //! A scenario is a JSON list of steps:
-//! - `{"start": "solid.extrude"}`: a toolbar click; `{"key": "E", "shift"?, "cmd"?}`; `{"text": "20"}`
+//! - `{"start": "solid.extrude"}`: a toolbar click; `{"key": "E", "shift"?, "cmd"?, "ctrl"?, "alt"?, "pressed"?}`; `{"text": "20"}`
 //! - `{"widget": "Revolute", "near"?: "Type"}`: click a dialog field, choice or button by its
 //!   text (with `near`: the one in that label's row)
 //! - `{"click": AT, "double"?, "shift"?, "ctrl"?, "button"?}`, `{"move": AT, "shift"?, "alt"?, "ctrl"?, "cmd"?}`,
@@ -31,6 +31,7 @@
 //!   "close"}`: the app dies (or closes) and a new one starts on the same folders
 //! - `{"script": "examples/…/x.json"}`: run a command script through the engine; `"$DIR"` in a
 //!   `call` step's string parameters is the scenario's folder
+//! - `{"frames": 20}`: advance up to 600 frames at the harness clock (60 Hz)
 //! - `{"note": "…"}`: a comment; `{"pending": "why"}`: the scenario waits for a fix (its test
 //!   is ignored)
 //! - `{"expect": {…}}`: checks, see [`check`]; `{"until": {…}}` waits (frames) until they pass
@@ -365,7 +366,22 @@ impl Harness {
             if let Some(id) = s.get("start").and_then(Value::as_str) {
                 self.call("ui.start", json!({ "command": id }))
             } else if let Some(k) = s.get("key").and_then(Value::as_str) {
-                self.call("ui.key", json!({"key": k, "shift": flag("shift"), "cmd": flag("cmd")}))
+                {
+                    let mut params = json!({"key": k, "shift": flag("shift"), "cmd": flag("cmd"), "alt": flag("alt")});
+                    if let Some(ctrl) = s.get("ctrl") {
+                        params["ctrl"] = ctrl.clone();
+                    }
+                    if let Some(pressed) = s.get("pressed") {
+                        params["pressed"] = pressed.clone();
+                    }
+                    self.call("ui.key", params)
+                }
+            } else if let Some(n) = s.get("frames").and_then(Value::as_u64) {
+                if n > 600 {
+                    return Err("frames must be at most 600".into());
+                }
+                self.frames(n as usize);
+                return Ok(());
             } else if let Some(t) = s.get("text").and_then(Value::as_str) {
                 self.call("ui.text", json!({ "text": t }))
             } else if let Some(at) = s.get("click") {
@@ -1021,6 +1037,14 @@ pub fn check(h: &mut Harness, e: &Value) -> Result<(), String> {
                     && r["result"]["picked_components"].as_array().is_none_or(|a| a.is_empty());
                 if none == v.as_bool().unwrap_or(false) {
                     return Err(format!("browser selection: {}", r["result"]));
+                }
+            }
+            "shortcuts" => {
+                for (id, want) in v.as_object().ok_or("shortcuts takes a command-to-key object")? {
+                    let got = h.call("ui.shortcut", json!({"command": id}));
+                    if got["result"]["key"] != *want {
+                        return Err(format!("shortcut {id}: got {}, want {want}", got["result"]["key"]));
+                    }
                 }
             }
             "query" => {

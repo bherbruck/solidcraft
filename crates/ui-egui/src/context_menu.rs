@@ -138,7 +138,7 @@ fn cmd(app: &SolveApp, id: &str, label: &str) -> Item {
     let shortcut = match id {
         "edit.undo" => "Ctrl+Z".to_string(),
         "edit.redo" => "Ctrl+Y".to_string(),
-        _ => crate::keymap::effective(app, id).unwrap_or_default(),
+        _ => crate::keymap::display_for(app, id).unwrap_or_default(),
     };
     Item {
         id: id.into(),

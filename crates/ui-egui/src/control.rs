@@ -639,9 +639,26 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
         }
         "ui.key" => {
             let Some(key) = s("key").and_then(key_from) else { return err("unknown key") };
-            let modifiers = egui::Modifiers { shift: b("shift"), command: b("cmd"), ctrl: b("cmd") || b("ctrl"), ..Default::default() };
-            app.synthetic.push(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers });
-            app.synthetic.push(egui::Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers });
+            // Preserve the control channel's legacy primary-modifier alias. An explicit
+            // ctrl flag opts into physical Control/Command state (ctrl:false for Cmd alone).
+            let explicit_ctrl = p.get("ctrl").is_some();
+            let ctrl = if explicit_ctrl { b("ctrl") } else { b("cmd") };
+            let modifiers = egui::Modifiers { shift: b("shift"), alt: b("alt"), ctrl, command: b("cmd") || ctrl, mac_cmd: b("cmd") && explicit_ctrl };
+            let pressed = match p.get("pressed") {
+                None => None,
+                Some(Value::Bool(pressed)) => Some(*pressed),
+                Some(_) => return err("pressed must be a boolean"),
+            };
+            app.synthetic.push(egui::Event::ModifiersChanged(modifiers));
+            if pressed != Some(false) {
+                app.synthetic.push(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers });
+            }
+            if pressed != Some(true) {
+                app.synthetic.push(egui::Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers });
+            }
+            if pressed.is_none() {
+                app.synthetic.push(egui::Event::ModifiersChanged(egui::Modifiers::NONE));
+            }
             ok(Value::Null)
         }
         "ui.text" => {

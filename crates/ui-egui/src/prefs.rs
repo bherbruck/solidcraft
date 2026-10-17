@@ -953,6 +953,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
                 ui.set_width(PREFS_NAV_W);
                 for (i, s) in PAGES.iter().enumerate() {
                     if ui.selectable_label(app.prefs_window.section == i, app.tr_label(s)).clicked() {
+                        crate::keymap::stop_capture(app);
                         app.prefs_window.section = i;
                         app.keymap.read_only = false;
                     }

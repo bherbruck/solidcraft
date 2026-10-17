@@ -224,7 +224,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
                     );
                     let col = if enabled { t.text } else { t.text_dim };
                     ui.painter().text(pos2(r.left() + 30.0, r.center().y), Align2::LEFT_CENTER, *label, FontId::proportional(13.0), col);
-                    let key = crate::keymap::effective(app, id).unwrap_or_default();
+                    let key = crate::keymap::display_for(app, id).unwrap_or_default();
                     let right = if key.is_empty() { place.clone() } else { format!("{key}   {place}") };
                     ui.painter().text(pos2(r.right() - 26.0, r.center().y), Align2::RIGHT_CENTER, right, FontId::proportional(10.5), t.text_dim);
                     // The pin.
