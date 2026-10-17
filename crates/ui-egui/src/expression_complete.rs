@@ -2,7 +2,7 @@
 
 use egui::{Key, RichText};
 
-use crate::params_dialog::{suggestions, word_before};
+use crate::params_dialog::{suggestions_for, word_before};
 use crate::theme::Tokens;
 
 #[derive(Clone)]
@@ -15,6 +15,7 @@ struct Popup {
     count: usize,
     accept: bool,
     dismissed: bool,
+    explicit: bool,
 }
 
 fn popup_id() -> egui::Id {
@@ -25,6 +26,17 @@ fn popup_id() -> egui::Id {
 /// owns these keys. Raw events are removed too: several expression editors inspect raw Tab.
 pub(crate) fn begin_frame(ctx: &egui::Context) {
     let Some(mut popup) = ctx.data(|d| d.get_temp::<Popup>(popup_id())) else { return };
+    if ctx.memory(|m| m.has_focus(popup.editor))
+        && popup.frame.saturating_add(1) >= ctx.cumulative_frame_nr()
+        && ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, Key::Space))
+    {
+        ctx.input_mut(|i| {
+            i.raw.events.retain(|e| !matches!(e, egui::Event::Key { key: Key::Space, modifiers, .. } if modifiers.ctrl));
+        });
+        popup.explicit = true;
+        popup.dismissed = false;
+        ctx.data_mut(|d| d.insert_temp(popup_id(), popup.clone()));
+    }
     let escape_blurred = ctx.input(|i| i.key_pressed(Key::Escape)) && ctx.memory(|m| m.focused().is_none() && m.had_focus_last_frame(popup.editor));
     let focused = ctx.memory(|m| m.has_focus(popup.editor)) || escape_blurred;
     if popup.frame.saturating_add(1) < ctx.cumulative_frame_nr() || !focused || popup.dismissed || popup.count == 0 {
@@ -88,7 +100,6 @@ pub(crate) fn complete(ui: &mut egui::Ui, resp: &egui::Response, text: &mut Stri
     let state = egui::TextEdit::load_state(&ctx, resp.id);
     let cursor = state.as_ref().and_then(|s| s.cursor.char_range()).map(|r| r.primary.index.0).unwrap_or_else(|| text.chars().count());
     let (start, word) = word_before(text, cursor);
-    let list = suggestions(&ctx, &word);
     let previous = ctx.data(|d| d.get_temp::<Popup>(popup_id()));
     let mut popup = previous.filter(|p| p.editor == resp.id && p.word == word && p.cursor == cursor).unwrap_or(Popup {
         editor: resp.id,
@@ -96,10 +107,12 @@ pub(crate) fn complete(ui: &mut egui::Ui, resp: &egui::Response, text: &mut Stri
         word,
         cursor,
         selected: 0,
-        count: list.len(),
+        count: 0,
         accept: false,
         dismissed: false,
+        explicit: false,
     });
+    let list = suggestions_for(&ctx, &popup.word, popup.explicit);
     popup.frame = ctx.cumulative_frame_nr();
     popup.count = list.len();
     popup.selected = popup.selected.min(list.len().saturating_sub(1));
@@ -153,6 +166,7 @@ pub(crate) fn complete(ui: &mut egui::Ui, resp: &egui::Response, text: &mut Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::params_dialog::suggestions;
     use crate::{SolveApp, params_dialog};
     use serde_json::json;
 
@@ -306,6 +320,23 @@ mod tests {
         assert_eq!(e.text, "width");
         assert!(!e.accepted);
         assert!(e.leaked.contains(&Key::Enter));
+    }
+
+    #[test]
+    fn ctrl_space_opens_empty_expression_suggestions_and_reopens_dismissed_ones() {
+        for prefix in ["", "wi"] {
+            let mut e = Editor::new(prefix);
+            if !prefix.is_empty() {
+                e.key(Key::Escape);
+            }
+            e.frame(vec![egui::Event::Key { key: Key::Space, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::CTRL }]);
+            let popup = e.ctx.data(|d| d.get_temp::<Popup>(popup_id())).unwrap();
+            assert!(popup.explicit && !popup.dismissed && popup.count > 0);
+            assert_eq!(e.text, prefix, "Ctrl+Space does not add a space");
+            e.key(Key::Tab);
+            assert!(e.accepted);
+            assert!(!e.text.is_empty());
+        }
     }
 
     #[test]

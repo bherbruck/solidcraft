@@ -66,6 +66,11 @@ keeps the original text. Position and height use the document's units. The four 
 expressions: one that names a parameter (`plate_width / 2`) stays an expression, is shown as typed
 when the dialog is opened again, and keeps the text following the parameter.
 
+To work on the letters' shapes themselves, right-click the text and choose **Explode Text**
+(`sketch.break_link` with the text's `link`). Its outlines stay where they are as ordinary
+lines, arcs and curves that can be picked, trimmed, dimensioned and extruded one by one; the
+text itself is gone, so it can no longer be edited as text or follow parameters. Undo brings it back.
+
 A text can follow a curve of its sketch (its **Path**). That curve becomes construction: the
 letters stand on it and their descenders cross it, so as a normal curve it would cut them into
 pieces, and picking the text would pick those pieces. Taking the text off the curve leaves it

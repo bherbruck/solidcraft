@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Appearance</title>
+  <path d="M32 6C32 6 12 28 12 42A20 20 0 0 0 52 42C52 28 32 6 32 6Z" fill="#328bd3"/>
+  <path d="M32 6C32 6 12 28 12 42A20 20 0 0 0 52 42C52 28 32 6 32 6Z" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M21 42A11 11 0 0 0 28 52" fill="none" stroke="#b9ddf8" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

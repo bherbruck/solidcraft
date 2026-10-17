@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Construction</title>
+  <path d="M13 51L19 45M25 39L31 33M37 27L43 21M49 15L51 13" fill="none" stroke="#6f879c" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10 54L12 52" fill="none" stroke="#6f879c" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="12" cy="52" r="3.07" fill="#6f879c"/>
+  <circle cx="52" cy="12" r="3.07" fill="#6f879c"/>
+</svg>

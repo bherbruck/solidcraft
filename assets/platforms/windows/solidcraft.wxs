@@ -34,7 +34,7 @@
     <!-- Advertised shortcuts to an .exe need an .exe icon identifier (ICE50). -->
     <Icon Id="SolidcraftIcon.exe" SourceFile="$(var.IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="SolidcraftIcon.exe" />
-    <Property Id="ARPURLINFOABOUT" Value="https://bherbruck.github.io/solidcraft/" />
+    <Property Id="ARPURLINFOABOUT" Value="https://docs.solidcraft.io/" />
     <Property Id="ARPURLUPDATEINFO" Value="https://github.com/bherbruck/solidcraft/releases" />
     <Property Id="ARPHELPLINK" Value="https://github.com/bherbruck/solidcraft/issues" />
 

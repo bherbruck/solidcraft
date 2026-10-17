@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Rectangular pattern</title>
+  <circle cx="10" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="14" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="18" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="22" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="26" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="30" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="34" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="38" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="42" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="46" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="50" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="54" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="10" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="14" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="18" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="22" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="26" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="30" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="34" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="38" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="42" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="46" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="50" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="54" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="10" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="10" cy="23.6" r="1.7" fill="#6f879c"/>
+  <circle cx="10" cy="29.2" r="1.7" fill="#6f879c"/>
+  <circle cx="10" cy="34.8" r="1.7" fill="#6f879c"/>
+  <circle cx="10" cy="40.4" r="1.7" fill="#6f879c"/>
+  <circle cx="10" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="32" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="32" cy="23.6" r="1.7" fill="#6f879c"/>
+  <circle cx="32" cy="29.2" r="1.7" fill="#6f879c"/>
+  <circle cx="32" cy="34.8" r="1.7" fill="#6f879c"/>
+  <circle cx="32" cy="40.4" r="1.7" fill="#6f879c"/>
+  <circle cx="32" cy="46" r="1.7" fill="#6f879c"/>
+  <circle cx="54" cy="18" r="1.7" fill="#6f879c"/>
+  <circle cx="54" cy="23.6" r="1.7" fill="#6f879c"/>
+  <circle cx="54" cy="29.2" r="1.7" fill="#6f879c"/>
+  <circle cx="54" cy="34.8" r="1.7" fill="#6f879c"/>
+  <circle cx="54" cy="40.4" r="1.7" fill="#6f879c"/>
+  <circle cx="54" cy="46" r="1.7" fill="#6f879c"/>
+  <path d="M4.5 12.5L15.5 12.5L15.5 23.5L4.5 23.5Z" fill="#e2e8ef" stroke="#8e9faf" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.5 12.5L37.5 12.5L37.5 23.5L26.5 23.5Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M48.5 12.5L59.5 12.5L59.5 23.5L48.5 23.5Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M4.5 40.5L15.5 40.5L15.5 51.5L4.5 51.5Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.5 40.5L37.5 40.5L37.5 51.5L26.5 51.5Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M48.5 40.5L59.5 40.5L59.5 51.5L48.5 51.5Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

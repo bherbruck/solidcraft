@@ -18,9 +18,9 @@ pub static COMMANDS: &[CommandSpec] = &[
         .icon("decal")
         .params("path | data; face: [x,y,z] on a planar face (the image is centred there); width?: mm; angle?: deg; opacity?: (default 1)"),
     CommandSpec::new("canvas.edit", "Edit Canvas", edit_canvas).at("SKETCH", "INSERT").icon("canvas").params("canvas: id or name; center?, width?, angle?: deg, opacity?, flip?, visible?, name?"),
-    CommandSpec::new("canvas.calibrate", "Calibrate Canvas", calibrate)
+    CommandSpec::new("canvas.calibrate", "Calibrate Canvas", calibrate).icon("measure")
         .params("canvas: id or name; a, b: two points on the canvas plane [x,y]; distance: their true distance (mm): scales the image about a"),
-    CommandSpec::new("canvas.delete", "Delete Canvas", delete_canvas).params("canvas: id or name"),
+    CommandSpec::new("canvas.delete", "Delete Canvas", delete_canvas).icon("delete").params("canvas: id or name"),
 ];
 
 fn image_bytes(p: &Value, cmd: &str) -> Result<Vec<u8>> {

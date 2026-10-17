@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Motion trace</title>
+  <path d="M28.58 34.92C10.58 34.92 11.58 7.92 32.58 7.92C54.58 7.92 57.58 33.92 40.58 36.92" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8.58 47.92L28.58 27.92Q31.58 24.92 34.58 27.92Q37.58 30.92 34.58 33.92L14.58 53.92Q11.58 56.92 8.58 53.92Q5.58 50.92 8.58 47.92Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="11.58" cy="50.92" r="3.4" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="31.58" cy="30.92" r="5.4" fill="#ffffff"/>
+  <circle cx="31.58" cy="30.92" r="3.4" fill="#236ead"/>
+</svg>

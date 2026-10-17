@@ -21,69 +21,69 @@ const REF: &str =
 pub static COMMANDS: &[CommandSpec] = &[
     CommandSpec::new("construct.axis.through_cylinder", "Axis Through Cylinder/Cone/Torus", axis_face)
         .at("SOLID", "CONSTRUCT")
-        .icon("axis")
+        .icon("axis_through_cylinder")
         .params("face: ref (a cylinder, cone or torus face, or a circular edge); name?"),
     CommandSpec::new("construct.axis.normal_to_face", "Axis Perpendicular To Face", axis_normal)
         .at("SOLID", "CONSTRUCT")
-        .icon("axis")
+        .icon("axis_normal_to_face")
         .params("face: ref; point: ref (the axis goes through it, square to the face); name?"),
     CommandSpec::new("construct.axis.two_planes", "Axis Through Two Planes", axis_planes)
         .at("SOLID", "CONSTRUCT")
-        .icon("axis")
+        .icon("axis_two_planes")
         .params("a, b: plane or planar face refs; name?"),
     CommandSpec::new("construct.axis.two_points", "Axis Through Two Points", axis_points)
         .at("SOLID", "CONSTRUCT")
-        .icon("axis")
+        .icon("axis_two_points")
         .params("a, b: point refs (vertices, sketch points, points); name?"),
     CommandSpec::new("construct.axis.edge", "Axis Through Edge", axis_edge)
         .at("SOLID", "CONSTRUCT")
-        .icon("axis")
+        .icon("axis_edge")
         .params("edge: ref (a straight edge or sketch line); name?"),
     CommandSpec::new("construct.point.vertex", "Point At Vertex", point_at)
         .at("SOLID", "CONSTRUCT")
-        .icon("point")
+        .icon("point_vertex")
         .params("point: ref (vertex, sketch point, point); name?"),
     CommandSpec::new("construct.point.two_edges", "Point Through Two Edges", point_edges)
         .at("SOLID", "CONSTRUCT")
-        .icon("point")
+        .icon("point_two_edges")
         .params("a, b: edge or line refs (where they meet, or come closest); name?"),
     CommandSpec::new("construct.point.three_planes", "Point Through Three Planes", point_planes)
         .at("SOLID", "CONSTRUCT")
-        .icon("point")
+        .icon("point_three_planes")
         .params("a, b, c: plane or planar face refs; name?"),
     CommandSpec::new("construct.point.center", "Point At Center Of Circle/Sphere/Torus", point_center)
         .at("SOLID", "CONSTRUCT")
-        .icon("point")
+        .icon("point_center")
         .params("of: ref (circular edge, sketch circle or arc, sphere or torus face); name?"),
     CommandSpec::new("construct.point.edge_plane", "Point At Edge And Plane", point_edge_plane)
         .at("SOLID", "CONSTRUCT")
-        .icon("point")
+        .icon("point_edge_plane")
         .params("edge: edge or line ref; plane: plane or planar face ref; name?"),
     CommandSpec::new("construct.point.along_path", "Point Along Path", point_along)
         .at("SOLID", "CONSTRUCT")
-        .icon("point")
+        .icon("point_along_path")
         .params("path: edge or sketch curve ref; t: expr, 0…1 along it (default 0.5); name?"),
     CommandSpec::new("construct.plane.midplane", "Midplane", plane_mid)
         .at("SOLID", "CONSTRUCT")
-        .icon("plane")
+        .icon("plane_midplane")
         .params("a, b: plane or planar face refs (halfway between; bisecting when they meet at an angle); name?"),
     CommandSpec::new("construct.plane.two_edges", "Plane Through Two Edges", plane_edges)
         .at("SOLID", "CONSTRUCT")
-        .icon("plane")
+        .icon("plane_two_edges")
         .params("a, b: straight edge or line refs in one plane; name?"),
     CommandSpec::new("construct.plane.three_points", "Plane Through Three Points", plane_points)
         .at("SOLID", "CONSTRUCT")
-        .icon("plane")
+        .icon("plane_three_points")
         .params("a, b, c: point refs; name?"),
     CommandSpec::new("construct.plane.tangent", "Tangent Plane", plane_tangent)
         .at("SOLID", "CONSTRUCT")
-        .icon("plane")
+        .icon("plane_tangent")
         .params("face: ref (cylinder, cone, sphere or torus); at?: [x,y,z] where it touches (default: the face pick); name?"),
     CommandSpec::new("construct.plane.along_path", "Plane Along Path", plane_along)
         .at("SOLID", "CONSTRUCT")
-        .icon("plane")
+        .icon("plane_along_path")
         .params("path: edge or sketch curve ref; t: expr, 0…1 along it (default 0.5); name? The plane is square to the path there"),
-    CommandSpec::new("construct.plane.perpendicular", "Perpendicular Plane", plane_perpendicular).at("SOLID", "CONSTRUCT").icon("plane").params(
+    CommandSpec::new("construct.plane.perpendicular", "Perpendicular Plane", plane_perpendicular).at("SOLID", "CONSTRUCT").icon("plane_perpendicular").params(
         "plane: plane or planar face ref; line: straight edge, sketch line or axis ref; name? The plane holds the line and is square to the plane",
     ),
 ];

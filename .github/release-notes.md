@@ -1,9 +1,9 @@
 SolidCraft is open-source parametric 3D CAD in Rust: sketch, constrain, extrude, and change a
-parameter to watch the timeline rebuild. [Documentation](https://bherbruck.github.io/solidcraft/)
-· [try it in the browser](https://bherbruck.github.io/solidcraft/app/) ·
+parameter to watch the timeline rebuild. [Documentation](https://docs.solidcraft.io/)
+· [try it in the browser](https://solidcraft.io/app) ·
 [contributing](https://github.com/bherbruck/solidcraft/blob/main/CONTRIBUTING.md) ·
 [issues](https://github.com/bherbruck/solidcraft/issues). AI agents can model with it over MCP:
-`solidcraft-cli mcp` ([how](https://bherbruck.github.io/solidcraft/guide/mcp.html)).
+`solidcraft-cli mcp` ([how](https://docs.solidcraft.io/guide/mcp.html)).
 
 **What's new** in SolidCraft {version} is listed below, and the
 [ROADMAP](https://github.com/bherbruck/solidcraft/blob/main/ROADMAP.md#known-limitations) lists
@@ -41,16 +41,20 @@ installing SolidCraft; keep both remotes in the same user installation:
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak remote-add --user --if-not-exists solidcraft https://bherbruck.github.io/solidcraft/flatpak/solidcraft.flatpakrepo
+flatpak remote-add --user --if-not-exists solidcraft https://docs.solidcraft.io/flatpak/solidcraft.flatpakrepo
 flatpak install --user solidcraft ai.storyteller.solidcraft
 flatpak run ai.storyteller.solidcraft
 ```
+
+A remote added from the old `bherbruck.github.io` address no longer finds updates: run
+`flatpak remote-modify --user --url=https://docs.solidcraft.io/flatpak/repo/ solidcraft`, then
+`flatpak update --user`.
 
 Flatpak installs from 0.7 or earlier use the old ID `ai.storyteller.solvecraft`: `flatpak update --user`
 offers to replace it with `ai.storyteller.solidcraft`, and settings move along.
 
 Single-file `.flatpak` bundles include the runtime repository address; missing runtimes
-still need an internet connection. [Linux installation details](https://bherbruck.github.io/solidcraft/guide/getting-started.html#linux-flatpak).
+still need an internet connection. [Linux installation details](https://docs.solidcraft.io/guide/getting-started.html#linux-flatpak).
 
 The builds aren't signed yet. On macOS, right-click `SolidCraft.app` in Applications and choose
 **Open** the first time (or run `xattr -dr com.apple.quarantine /Applications/SolidCraft.app`).

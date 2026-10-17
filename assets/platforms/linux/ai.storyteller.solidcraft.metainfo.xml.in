@@ -26,9 +26,9 @@
   </description>
   <launchable type="desktop-id">ai.storyteller.solidcraft.desktop</launchable>
   <icon type="stock">ai.storyteller.solidcraft</icon>
-  <url type="homepage">https://bherbruck.github.io/solidcraft/</url>
+  <url type="homepage">https://docs.solidcraft.io/</url>
   <url type="bugtracker">https://github.com/bherbruck/solidcraft/issues</url>
-  <url type="help">https://bherbruck.github.io/solidcraft/</url>
+  <url type="help">https://docs.solidcraft.io/</url>
   <categories>
     <category>Graphics</category>
     <category>3DGraphics</category>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Ruled surface</title>
+  <path d="M31.22 19.85L42.13 26.15L42.13 38.75L31.22 32.45Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M16.41 5L47.59 23L42.13 26.15L31.22 19.85Z" fill="#236ead"/>
+  <path d="M47.59 23L47.59 59L42.13 38.75L42.13 26.15Z" fill="#328bd3"/>
+  <path d="M47.59 59L16.41 41L31.22 32.45L42.13 38.75Z" fill="#b9ddf8"/>
+  <path d="M16.41 41L16.41 5L31.22 19.85L31.22 32.45Z" fill="#328bd3"/>
+  <path d="M16.41 5L47.59 23L47.59 59L16.41 41Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M31.22 19.85L42.13 26.15L42.13 38.75L31.22 32.45Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M16.41 5L31.22 19.85" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M47.59 23L42.13 26.15" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M47.59 59L42.13 38.75" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M16.41 41L31.22 32.45" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

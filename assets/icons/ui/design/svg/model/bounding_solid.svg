@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Bounding solid</title>
+  <path d="M32 32L54.08 44.75L54.08 19.25" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 4"/>
+  <path d="M32 32L9.92 44.75" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 4"/>
+  <path d="M32 32L32 6.5" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 4"/>
+  <path d="M20 28.36L20 42.36A12 6.9 0 0 0 44 42.36L44 28.36Z" fill="#b8c3cf"/>
+  <path d="M36.2 28.36L36.2 48.82A12 6.9 0 0 0 44 42.36L44 28.36Z" fill="#8e9faf"/>
+  <path d="M20 28.36L20 42.36A12 6.9 0 0 0 44 42.36L44 28.36Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20 28.36A12 6.9 0 1 0 44 28.36A12 6.9 0 1 0 20 28.36Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 6.5L54.08 19.25L54.08 44.75L32 57.5L9.92 44.75L9.92 19.25Z" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M9.92 19.25L32 32L54.08 19.25" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 32L32 57.5" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

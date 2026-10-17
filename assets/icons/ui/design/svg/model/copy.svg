@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Copy</title>
+  <path d="M13.5 8L35.5 8A4.5 4.5 0 0 1 40 12.5L40 41.5A4.5 4.5 0 0 1 35.5 46L13.5 46A4.5 4.5 0 0 1 9 41.5L9 12.5A4.5 4.5 0 0 1 13.5 8Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.5 19L50.5 19A4.5 4.5 0 0 1 55 23.5L55 51.5A4.5 4.5 0 0 1 50.5 56L26.5 56A4.5 4.5 0 0 1 22 51.5L22 23.5A4.5 4.5 0 0 1 26.5 19Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M30 33L47 33M30 43L42 43" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

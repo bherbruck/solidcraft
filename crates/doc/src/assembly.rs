@@ -244,6 +244,21 @@ impl Document {
         m
     }
 
+    /// World transform of one placement of `component`: the occurrence `path` from the root
+    /// (empty for the root itself). `None` when the path no longer leads to that component.
+    pub fn path_transform(&self, component: u64, path: &[u64]) -> Option<Mat> {
+        if path.len() > MAX_PLACEMENT_DEPTH + 1 {
+            return None;
+        }
+        let (mut m, mut c) = (IDENTITY, 0);
+        for id in path {
+            let o = self.occurrences.iter().find(|o| o.id == *id && o.parent == c)?;
+            m = mat_mul(&m, &o.transform);
+            c = o.component;
+        }
+        (c == component).then_some(m)
+    }
+
     /// Every placement of each component: (component, occurrence path ids, world transform).
     /// A branch stops past [`MAX_PLACEMENT_DEPTH`] levels, the walk past [`MAX_PLACEMENTS`] placements.
     pub fn placements(&self) -> Vec<(u64, Vec<u64>, Mat)> {

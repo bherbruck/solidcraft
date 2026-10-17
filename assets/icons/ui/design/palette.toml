@@ -1,0 +1,172 @@
+# Icon colour roles. Artwork in svg/ uses the stable source hex values below (or `currentColor`
+# for the `line` role); the generator maps each identifier to its role and the app resolves the role to the
+# value for the active theme. `source` is the stable SVG identifier; edit only light/dark
+# display values or accent ramps to recolour finished artwork without modifying SVGs.
+# Dark theme: outlines become light and passive faces keep their shading order.
+# Accent entries match the corresponding blue entry's OKLab lightness in both themes.
+# Non-blue dotted/dashed references use roles.guide, without workspace overrides.
+# Active blue source strokes retain their semantic accent, including dashed results.
+
+[roles.ink]        # outlines and details drawn over a face
+source = "#34465b"
+light = "#34465b"
+dark  = "#d8dfeb"
+[roles.line]       # line art that sits directly on the UI background (SVG: currentColor)
+source = "#34465b"
+light = "#34465b"
+dark  = "#dbe4ee"
+[roles.passive-1]  # passive geometry, lightest face
+source = "#e2e8ef"
+light = "#e2e8ef"
+dark  = "#8da3c3"
+[roles.passive-2]
+source = "#b8c3cf"
+light = "#b8c3cf"
+dark  = "#6d81a2"
+[roles.passive-3]  # darkest passive face
+source = "#8e9faf"
+light = "#8e9faf"
+dark  = "#546782"
+[roles.gap]        # erases earlier artwork to transparency; light/dark retained for legacy schema only
+source = "#ffffff"
+light = "#ffffff"
+dark  = "#1e2530"
+[roles.guide]      # construction and guide dots
+source = "#6f879c"
+light = "#6f879c"
+dark  = "#8093a4"
+[roles.active-1]   # changed or result geometry, palest face
+source = "#b9ddf8"
+light = "#b9ddf8"
+dark  = "#4ea1dc"
+[roles.active-2]
+source = "#328bd3"
+light = "#328bd3"
+dark  = "#3287d1"
+[roles.active-3]   # strongest blue: strokes and accents
+source = "#236ead"
+light = "#236ead"
+dark  = "#2976b8"
+
+[strokes]          # on the 64 grid
+geometry = 2.55
+action = 4.25
+navigation = 5.6
+parameters = 4.2
+
+# Accent colours. An accent replaces the roles it lists (normally the three `active-*` blues), so
+# an icon keeps its drawing and only changes colour: "extrude" in the Solid accent and
+# "surface_extrude" (see aliases.toml) are the same artwork in orange. Roles an accent does not
+# list keep their base value. Edit hex values here; nothing else needs to change.
+# Shared accent definitions: Solid uses the base palette; Surface uses orange,
+# Form purple, Mesh yellow, Sketch green, constraints red and Sketch construction orange.
+# This is the single colour authority for SVGs, semantic UI tokens and the review page.
+# Active-3 is the primary stroke; active-1/2 preserve face shading. SVG source hexes
+# above are stable role identifiers: change these accent ramps, not accepted artwork.
+
+[accents.surface.active-1]
+light = "#f1d2af"
+dark  = "#ba8f6a"
+[accents.surface.active-2]
+light = "#c06f00"
+dark  = "#b86f04"
+[accents.surface.active-3]
+light = "#a45000"
+dark  = "#95682d"
+
+[accents.form.active-1]
+light = "#decff8"
+dark  = "#9c8dd2"
+[accents.form.active-2]
+light = "#9567e2"
+dark  = "#9066db"
+[accents.form.active-3]
+light = "#7349cd"
+dark  = "#7b63a6"
+
+[accents.mesh.active-1]
+light = "#e5d99b"
+dark  = "#a9985f"
+[accents.mesh.active-2]
+light = "#a28200"
+dark  = "#9a8100"
+[accents.mesh.active-3]
+light = "#826700"
+dark  = "#857100"
+
+[accents.sketch.active-1]
+light = "#bfe2cc"
+dark  = "#81a28e"
+[accents.sketch.active-2]
+light = "#439a65"
+dark  = "#459665"
+[accents.sketch.active-3]
+light = "#057f45"
+dark  = "#27864e"
+
+[accents.constraint.active-1]
+light = "#f0cfca"
+dark  = "#b98c88"
+[accents.constraint.active-2]
+light = "#c1685f"
+dark  = "#b66b61"
+[accents.constraint.active-3]
+light = "#af4038"
+dark  = "#a05c54"
+
+[accents.construction.active-1]
+light = "#ecd3b6"
+dark  = "#b19373"
+[accents.construction.active-2]
+light = "#b8741f"
+dark  = "#b4711c"
+[accents.construction.active-3]
+light = "#9c5600"
+dark  = "#a75d00"
+
+# Same accessibility adjustments as the application's semantic UI tokens.
+# Protan/Deutan share red-green; Tritan uses blue-yellow. Unlisted roles keep their ramp.
+[variants.red-green.sketch.active-3]
+light = "#1d7d52"
+dark  = "#1d7f89"
+# A brighter orange keeps construction distinct from constraint red under both
+# red-green loss simulations; the approved normal-vision ramp stays unchanged.
+[variants.red-green.construction.active-3]
+light = "#b97300"
+dark  = "#a75d00"
+[variants.blue-yellow.construction.active-3]
+light = "#b97300"
+dark  = "#c37d00"
+[variants.blue-yellow.constraint.active-3]
+light = "#af4038"
+dark  = "#986255"
+
+# Default accent by requested icon id. Explicit alias accents in aliases.toml win.
+# Deliberately not inherited from a master: ground reuses c_fix but is not a constraint.
+# Construct/Inspect and shared file/edit utilities retain the base blue in every workspace.
+[icon-accents]
+surface = [
+  "boundary", "blend_surface", "offset_surface", "patch", "reverse_normal",
+  "ruled", "stitch", "thicken", "unstitch", "untrim",
+]
+sketch = [
+  "arc3", "arc_center", "arc_slot", "arc_slot_center", "arc_tangent",
+  "blend", "circle", "circle2", "circle3", "circle_tt",
+  "circle_ttt", "conic", "constrainer", "dimension", "ellipse",
+  "extend", "finish", "fit_section", "include", "infinite",
+  "intersect", "intersection_curve", "iso_curve", "line", "line_mid",
+  "offset", "point", "polygon", "polygon_circumscribed", "polygon_edge",
+  "project", "project_surface", "rect", "rect3", "rect_center",
+  "rect_rounded", "sketch", "sketch_chamfer", "sketch_chamfer_angle", "sketch_chamfer_two_distances",
+  "sketch_fillet", "sketch_mirror", "slot", "slot_center", "slot_overall",
+  "snap", "spline", "spline_cv", "spun", "svg",
+  "trim",
+]
+constraint = [
+  "auto_constrain", "c_coincident", "c_collinear", "c_concentric", "c_equal",
+  "c_fix", "c_hv", "c_midpoint", "c_parallel", "c_perpendicular",
+  "c_polygon", "c_smooth", "c_symmetry", "c_tangent",
+]
+construction = [
+  "centerline", "construction",
+]

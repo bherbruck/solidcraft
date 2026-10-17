@@ -1252,6 +1252,15 @@ fn exact_again(out: Section, sources: &[Seg2], tol: f64) -> Section {
         let mut loop_tags = Vec::new();
         for (l, lp) in std::iter::once(&reg.outer).chain(&reg.holes).enumerate() {
             let (segs, ts) = exact_loop(lp, tags.get(l).map(Vec::as_slice).unwrap_or(&[]), sources, near);
+            // A sliver the arrangement found where a curve's arcs nearly touch another part of
+            // the outline (at the waist of a 3) closes up to nothing on the exact curves: it
+            // encloses nothing and would make edges with no length, so it is left out.
+            if segs.iter().map(Seg2::length).sum::<f64>() <= near {
+                if l == 0 {
+                    break;
+                }
+                continue;
+            }
             loops.push(Loop2 { segs });
             loop_tags.push(ts);
         }

@@ -21,7 +21,7 @@ pub static COMMANDS: &[CommandSpec] = &[
     CommandSpec::new("material.edit", "Edit Physical Material", edit).icon("material").enabled(has_user_materials).params(
         "material: a material defined in this design; name? (bodies and configuration cells follow); density_g_cm3?; appearance? | color?, opacity?, pbr? (as material.create; color: null clears the look). Omitted appearance/color retains the entire current look",
     ),
-    CommandSpec::new("material.delete", "Delete Physical Material", delete).enabled(has_user_materials).params(
+    CommandSpec::new("material.delete", "Delete Physical Material", delete).icon("delete").enabled(has_user_materials).params(
         "material: a material defined in this design; replace?: material for the bodies and configuration cells that use it (without it, a material in use is refused)",
     ),
 ];

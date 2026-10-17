@@ -34,10 +34,15 @@ impl SolveApp {
     }
 
     pub(crate) fn pick_open(&mut self, complete: impl FnOnce(&mut SolveApp, Option<String>) + 'static) {
+        self.pick_open_for(&[], complete);
+    }
+
+    /// Open a file of this type: the picker offers these extensions first (#1801).
+    pub(crate) fn pick_open_for(&mut self, extensions: &[&str], complete: impl FnOnce(&mut SolveApp, Option<String>) + 'static) {
         if self.file_picker_busy() {
             return;
         }
-        let future = self.services.pick_open.as_ref().map(|pick| pick());
+        let future = self.services.pick_open.as_ref().map(|pick| pick(extensions));
         self.begin_picker(future, Box::new(complete));
     }
 
@@ -66,9 +71,9 @@ impl SolveApp {
         self.file_picker = Some(Pending { future, complete });
     }
 
-    pub(crate) fn pick_open_command(&mut self, command: &str, params: Value) {
+    pub(crate) fn pick_open_command(&mut self, command: &str, params: Value, extensions: &[&str]) {
         let command = command.to_string();
-        self.pick_open(move |app, path| {
+        self.pick_open_for(extensions, move |app, path| {
             if let Some(path) = path {
                 let mut params = params;
                 params["path"] = json!(path);
@@ -144,7 +149,7 @@ mod tests {
         if save {
             app.services.pick_save = Some(Box::new(move |_, _| Box::pin(Delayed(captured.clone()))));
         } else {
-            app.services.pick_open = Some(Box::new(move || Box::pin(Delayed(captured.clone()))));
+            app.services.pick_open = Some(Box::new(move |_| Box::pin(Delayed(captured.clone()))));
         }
         answer
     }
@@ -273,6 +278,25 @@ mod tests {
             assert_eq!(h.app.quit_requested, i == 1);
         }
         assert!(!crate::documents::any_dirty(&h.app));
+    }
+
+    /// #1801: Insert SVG and Insert DXF ask the host for their own file type first; other
+    /// opens keep the default list.
+    #[test]
+    fn sketch_inserts_ask_for_their_file_type() {
+        let mut h = crate::scenario::Harness::new();
+        let asked: Rc<RefCell<Vec<Vec<String>>>> = Rc::default();
+        let log = asked.clone();
+        h.app.services.pick_open = Some(Box::new(move |extensions| {
+            log.borrow_mut().push(extensions.iter().map(|e| e.to_string()).collect());
+            Box::pin(std::future::ready(None))
+        }));
+        h.app.run("sketch.create", json!({"plane": "XY"})).unwrap();
+        for (command, want) in [("sketch.insert_svg", vec!["svg"]), ("sketch.insert_dxf", vec!["dxf"]), ("file.insert_step", vec![])] {
+            h.app.start(command);
+            tick(&mut h.app, &h.ctx);
+            assert_eq!(asked.borrow().last().cloned(), Some(want.iter().map(|e| e.to_string()).collect::<Vec<_>>()), "{command}");
+        }
     }
 
     #[test]

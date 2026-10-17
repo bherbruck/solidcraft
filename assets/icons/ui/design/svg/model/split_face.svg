@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Split face</title>
+  <path d="M38.69 17.83L56.54 28.13L47.62 33.28L29.77 22.98Z" fill="#e2e8ef"/>
+  <path d="M38.69 17.83L56.54 28.13L47.62 33.28L29.77 22.98Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.85 38.44L43.15 51.32L43.15 25.56L20.85 12.68Z" fill="#b9ddf8"/>
+  <path d="M20.85 38.44L43.15 51.32L43.15 25.56L20.85 12.68Z" fill="none" stroke="#236ead" stroke-width="3.19" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M16.38 30.71L34.23 41.01L25.31 46.16L7.46 35.86Z" fill="#e2e8ef"/>
+  <path d="M16.38 30.71L34.23 41.01L25.31 46.16L7.46 35.86Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

@@ -13,27 +13,27 @@ use crate::{Result, Session};
 mod jobs;
 
 pub static COMMANDS: &[CommandSpec] = &[
-CommandSpec::new("render.preflight", "Check Render Request", jobs::preflight).noundo().doc_only()
+CommandSpec::new("render.preflight", "Check Render Request", jobs::preflight).icon("inspect").noundo().doc_only()
     .params("setup?: saved name OR settings?: full RenderSetup; transparent_background?: false; replace?: false. Validates the installed image host and bounded captured product scene without starting work. Stale geometry is rejected. See docs/render-jobs.md"),
-CommandSpec::new("render.start", "Render Image", jobs::start).noundo().doc_only().at("RENDER", "IMAGE").icon("box")
+CommandSpec::new("render.start", "Render Image", jobs::start).noundo().doc_only().at("RENDER", "IMAGE").icon("render_image")
     .params("Same request as render.preflight. Captures an immutable product scene and queues a bounded image job. Returns its session-scoped job identity, captured scene_generation and progress. Does not change the design. See docs/render-jobs.md"),
-CommandSpec::new("render.status", "Render Progress", jobs::status).noundo().doc_only()
+CommandSpec::new("render.status", "Render Progress", jobs::status).icon("list").noundo().doc_only()
     .params("job: {session, serial, generation}. Non-blocking progress, error and completed frame metadata; no image bytes and no rendering in this call."),
-CommandSpec::new("render.cancel", "Cancel Render", jobs::cancel).noundo().doc_only()
+CommandSpec::new("render.cancel", "Cancel Render", jobs::cancel).icon("delete").noundo().doc_only()
     .params("job: {session, serial, generation}. Requests cooperative cancellation; completed jobs remain completed. Late cancelled frames cannot be published."),
-CommandSpec::new("render.export", "Export Render Image", jobs::export).noundo().doc_only()
+CommandSpec::new("render.export", "Export Render Image", jobs::export).icon("export").noundo().doc_only()
     .params("job: {session, serial, generation}, path: PNG destination, overwrite?: false. Exports a retained completed image atomically; an existing destination is preserved on failure. See docs/render-jobs.md"),
-CommandSpec::new("render.backends", "Render Backends", backends)
+CommandSpec::new("render.backends", "Render Backends", backends).icon("list")
     .noundo()
     .doc_only()
     .params("No parameters. Returns {schema_version: 1, default_backend: builtin, backends: [{id, label, availability, executors: [{id, availability, profiles, limits, scratch}]}]}. Metadata only; does not start rendering or probe a GPU. See docs/render-backends.md"),
-CommandSpec::new("render.settings.get", "Render Settings", get_settings).noundo().doc_only()
+CommandSpec::new("render.settings.get", "Render Settings", get_settings).icon("settings").noundo().doc_only()
     .params("name?: saved setup. Without name returns {setups, defaults}; with name returns {name, setup}. Does not evaluate the model or apply a camera. See docs/render-settings.md"),
-CommandSpec::new("render.settings.set", "Save Render Settings", set_settings).doc_only()
+CommandSpec::new("render.settings.set", "Save Render Settings", set_settings).icon("settings").doc_only()
     .params("name: setup name, set: object of fields to replace (backend, mode, camera, width, height, format, exposure_ev, environment_rotation, environment_intensity, background). Creates from defaults, validates atomically, one undo step; identical edits are no-ops. See docs/render-settings.md"),
-CommandSpec::new("render.scene", "Inspect Render Scene", scene).noundo().at("RENDER", "SCENE").icon("box")
+CommandSpec::new("render.scene", "Inspect Render Scene", scene).noundo().at("RENDER", "SCENE").icon("render_scene")
     .params("No parameters. Authoritative product-scene metadata, without modelling overlays or mesh payloads. Explicitly settles stale geometry; does not render an image. See docs/render-workspace.md"),
-CommandSpec::new("render.settings.apply", "Apply Render Camera", apply_settings).noundo().doc_only()
+CommandSpec::new("render.settings.apply", "Apply Render Camera", apply_settings).icon("camera").noundo().doc_only()
     .params("name: saved setup. Applies its existing Camera snapshot including roll/up as view state, without modifying the document or starting a render."),
 ];
 

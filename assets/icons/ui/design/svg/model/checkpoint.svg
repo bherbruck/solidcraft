@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Checkpoint</title>
+  <path d="M13.5 8.5L15.5 8.5A2 2 0 0 1 17.5 10.5L17.5 53.5A2 2 0 0 1 15.5 55.5L13.5 55.5A2 2 0 0 1 11.5 53.5L11.5 10.5A2 2 0 0 1 13.5 8.5Z" fill="#8e9faf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M17.5 11.5L52.5 11.5L45.5 23.5L52.5 35.5L17.5 35.5Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M18.8 24.5L44.6 24.5L50.3 34.2L18.8 34.2Z" fill="#236ead"/>
+  <path d="M17.5 11.5L52.5 11.5L45.5 23.5L52.5 35.5L17.5 35.5Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

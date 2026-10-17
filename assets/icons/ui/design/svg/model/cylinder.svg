@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Cylinder</title>
+  <path d="M12 15L12 49A20 11.55 0 0 0 52 49L52 15Z" fill="#328bd3"/>
+  <path d="M39 15L39 59.82A20 11.55 0 0 0 52 49L52 15Z" fill="#236ead"/>
+  <path d="M12 15L12 49A20 11.55 0 0 0 52 49L52 15Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M12 15A20 11.55 0 1 0 52 15A20 11.55 0 1 0 12 15Z" fill="#b9ddf8" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

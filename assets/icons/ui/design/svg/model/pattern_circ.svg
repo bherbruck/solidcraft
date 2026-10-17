@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Circular pattern</title>
+  <circle cx="54" cy="32" r="1.7" fill="#6f879c"/>
+  <circle cx="53.52" cy="36.57" r="1.7" fill="#6f879c"/>
+  <circle cx="52.1" cy="40.95" r="1.7" fill="#6f879c"/>
+  <circle cx="49.8" cy="44.93" r="1.7" fill="#6f879c"/>
+  <circle cx="46.72" cy="48.35" r="1.7" fill="#6f879c"/>
+  <circle cx="43" cy="51.05" r="1.7" fill="#6f879c"/>
+  <circle cx="38.8" cy="52.92" r="1.7" fill="#6f879c"/>
+  <circle cx="34.3" cy="53.88" r="1.7" fill="#6f879c"/>
+  <circle cx="29.7" cy="53.88" r="1.7" fill="#6f879c"/>
+  <circle cx="25.2" cy="52.92" r="1.7" fill="#6f879c"/>
+  <circle cx="21" cy="51.05" r="1.7" fill="#6f879c"/>
+  <circle cx="17.28" cy="48.35" r="1.7" fill="#6f879c"/>
+  <circle cx="14.2" cy="44.93" r="1.7" fill="#6f879c"/>
+  <circle cx="11.9" cy="40.95" r="1.7" fill="#6f879c"/>
+  <circle cx="10.48" cy="36.57" r="1.7" fill="#6f879c"/>
+  <circle cx="10" cy="32" r="1.7" fill="#6f879c"/>
+  <circle cx="10.48" cy="27.43" r="1.7" fill="#6f879c"/>
+  <circle cx="11.9" cy="23.05" r="1.7" fill="#6f879c"/>
+  <circle cx="14.2" cy="19.07" r="1.7" fill="#6f879c"/>
+  <circle cx="17.28" cy="15.65" r="1.7" fill="#6f879c"/>
+  <circle cx="21" cy="12.95" r="1.7" fill="#6f879c"/>
+  <circle cx="25.2" cy="11.08" r="1.7" fill="#6f879c"/>
+  <circle cx="29.7" cy="10.12" r="1.7" fill="#6f879c"/>
+  <circle cx="34.3" cy="10.12" r="1.7" fill="#6f879c"/>
+  <circle cx="38.8" cy="11.08" r="1.7" fill="#6f879c"/>
+  <circle cx="43" cy="12.95" r="1.7" fill="#6f879c"/>
+  <circle cx="46.72" cy="15.65" r="1.7" fill="#6f879c"/>
+  <circle cx="49.8" cy="19.07" r="1.7" fill="#6f879c"/>
+  <circle cx="52.1" cy="23.05" r="1.7" fill="#6f879c"/>
+  <circle cx="53.52" cy="27.43" r="1.7" fill="#6f879c"/>
+  <path d="M26.5 4.5L37.5 4.5L37.5 15.5L26.5 15.5Z" fill="#e2e8ef" stroke="#8e9faf" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M53.07 13.49L58.57 23.01L49.04 28.51L43.54 18.99Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M58.57 40.99L53.07 50.51L43.54 45.01L49.04 35.49Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M37.5 59.5L26.5 59.5L26.5 48.5L37.5 48.5Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10.93 50.51L5.43 40.99L14.96 35.49L20.46 45.01Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M5.43 23.01L10.93 13.49L20.46 18.99L14.96 28.51Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

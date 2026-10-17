@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Point at edge and plane</title>
+  <path d="M22 6.55L40 58.55" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M29.66 21.6L56.16 36.9L34.34 49.5L7.84 34.2Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22 6.55L32 35.44" fill="none" stroke="#ffffff" stroke-width="5.4" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22 6.55L32 35.44" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="32" cy="35.44" r="6.2" fill="#ffffff"/>
+  <circle cx="32" cy="35.44" r="4.5" fill="#236ead"/>
+</svg>

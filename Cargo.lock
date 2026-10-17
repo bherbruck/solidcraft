@@ -233,6 +233,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "220a2c618ab466efe41d0eace94dfeff1c35e3aa47891bdb95e1c0fefffd3c99"
 
 [[package]]
+name = "arrayref"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4072,6 +4078,7 @@ dependencies = [
  "rustls",
  "serde_json",
  "solidcraft-engine",
+ "solidcraft-space-mouse",
  "solidcraft-ui-egui",
  "ureq",
  "windows-sys 0.61.2",
@@ -4129,6 +4136,7 @@ dependencies = [
  "solidcraft-render",
  "solidcraft-sketch",
  "thiserror 2.0.21",
+ "web-time",
 ]
 
 [[package]]
@@ -4166,6 +4174,7 @@ dependencies = [
  "cadmpeg-registry",
  "gltf",
  "quick-xml",
+ "rustix 1.1.5",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -4193,6 +4202,7 @@ dependencies = [
  "truck-shapeops",
  "truck-stepio",
  "truck-topology",
+ "web-time",
 ]
 
 [[package]]
@@ -4230,6 +4240,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "solidcraft-space-mouse"
+version = "0.14.0"
+
+[[package]]
 name = "solidcraft-ui-egui"
 version = "0.14.0"
 dependencies = [
@@ -4245,8 +4259,11 @@ dependencies = [
  "sha2 0.10.9",
  "solidcraft-engine",
  "solidcraft-gpu",
+ "tiny-skia",
+ "toml",
  "ttf-parser",
  "web-time",
+ "winreg",
  "zip 3.0.0",
 ]
 
@@ -4298,6 +4315,12 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "strict-num"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731"
 
 [[package]]
 name = "subtle"
@@ -4422,6 +4445,31 @@ dependencies = [
  "quick-error",
  "weezl",
  "zune-jpeg",
+]
+
+[[package]]
+name = "tiny-skia"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47ffee5eaaf5527f630fb0e356b90ebdec84d5d18d937c5e440350f88c5a91ea"
+dependencies = [
+ "arrayref",
+ "arrayvec",
+ "bytemuck",
+ "cfg-if",
+ "log",
+ "tiny-skia-path",
+]
+
+[[package]]
+name = "tiny-skia-path"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edca365c3faccca67d06593c5980fa6c57687de727a03131735bb85f01fdeeb9"
+dependencies = [
+ "arrayref",
+ "bytemuck",
+ "strict-num",
 ]
 
 [[package]]

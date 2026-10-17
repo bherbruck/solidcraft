@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Reverse pattern direction</title>
+  <path d="M12 19L32 19" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8 11L16 11A2 2 0 0 1 18 13L18 25A2 2 0 0 1 16 27L8 27A2 2 0 0 1 6 25L6 13A2 2 0 0 1 8 11Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M28 11L36 11A2 2 0 0 1 38 13L38 25A2 2 0 0 1 36 27L28 27A2 2 0 0 1 26 25L26 13A2 2 0 0 1 28 11Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M52 45L32 45" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M48 37L56 37A2 2 0 0 1 58 39L58 51A2 2 0 0 1 56 53L48 53A2 2 0 0 1 46 51L46 39A2 2 0 0 1 48 37Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M28 37L36 37A2 2 0 0 1 38 39L38 51A2 2 0 0 1 36 53L28 53A2 2 0 0 1 26 51L26 39A2 2 0 0 1 28 37Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44 19L51 19" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M58 19L50 23.5L50 14.5Z" fill="#236ead"/>
+  <path d="M20 45L13 45" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M6 45L14 40.5L14 49.5Z" fill="#236ead"/>
+</svg>

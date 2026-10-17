@@ -1,13 +1,14 @@
 //! Workspace tooling: `cargo xtask <command>`.
 //!
-//! Pure Rust (std, serde_json and sha2). External tools (`cargo`) are invoked through
-//! `std::process::Command`.
+//! Rust workspace tooling. External tools (`cargo`, and Python 3.11+ for the
+//! original icon collection) are invoked through `std::process::Command`.
 
 mod app_icons;
 mod assets;
 mod book;
 mod features;
 mod i18n;
+mod icons;
 mod layers;
 mod licences;
 mod lists;
@@ -25,6 +26,7 @@ commands:
   layers          enforce the crate dependency layering (plan/architecture.md §3)
   assets          check that every non-code asset file is attributed in ATTRIBUTION.md
   app-icons       regenerate shared app-icon exports for Linux, FreeBSD and Windows
+  icons           validate UI icon standards, discovery and review-tool behavior (Python 3.11+)
   features        list SolidCraft's commands by area in docs/features.md (from the registry)
   i18n [--check | --add-missing]
                   report how complete the message catalogs in assets/locales are:
@@ -58,10 +60,11 @@ commands:
   web-offline [DIR]
                   write the web build's service worker (sw.js: offline use, updates); run by
                   Trunk after release builds of apps/solidcraft-web, or on a built site in DIR
+  web-api-test [--site DIR]  Test the command API in a real browser build (default: dist/web)
   web-offline-test [--site DIR]
                   check in headless Chrome that the web app works offline and updates to a new
                   build (a stand-in app, or the web build in DIR such as dist/web)
-  ci              fmt --check, assets, licences --check, lists, layers, clippy -D warnings, then the tests
+  ci              fmt --check, assets, icons, licences --check, lists, layers, clippy -D warnings, then the tests
                   with the wasm check alongside, then web-offline-test when Chrome is installed
                   (stops at the first failing step)
 ";
@@ -72,6 +75,7 @@ fn main() -> ExitCode {
     let result = match args.first().map(String::as_str) {
         Some("layers") => cmd_layers(),
         Some("assets") => assets::run(&root()),
+        Some("icons") => icons::run(&root()),
         Some("app-icons") => app_icons::run(&root()),
         Some("features") => features::run(&root()),
         Some("i18n") => i18n::run(&root(), &rest),
@@ -93,6 +97,10 @@ fn main() -> ExitCode {
         Some("web-offline-test") => {
             let site = rest.iter().position(|a| *a == "--site").and_then(|i| rest.get(i + 1)).copied();
             web_offline_test::run(&root(), site, true)
+        }
+        Some("web-api-test") => {
+            let site = rest.iter().position(|a| *a == "--site").and_then(|i| rest.get(i + 1)).copied().unwrap_or("dist/web");
+            web_offline_test::run_api(site)
         }
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
@@ -362,6 +370,7 @@ fn cmd_ci() -> Result<(), String> {
     c.args(["fmt", "--all", "--", "--check"]);
     run(c, "cargo fmt --check")?;
     assets::run(&root())?;
+    icons::run(&root())?;
     licences::run(&root(), true)?;
     lists::run(&root(), false)?;
     cmd_layers()?;

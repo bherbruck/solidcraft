@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Home</title>
+  <defs>
+    <mask id="home3-door" maskUnits="userSpaceOnUse" x="-32" y="-32" width="128" height="128">
+      <path d="M-32 -33.5L96 -33.5L96 94.5L-32 94.5Z" fill="white"/>
+      <path d="M30.5 35.5L33.5 35.5A4 4 0 0 1 37.5 39.5L37.5 53.5A4 4 0 0 1 33.5 57.5L30.5 57.5A4 4 0 0 1 26.5 53.5L26.5 39.5A4 4 0 0 1 30.5 35.5Z" fill="black"/>
+    </mask>
+  </defs>
+  <path d="M13 29.5L32 13.5L51 29.5L51 46Q51 50.5 46.5 50.5L17.5 50.5Q13 50.5 13 46Z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" mask="url(#home3-door)"/>
+</svg>

@@ -117,11 +117,16 @@ fn inputs(k: &Surf) -> Vec<SelInput> {
     match k {
         Surf::Extrude { .. } => vec![SelInput::new("Profiles or curves", PROFILES | CURVES, true)],
         Surf::Revolve { .. } => vec![SelInput::new("Profiles or curves", PROFILES | CURVES, true), SelInput::new("Axis", AXES, false)],
-        Surf::Sweep(_) => vec![
-            SelInput::new("Profiles or curves", PROFILES | CURVES, true),
-            SelInput::new("Path", CURVES, true),
-            crate::dialogs_sweep::direction_input(),
-        ],
+        Surf::Sweep(_) => {
+            let [rail, rail2] = crate::dialogs_sweep::rail_inputs();
+            vec![
+                SelInput::new("Profiles or curves", PROFILES | CURVES, true),
+                SelInput::new("Path", CURVES, true),
+                crate::dialogs_sweep::direction_input(),
+                rail,
+                rail2,
+            ]
+        }
         Surf::Loft => vec![SelInput::new("Sections (one sketch each)", PROFILES | CURVES, true)],
         Surf::Patch { .. } => vec![SelInput::new("Boundary", PROFILES | EDGES, true), SelInput::new("Pass through", VERTICES | FACES, true)],
         Surf::Unstitch => vec![SelInput::new("Body, or faces to take out", BODIES | FACES, true)],
@@ -371,7 +376,7 @@ pub fn commands(app: &SolveApp, k: &Surf, inputs: &[SelInput], extra: &Map<Strin
             p["path_sketch"] =
                 json!(crate::dialogs::curves_sketch(app, &path, p["sketch"].as_u64()).ok_or("the path curves must be in one other sketch")?);
             p["path"] = json!(path);
-            crate::dialogs_sweep::params(app, opts, items(inputs, 2).first(), &mut p)?;
+            crate::dialogs_sweep::params(app, opts, items(inputs, 2).first(), [items(inputs, 3), items(inputs, 4)], &mut p)?;
             ("surface.sweep", p)
         }
         Surf::Loft => {
@@ -610,14 +615,17 @@ pub fn for_feature(app: &SolveApp, kind: &FeatureKind, frame: &Mat) -> Option<(K
             }
             return Some((Kind::Surface(k), ins, extra));
         }
-        FeatureKind::SurfaceSweep { sketch, profiles, curves, path, orientation, twist, scale, .. } => {
-            let (opts, direction) = crate::dialogs_sweep::SweepOpts::of(orientation, twist, scale, frame);
+        FeatureKind::SurfaceSweep { sketch, profiles, curves, path, orientation, twist, scale, rails, rail_fit, .. } => {
+            let (opts, direction) = crate::dialogs_sweep::SweepOpts::of(orientation, twist, scale, *rail_fit, frame);
+            let [rail, rail2] = crate::dialogs_sweep::rail_sels(rails);
             (
                 Surf::Sweep(opts),
                 vec![
                     sheet_sels(app, sketch.0, profiles.as_ref(), curves),
                     path.iter().map(|id| Sel::SketchCurve { id: id.clone() }).collect(),
                     direction.into_iter().collect(),
+                    rail,
+                    rail2,
                 ],
             )
         }

@@ -36,6 +36,12 @@ pub fn stand_up(app: &mut SolveApp) -> Result<(), String> {
     Ok(())
 }
 
+/// Dismiss the offer and keep the file as it opened ("Leave it"); the preference stays on.
+pub fn leave(app: &mut SolveApp) {
+    app.stand_up = None;
+    app.stand_up_occurrence = None;
+}
+
 /// The offer, under the toolbar.
 pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     if app.stand_up.is_none() {
@@ -52,13 +58,21 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
             ui.label(crate::i18n::tr_label("Stand it up: a quarter turn about X, as one Move feature you can undo."));
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if ui.button(crate::i18n::tr_label("Stand it up")).clicked() {
+                let stand = ui.button(crate::i18n::tr_label("Stand it up"));
+                crate::scenario::publish_handle("stand_up:stand", stand.rect.center());
+                if stand.clicked() {
                     act = Some("stand");
                 }
-                if ui.button(crate::i18n::tr_label("Leave it")).clicked() {
+                let leave = ui.button(crate::i18n::tr_label("Leave it"));
+                crate::scenario::publish_handle("stand_up:leave", leave.rect.center());
+                if leave.clicked() {
                     act = Some("leave");
                 }
-                if ui.button("Don't ask again").on_hover_text("Preferences › Design turns the offer back on").clicked() {
+                let never = ui
+                    .button(crate::i18n::tr_label("Don't ask again"))
+                    .on_hover_text(crate::i18n::tr_label("Preferences › Design turns the offer back on"));
+                crate::scenario::publish_handle("stand_up:never", never.rect.center());
+                if never.clicked() {
                     act = Some("never");
                 }
             });
@@ -69,13 +83,9 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
                 app.set_status(e, true);
             }
         }
-        Some("leave") => {
-            app.stand_up = None;
-            app.stand_up_occurrence = None;
-        }
+        Some("leave") => leave(app),
         Some("never") => {
-            app.stand_up = None;
-            app.stand_up_occurrence = None;
+            leave(app);
             app.preferences.offer_stand_up = false;
         }
         _ => {}

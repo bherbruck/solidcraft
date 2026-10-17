@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Flange</title>
+  <path d="M3 37.31L35.54 56.09L35.54 59.36L3 40.58Z" fill="#b8c3cf"/>
+  <path d="M61 41.39L35.54 56.09L35.54 59.36L61 44.66Z" fill="#8e9faf"/>
+  <path d="M28.46 22.61L61 41.39L35.54 56.09L3 37.31Z" fill="#e2e8ef"/>
+  <path d="M28.46 22.61L61 41.39L61 44.66L35.54 59.36L3 40.58L3 37.31Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M3 37.31L35.54 56.09L61 41.39" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M35.54 56.09L35.54 59.36" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M25.63 6.27L58.17 25.06L58.17 43.03L25.63 24.24Z" fill="#328bd3"/>
+  <path d="M61 23.42L58.17 25.06L58.17 43.03L61 41.39Z" fill="#236ead"/>
+  <path d="M28.46 4.64L61 23.42L58.17 25.06L25.63 6.27Z" fill="#b9ddf8"/>
+  <path d="M28.46 4.64L61 23.42L61 41.39L58.17 43.03L25.63 24.24L25.63 6.27Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M25.63 6.27L58.17 25.06L61 23.42" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M58.17 25.06L58.17 43.03" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

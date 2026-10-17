@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Arc slot</title>
+  <path d="M6.62 34.17A28 28 0 0 1 57.38 34.17A7 7 0 0 1 44.69 40.08A14 14 0 0 0 19.31 40.08A7 7 0 0 1 6.62 34.17Z" fill="#b9ddf8" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="12.97" cy="37.13" r="5.8" fill="#ffffff"/>
+  <circle cx="12.97" cy="37.13" r="3.4" fill="#236ead"/>
+  <circle cx="51.03" cy="37.13" r="5.8" fill="#ffffff"/>
+  <circle cx="51.03" cy="37.13" r="3.4" fill="#236ead"/>
+  <circle cx="32" cy="25" r="5.8" fill="#ffffff"/>
+  <circle cx="32" cy="25" r="3.4" fill="#236ead"/>
+</svg>

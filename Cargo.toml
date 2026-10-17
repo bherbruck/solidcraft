@@ -23,6 +23,7 @@ solidcraft-doc = { path = "crates/doc" }
 solidcraft-io = { path = "crates/io" }
 solidcraft-engine = { path = "crates/engine" }
 solidcraft-ui-egui = { path = "crates/ui-egui" }
+solidcraft-space-mouse = { path = "crates/space-mouse" }
 solidcraft-mcp = { path = "crates/mcp" }
 solidcraft-derive = { path = "crates/derive" }
 
@@ -73,6 +74,10 @@ image = { version = "0.25", default-features = false, features = ["png", "hdr"] 
 png = "0.18.1"
 # LZW for GIF animations (MIT OR Apache-2.0, pure Rust; already in the tree through image's tiff).
 weezl = "0.1.12"
+# rasterises the UI icon SVGs (BSD-3-Clause, pure Rust, builds for wasm)
+tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd"] }
+# build scripts: reads the icon palette (MIT OR Apache-2.0)
+toml = "1"
 
 # ui
 egui = "0.36"

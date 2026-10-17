@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Animate workspace</title>
+  <path d="M10.46 24.87L3.55 28.86L3.55 47.86L10.46 51.85M3.55 28.86L10.46 32.85" fill="none" stroke="#ffffff" stroke-width="7.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10.46 24.87L3.55 28.86L3.55 47.86L10.46 51.85M3.55 28.86L10.46 32.85" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22.46 24.87L15.55 28.86L15.55 47.86L22.46 51.85M15.55 28.86L22.46 32.85" fill="none" stroke="#ffffff" stroke-width="7.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22.46 24.87L15.55 28.86L15.55 47.86L22.46 51.85M15.55 28.86L22.46 32.85" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44 19.36L60.45 28.86L44 38.36L44 57.36L27.55 47.86L27.55 28.86Z" fill="#ffffff" stroke="#ffffff" stroke-width="7.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M27.55 28.86L44 38.36L44 57.36L27.55 47.86Z" fill="#b8c3cf"/>
+  <path d="M60.45 28.86L44 38.36L44 57.36L60.45 47.86Z" fill="#8e9faf"/>
+  <path d="M44 19.36L60.45 28.86L44 38.36L27.55 28.86Z" fill="#e2e8ef"/>
+  <path d="M44 19.36L60.45 28.86L60.45 47.86L44 57.36L27.55 47.86L27.55 28.86Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M27.55 28.86L44 38.36L60.45 28.86" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44 38.36L44 57.36" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M29.55 9.36L50.45 9.36" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M62.45 9.36L50.45 15.86L50.45 2.86Z" fill="#236ead"/>
+</svg>

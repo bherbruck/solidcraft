@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Three-point arc</title>
+  <path d="M8 46A24 24 0 0 1 56 46" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="8" cy="46" r="5.8" fill="#ffffff"/>
+  <circle cx="8" cy="46" r="3.4" fill="#236ead"/>
+  <circle cx="56" cy="46" r="5.8" fill="#ffffff"/>
+  <circle cx="56" cy="46" r="3.4" fill="#236ead"/>
+  <circle cx="32" cy="22" r="5.8" fill="#ffffff"/>
+  <circle cx="32" cy="22" r="3.4" fill="#236ead"/>
+</svg>

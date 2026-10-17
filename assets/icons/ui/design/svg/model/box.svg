@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Box</title>
+  <path d="M8.62 18.5L32 32L32 59L8.62 45.5Z" fill="#328bd3"/>
+  <path d="M55.38 18.5L32 32L32 59L55.38 45.5Z" fill="#236ead"/>
+  <path d="M32 5L55.38 18.5L32 32L8.62 18.5Z" fill="#b9ddf8"/>
+  <path d="M32 5L55.38 18.5L55.38 45.5L32 59L8.62 45.5L8.62 18.5Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8.62 18.5L32 32L55.38 18.5" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 32L32 59" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

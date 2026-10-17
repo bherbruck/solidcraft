@@ -179,3 +179,33 @@ fn unknown_command_suggests_the_closest_id() {
     assert_eq!(output.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&output.stderr).contains("did you mean `doc.open`?"), "{}", String::from_utf8_lossy(&output.stderr));
 }
+
+/// #1833: `--timings` reports each command's time instead of the measurement, `--profile` adds
+/// the kernel's share, `--results` puts the results beside them, and files are still written.
+#[test]
+fn timings_and_profile_report_each_command() {
+    let dir = Scratch::new();
+    let saved = dir.0.join("timed.solidcraft");
+    let t = json_output(cli().arg("run").arg(dir.script()).arg("--timings").arg("--save").arg(&saved).output().unwrap());
+    let rows = t["timings"].as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!((rows[0]["index"].as_u64(), rows[0]["command"].as_str()), (Some(0), Some("solid.box")));
+    assert!(rows[0]["ms"].as_f64().is_some() && t["total_ms"].as_f64().is_some(), "{t}");
+    assert!(rows[0].get("profile").is_none() && t.get("results").is_none(), "{t}");
+    assert_eq!(body_count(&saved), 1);
+
+    // --profile alone implies --timings; a flag before the script doesn't eat it.
+    let t = json_output(cli().arg("run").arg("--profile").arg(dir.script()).arg("--results").output().unwrap());
+    let p = &t["timings"][0]["profile"];
+    for k in ["boolean_ms", "tessellate_ms", "other_ms"] {
+        assert!(p[k].as_f64().is_some_and(|ms| ms >= 0.0), "{k}: {t}");
+    }
+    assert_eq!(t["results"].as_array().map(Vec::len), Some(1), "{t}");
+
+    // --results alone stays a plain array.
+    assert!(json_output(cli().arg("run").arg(dir.script()).arg("--results").output().unwrap()).is_array());
+
+    let output = cli().arg("run").arg("--in").arg(&saved).arg("--timings").output().unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--timings needs a script"));
+}

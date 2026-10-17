@@ -532,7 +532,7 @@ fn analytic_revolution(ex: &p21::Exchange, e: &p21::Entity) -> Option<Analytic> 
                 [q.x, q.y, q.z]
             })
         }
-        CurveGeo::Conic { .. } => return None,
+        CurveGeo::Conic { .. } | CurveGeo::Hyperbola { .. } | CurveGeo::Parabola { .. } => return None,
     };
     // A sample point off the axis, its revolution normal (∂S/∂angle × ∂S/∂profile).
     let sample =
@@ -798,7 +798,9 @@ fn edge_points(ex: &p21::Exchange, edge: u64, n: usize) -> Option<Vec<V3>> {
         crate::step_in::geom::CurveGeo::Line { .. } => Some(ends.to_vec()),
         crate::step_in::geom::CurveGeo::BSpline(c) => Some(sample(&|t| c.subs(t), c.range_tuple())),
         crate::step_in::geom::CurveGeo::Nurbs(c) => Some(sample(&|t| c.subs(t), c.range_tuple())),
-        crate::step_in::geom::CurveGeo::Conic { .. } => None,
+        crate::step_in::geom::CurveGeo::Conic { .. }
+        | crate::step_in::geom::CurveGeo::Hyperbola { .. }
+        | crate::step_in::geom::CurveGeo::Parabola { .. } => None,
     }
 }
 
@@ -862,7 +864,9 @@ fn collapse_short_edges(ex: &mut p21::Exchange) {
                 crate::step_in::geom::CurveGeo::Line { .. } => return Some(true),
                 crate::step_in::geom::CurveGeo::BSpline(c) => c.subs((c.range_tuple().0 + c.range_tuple().1) / 2.0),
                 crate::step_in::geom::CurveGeo::Nurbs(c) => c.subs((c.range_tuple().0 + c.range_tuple().1) / 2.0),
-                crate::step_in::geom::CurveGeo::Conic { .. } => return Some(false),
+                crate::step_in::geom::CurveGeo::Conic { .. }
+                | crate::step_in::geom::CurveGeo::Hyperbola { .. }
+                | crate::step_in::geom::CurveGeo::Parabola { .. } => return Some(false),
             };
             Some(norm(sub([mid.x, mid.y, mid.z], pa)) <= 1e-6 * (1.0 + norm(pa)))
         });

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SolidCraft icon review</title>
+<style>@@CSS@@
+@@PALETTE_CSS@@</style>
+<body data-vision="off">
+<header>
+  <section id="palette-editor" aria-label="Temporary icon palette editor">
+    <div class="palette-heading"><b>Icon colours</b><span class="sum">Light · Dark · Purpose</span><button id="palette-all">Show all icons</button><button id="palette-apply" disabled>Apply palette</button><button id="palette-reset" disabled>Reset preview</button><span id="palette-status" role="status">Live preview · Apply saves palette.toml</span></div>
+    <div id="palette-tokens"></div>
+  </section>
+  <h1>Icon review</h1><span class="sum" id="cnt" aria-live="polite"></span>
+  <span class="grp" aria-label="Review status"><button data-f="open" class="on">Open</button><button data-f="notes">Notes</button><button data-f="final">Final</button><button data-f="all">All</button></span>
+  <span class="grp"><button id="tab-all" class="chip on">Everything</button>@@TABS@@</span>
+  <span class="grp"><button id="dk">Dark</button><small>size</small><button class="sz" data-s="16">16</button><button class="sz" data-s="24">24</button><button class="sz on" data-s="48">48</button><button class="sz" data-s="64">64</button></span>
+  <label>Colour vision <select id="vision" aria-label="Colour vision"><option value="off">Normal</option><option value="red-green">Red / green</option><option value="blue-yellow">Blue / yellow</option></select></label>
+  <input id="q" aria-label="Filter icons" placeholder="Filter id, command, panel">
+  <button id="rescan">Rescan</button><a href="@@GUIDE@@" target="_blank" rel="noopener">Style guide</a>
+  <button id="exp" title="Save and queue open artwork notes in the local review inbox">Export notes</button>
+  <div class="detail"><span class="sum">@@SUMMARY@@</span><span id="msg" role="status"></span></div>
+  <p class="warning">@@WARNINGS@@</p>
+</header>
+<p class="help">Every discovered icon without a current acceptance is Open, including unused masters and icons with notes. ✓ accepts the current artwork. ✎ adds feedback.</p>
+<main>@@CARDS@@</main><p id="empty" hidden>No icons match these filters.</p>
+<script>@@JS@@</script></body></html>

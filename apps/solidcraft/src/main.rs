@@ -117,9 +117,15 @@ fn services(cc: &eframe::CreationContext<'_>) -> Services {
     let open_parent = parent.clone();
     let program_parent = parent.clone();
     Services {
-        pick_open: Some(Box::new(move || {
-            let future = open_parent
-                .clone()
+        pick_open: Some(Box::new(move |first: &[&str]| {
+            // The file type the command reads comes first, so the picker opens on it (#1801).
+            let mut dialog = open_parent.clone();
+            if !first.is_empty() {
+                let label = first.iter().map(|e| e.to_uppercase()).collect::<Vec<_>>().join(", ");
+                let both: Vec<String> = first.iter().flat_map(|e| [e.to_lowercase(), e.to_uppercase()]).collect();
+                dialog = dialog.add_filter(label, &both);
+            }
+            let future = dialog
                 .add_filter(
                     "Designs, CAD files and meshes",
                     &[

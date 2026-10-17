@@ -43,8 +43,12 @@ pub enum FaceSurface {
 
 /// The surface of face `face` (in face order), if it is one of the analytic kinds.
 pub fn face_surface(b: &Body, face: usize) -> Option<FaceSurface> {
-    let f = b.solid.face_iter().nth(face)?;
-    let tol = (b.size() * 1e-7).max(1e-9) * 100.0;
+    surface_of(b.solid.face_iter().nth(face)?, b.size())
+}
+
+/// The analytic surface of face `f` of a body whose box diagonal is `size`.
+pub(crate) fn surface_of(f: &mt::Face, size: f64) -> Option<FaceSurface> {
+    let tol = (size * 1e-7).max(1e-9) * 100.0;
     Some(match surf_of(f, tol)? {
         Surf::Plane { n, d } => FaceSurface::Plane { normal: n, point: n * d },
         Surf::Cylinder { o, a, r, .. } => FaceSurface::Cylinder { origin: o, axis: a, radius: r },

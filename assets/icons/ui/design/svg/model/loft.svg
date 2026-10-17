@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Loft</title>
+  <path d="M6 46L21.5 16.5L32 19L42.5 16.5L58 46L32 58Z" fill="#328bd3"/>
+  <path d="M6 46L21.5 16.5L24 18Q25 40 32 58Z" fill="#b9ddf8"/>
+  <path d="M58 46L42.5 16.5L40 18Q39 40 32 58Z" fill="#236ead"/>
+  <path d="M6 46L22 14M42 14L58 46L32 58L6 46" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22 14A10 5 0 1 0 42 14A10 5 0 1 0 22 14Z" fill="#b9ddf8"/>
+  <path d="M22 14A10 5 0 1 0 42 14A10 5 0 1 0 22 14Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

@@ -2,7 +2,8 @@
 
 use serde_json::{Value, json};
 use solidcraft_doc::{
-    AxisRef, Direction, Expr, Extent, FeatureKind, Operation, PointExpr, ProfileSel, SweepOrientation, ThinSide, ThinWall, expr::Kind, point_expr,
+    AxisRef, Direction, Expr, Extent, FeatureKind, Operation, PointExpr, ProfileSel, RailFit, SweepOrientation, SweepRail, ThinSide, ThinWall,
+    expr::Kind, point_expr,
 };
 use solidcraft_doc::{BodyName, FeatureName, SketchId};
 use solidcraft_doc::{Dir, FacePick, Position};
@@ -25,7 +26,7 @@ pub static COMMANDS: &[CommandSpec] = &[
     CommandSpec::new("solid.sweep", "Sweep", sweep)
         .at("SOLID", "CREATE")
         .icon("sweep")
-        .params("sketch: profile sketch; profiles?; path_sketch: sketch; path: [curve ids in order]; orientation?: perpendicular (default: square to the path, turning with it) | parallel (as drawn: the profile moves without turning; the path must keep crossing its plane) | [x,y,z] (square to the path, its turn about the path fixed by this direction); twist?: angle expr (the profile turns this much about the path over its length; within 4 turns); scale?: expr (the profile's scale at the end, linear along the path; 0.01…100); operation?, targets?, name?, body_name?"),
+        .params("sketch: profile sketch; profiles?; path_sketch: sketch; path: [curve ids in order]; orientation?: perpendicular (default: square to the path, turning with it) | parallel (as drawn: the profile moves without turning; the path must keep crossing its plane) | [x,y,z] (square to the path, its turn about the path fixed by this direction); twist?: angle expr (the profile turns this much about the path over its length; within 4 turns); scale?: expr (the profile's scale at the end, linear along the path; 0.01…100); rails?: [{sketch?: sketch (default path_sketch), curves: [curve ids in order]}] (guide rails, one or two, each meeting every plane square to the path once along it, from the end nearest the path's start: one rail turns the profile so its point where the rail starts stays on the rail and scales it with the rail's distance from the path; two rails carry it between them, its points where they start staying on both; rails take the default orientation, no twist and no scale, and a path without sharp corners); rail_fit?: scale (default: the profile grows and shrinks evenly) | stretch (only across to the rail, between the rails); operation?, targets?, name?, body_name?"),
     CommandSpec::new("solid.loft", "Loft", loft).at("SOLID", "CREATE").icon("loft").params("sections: [{sketch, profiles?} | {sketch, point: id} (an apex)] (2 or more, in order); operation?, targets?, name?, body_name?"),
     CommandSpec::new("solid.box", "Box", prim_box).at("SOLID", "CREATE").icon("box").params("length, width, height: expr; corner?: [x,y,z] | center?: [x,y,z] (numbers in mm or length expressions; default: the origin); operation?, targets?: [body], name?, body_name?"),
     CommandSpec::new("solid.cylinder", "Cylinder", prim_cylinder).at("SOLID", "CREATE").icon("cylinder").params("radius | diameter, height: expr; base?: [x,y,z] (centre of the bottom: numbers in mm or length expressions; default: the origin); axis?: X|Y|Z|[x,y,z] (default Z); operation?, targets?: [body], name?, body_name?"),
@@ -48,7 +49,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .params("features: [names] | bodies: [names] | components: [names]; axis: X|Y|Z | {origin, dir}; count; angle? (default 360 deg; partial arcs include both ends); alignment?: left|center|right (default right; original stays fixed); reversed?: bool (Flip; selects the extra side for even centered counts)"),
     CommandSpec::new("solid.pattern.path", "Pattern on Path", pattern_path)
         .at("SOLID", "CREATE")
-        .icon("pattern_rect")
+        .icon("pattern_path")
         .params("features: [names] | bodies: [names]; path_sketch: sketch; path: [curve ids in order]; count; spacing (between instances) | distance (first to last); orientation?: identical|path; flip?: bool"),
     CommandSpec::new("solid.mirror", "Mirror", mirror).at("SOLID", "CREATE").icon("mirror").params("features: [names] | bodies: [names] (combine?: join with the original); plane: XY|XZ|YZ|construction plane name or id|{origin, normal}|{origin, x_dir, y_dir} (origin coordinates may be length expressions; the mirror follows them, or a construction plane)"),
     CommandSpec::new("solid.hole", "Hole", hole)
@@ -62,7 +63,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .params("path_sketch: sketch; path: [curve ids in order]; diameter: expr; wall?: expr (hollow); operation?, targets?, name?, body_name?"),
     CommandSpec::new("solid.bounding_solid", "Bounding Solid", bounding_solid)
         .at("SOLID", "CREATE")
-        .icon("box")
+        .icon("bounding_solid")
         .params("bodies?: [names] (default: all); margin?: expr; name?, body_name?"),
     CommandSpec::new("solid.scale", "Scale", scale)
         .at("SOLID", "MODIFY")
@@ -70,7 +71,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .params("bodies: [names]; factor: expr | factors: [x, y, z] exprs; origin?: [x,y,z]"),
     CommandSpec::new("face.delete", "Delete Face", delete_face)
         .at("SOLID", "MODIFY")
-        .icon("delete")
+        .icon("delete_face")
         .params("faces: [[x,y,z] points on the faces, or face names from model.faces]; body?; heal?: bool (default true: the neighbouring planes close the gap, as when a rounded edge, hole or boss is taken off; false: the gap stays open and the faces left are a surface body)"),
     CommandSpec::new("solid.offset_face", "Offset Face", offset_face)
         .at("SOLID", "MODIFY")
@@ -94,17 +95,17 @@ pub static COMMANDS: &[CommandSpec] = &[
         .params("base: XY|XZ|YZ|plane name, or a planar face {face: [x,y,z], body?, index?, path?}; offset: expr; name?"),
     CommandSpec::new("construct.plane.at_angle", "Plane at Angle", plane_angle)
         .at("SOLID", "CONSTRUCT")
-        .icon("plane")
+        .icon("plane_angle")
         .params("base: XY|XZ|YZ|plane name; axis: X|Y|Z|{origin, dir}; angle: expr; name?"),
     CommandSpec::new("solid.split_face", "Split Face", split_face)
         .at("SOLID", "MODIFY")
-        .icon("split")
+        .icon("split_face")
         .params(
             "faces: [[x,y,z] points on the faces to split, or face names from model.faces]; body?; and the splitting tool: plane: XY|XZ|YZ|plane name|{origin, normal} — or tool: {body, point} (a face of a body, its surface extended) — or sketch: id or name (its curves, along the sketch's normal)",
         ),
     CommandSpec::new("solid.split_body", "Split Body", split_body)
         .at("SOLID", "MODIFY")
-        .icon("split")
+        .icon("split_body")
         .params("body: name; plane: XY|XZ|YZ|plane name|{origin, normal} — or tool: {body, point} (a face of a body, its surface extended) — or sketch: id, line: curve id (a straight sketch line, along the sketch's normal)"),
     CommandSpec::new("solid.press_pull", "Press Pull", press_pull)
         .at("SOLID", "MODIFY")
@@ -1357,6 +1358,7 @@ fn mirror(s: &mut Session, p: &Value) -> Result<Value> {
     let features = if bodies.is_empty() { source_features(s, p, cmd)? } else { Vec::new() };
     let plane = plane_param(s, p.get("plane"), cmd)?;
     let combine = bool_(p, "combine").unwrap_or(false);
+    let (bodies, placements) = placed_bodies(s, bodies, cmd)?;
     add_feature(
         s,
         p,
@@ -1365,8 +1367,29 @@ fn mirror(s: &mut Session, p: &Value) -> Result<Value> {
             plane,
             bodies: bodies.into_iter().map(BodyName).collect(),
             combine,
+            placements,
         },
     )
+}
+
+/// Bodies picked where the viewport shows them: each world name ("Body1", or "Body1 (Occ:2)"
+/// for a further instance) becomes its component's body name, with the occurrence path of the
+/// placement it was picked at. Names stay as they are (and no placement is kept) while every
+/// component is in place, or when one of them is not a body.
+fn placed_bodies(s: &Session, names: Vec<String>, cmd: &str) -> Result<(Vec<String>, Vec<Vec<u64>>)> {
+    if names.is_empty() || !crate::frames::placed(s) {
+        return Ok((names, Vec::new()));
+    }
+    let frames = s.doc.body_frames_with_source(&s.model.state());
+    let mut picked = Vec::with_capacity(names.len());
+    for name in &names {
+        let Some((_, own, _, path, _)) = frames.iter().find(|(world, ..)| world == name) else { return Ok((names, Vec::new())) };
+        if path.iter().any(|id| s.pending_moves.contains_key(id)) {
+            return Err(bad(cmd, format!("`{name}` has a position that is not captured yet: Capture Position (component.capture_position) first")));
+        }
+        picked.push((own.clone(), path.clone()));
+    }
+    Ok(picked.into_iter().unzip())
 }
 
 /// The other name of an origin plane (`Top` for `XY`, `XY` for `Top`...), if `name` is one.
@@ -1850,6 +1873,7 @@ fn sweep(s: &mut Session, p: &Value) -> Result<Value> {
         return Err(bad(cmd, "`path` must list curve ids"));
     }
     let (orientation, twist, scale) = sweep_options(s, p, cmd)?;
+    let (rails, rail_fit) = sweep_rails(s, p, cmd, path_sketch)?;
     add_feature(
         s,
         p,
@@ -1861,6 +1885,8 @@ fn sweep(s: &mut Session, p: &Value) -> Result<Value> {
             orientation,
             twist,
             scale,
+            rails,
+            rail_fit,
             operation: operation(p, cmd)?,
             targets: string_list(p, "targets").into_iter().map(BodyName).collect(),
         },
@@ -1908,6 +1934,44 @@ pub(super) fn sweep_options(s: &Session, p: &Value, cmd: &str) -> Result<(SweepO
         }
     };
     Ok((orientation, twist, scale))
+}
+
+/// A sweep's guide `rails` and `rail_fit` (solid.sweep and surface.sweep), checked: one or two
+/// rails, each a sketch (default: the path's) and 1…1000 of its curves; a fit of scale or
+/// stretch; and no orientation, twist or scale besides, since the rails set those.
+pub(super) fn sweep_rails(s: &Session, p: &Value, cmd: &str, path_sketch: u64) -> Result<(Vec<SweepRail>, RailFit)> {
+    let rail_fit = match p.get("rail_fit") {
+        None | Some(Value::Null) => RailFit::Scale,
+        Some(Value::String(f)) if f.eq_ignore_ascii_case("scale") => RailFit::Scale,
+        Some(Value::String(f)) if f.eq_ignore_ascii_case("stretch") => RailFit::Stretch,
+        Some(_) => return Err(bad(cmd, "`rail_fit` must be scale or stretch")),
+    };
+    let given = match p.get("rails") {
+        None | Some(Value::Null) => return Ok((Vec::new(), rail_fit)),
+        Some(Value::Array(a)) => a,
+        Some(_) => return Err(bad(cmd, "`rails` must list one or two rails: [{sketch?, curves: [ids]}]")),
+    };
+    if !(1..=2).contains(&given.len()) {
+        return Err(bad(cmd, "a sweep takes one or two guide rails"));
+    }
+    for key in ["orientation", "twist", "scale"] {
+        if p.get(key).is_some_and(|v| !v.is_null()) {
+            return Err(bad(cmd, format!("guide rails set the profile's turn and size along the path: leave out `{key}`")));
+        }
+    }
+    let mut rails = Vec::with_capacity(given.len());
+    for rail in given {
+        let sketch = match rail.get("sketch") {
+            None | Some(Value::Null) => path_sketch,
+            Some(_) => sketch_id(s, rail.get("sketch"), cmd, "rails[].sketch")?,
+        };
+        let curves = string_list(rail, "curves");
+        if curves.is_empty() || curves.len() > 1000 {
+            return Err(bad(cmd, "each rail's `curves` must list 1…1000 curve ids in order"));
+        }
+        rails.push(SweepRail { sketch: SketchId(sketch), curves });
+    }
+    Ok((rails, rail_fit))
 }
 
 fn loft(s: &mut Session, p: &Value) -> Result<Value> {
@@ -2058,6 +2122,10 @@ mod revolve_convention_tests;
 #[cfg(test)]
 #[path = "sweep_options_tests.rs"]
 mod sweep_options_tests;
+
+#[cfg(test)]
+#[path = "sweep_rails_tests.rs"]
+mod sweep_rails_tests;
 
 #[cfg(test)]
 #[path = "offset_topology_tests.rs"]

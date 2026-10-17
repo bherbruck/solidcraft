@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Shell</title>
+  <path d="M5.56 18.26L32 33.53L32 61L5.56 45.74Z" fill="#b8c3cf"/>
+  <path d="M58.44 18.26L32 33.53L32 61L58.44 45.74Z" fill="#8e9faf"/>
+  <path d="M32 3L58.44 18.26L32 33.53L5.56 18.26Z" fill="#e2e8ef"/>
+  <path d="M32 3L58.44 18.26L58.44 45.74L32 61L5.56 45.74L5.56 18.26Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M5.56 18.26L32 33.53L58.44 18.26" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 33.53L32 61" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 26.66L32 9.87L46.54 18.26L46.54 18.26Z" fill="#328bd3"/>
+  <path d="M32 26.66L32 26.66L32 9.87L17.46 18.26L17.46 18.26Z" fill="#236ead"/>
+  <path d="M32 9.87L46.54 18.26L32 26.66L17.46 18.26Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 9.87L32 26.66" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Play</title>
+  <circle cx="32" cy="32" r="24" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.5 20L44 32L26.5 44Z" fill="#ffffff" stroke="#ffffff" stroke-width="6.8" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.5 20L44 32L26.5 44Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

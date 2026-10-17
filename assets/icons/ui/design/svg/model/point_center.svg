@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Point at circle, sphere or torus centre</title>
+  <path d="M10 28.5L10 35.5A22 12.7 0 0 0 54 35.5L54 28.5Z" fill="#b8c3cf"/>
+  <path d="M39.7 28.5L39.7 47.4A22 12.7 0 0 0 54 35.5L54 28.5Z" fill="#8e9faf"/>
+  <path d="M10 28.5L10 35.5A22 12.7 0 0 0 54 35.5L54 28.5Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10 28.5A22 12.7 0 1 0 54 28.5A22 12.7 0 1 0 10 28.5Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="32" cy="28.5" r="6.2" fill="#ffffff"/>
+  <circle cx="32" cy="28.5" r="4.5" fill="#236ead"/>
+</svg>

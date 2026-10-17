@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Cut</title>
+  <path d="M28 32.85L16 11.85Q15 9.85 17 10.85L35 27.85L36 33.85Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M36 32.85L48 11.85Q49 9.85 47 10.85L29 27.85L28 33.85Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M29 32.85L24 40.85M35 32.85L40 40.85" fill="none" stroke="#34465b" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="21" cy="46.85" r="7.3" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="21" cy="46.85" r="4.3" fill="#ffffff"/>
+  <circle cx="43" cy="46.85" r="7.3" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="43" cy="46.85" r="4.3" fill="#ffffff"/>
+  <circle cx="32" cy="30.85" r="3" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

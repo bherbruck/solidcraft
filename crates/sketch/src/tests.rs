@@ -967,3 +967,91 @@ fn a_degree_nine_control_spline_stays_exact_and_closes_a_profile_exactly() {
     high.push(sk.add_point(v(21.0, -2.0), None).unwrap());
     assert!(sk.add_curve(CurveKind::Spline { pts: high, control: true, degree: 10, periodic: false }, None).is_err());
 }
+
+/// #755: a line drawn through a junction of a loop, but 2e-5 off it, still splits the loop. The
+/// junction lies on the loop's two curves only, so it cuts neither of them where the line
+/// crosses, and that crossing, next to the junction, was taken for one already cut there: the
+/// line crossed the loop without meeting it, and the sketch had no profiles at all.
+#[test]
+fn profiles_line_passing_next_to_a_junction_splits_the_loop() {
+    let o = v(0.0, 0.0);
+    let at = |r: f64, a: f64| v(r * a.cos(), r * a.sin());
+    // A slot: half circles of radius 1 round (0, 0) and (-5, 0), joined by the lines y = 1 and
+    // y = -1, which meet the arcs tangentially at (0, 1) and (0, -1).
+    let mut sk = Sketch::new();
+    let right = sk.add_arc(o, v(0.0, -1.0), v(0.0, 1.0), [None; 3], None).unwrap();
+    let left = sk.add_arc(v(-5.0, 0.0), v(-5.0, 1.0), v(-5.0, -1.0), [None; 3], None).unwrap();
+    let ends = |i: usize| match sk.curves[i].kind {
+        CurveKind::Arc { a, b, .. } => (a, b),
+        _ => panic!("an arc"),
+    };
+    let ((r0, r1), (l0, l1)) = (ends(right), ends(left));
+    sk.add_line_pts(r1, l0, None).unwrap();
+    sk.add_line_pts(l1, r0, None).unwrap();
+    // Lines from (0, 0) through the junctions to an arc of radius 2. The upper one is turned by
+    // 2e-5 rad, so it passes 2e-5 from (0, 1) and crosses the line y = 1 next to it.
+    let d = 2e-5;
+    let (top, bottom) = (at(2.0, FRAC_PI_2 + d), v(0.0, -2.0));
+    sk.add_line(o, top, None, None, None).unwrap();
+    sk.add_line(o, bottom, None, None, None).unwrap();
+    sk.add_arc(o, bottom, top, [None; 3], None).unwrap();
+    let mut areas: Vec<f64> = find_profiles(&sk).iter().map(|p| p.area).collect();
+    areas.sort_by(f64::total_cmp);
+    // The right half disc, the band round it out to radius 2, and the rest of the slot.
+    let want = [FRAC_PI_2, FRAC_PI_2 * (4.0 - 1.0), 10.0 + FRAC_PI_2];
+    assert_eq!(areas.len(), 3, "{areas:?}");
+    for (got, want) in areas.iter().zip(want) {
+        assert!((got - want).abs() < 1e-3, "{areas:?} against {want}");
+    }
+}
+
+/// A line ending 2e-5 from a corner, next to a crossing there: the corner, where the side of the
+/// square meets the long line, stays a cut of the long line, and the square stays a profile.
+#[test]
+fn profiles_crossing_next_to_a_corner_keeps_the_corner() {
+    let mut sk = Sketch::new();
+    let (a, b) = (sk.add_point(v(1.0, 0.0), None).unwrap(), sk.add_point(v(2.0, 0.0), None).unwrap());
+    let (c, d) = (sk.add_point(v(2.0, 1.0), None).unwrap(), sk.add_point(v(1.0, 1.0), None).unwrap());
+    // The square's base is part of a longer line, which its sides end on.
+    sk.add_line(v(0.0, 0.0), v(3.0, 0.0), None, None, None).unwrap();
+    for (p, q) in [(b, c), (c, d), (d, a)] {
+        sk.add_line_pts(p, q, None).unwrap();
+    }
+    // A line hanging across the long one, 2e-5 from the square's corner (1, 0).
+    sk.add_line(v(1.0 - 2e-5, -0.5), v(1.0 - 2e-5, 0.5), None, None, None).unwrap();
+    let areas: Vec<f64> = find_profiles(&sk).iter().map(|p| p.area).collect();
+    assert_eq!(areas.len(), 1, "{areas:?}");
+    assert!(areas.iter().all(|x| (x - 1.0).abs() < 1e-9), "{areas:?}");
+}
+
+/// A line across a rectangle, and a stray line ending on it 1e-3 from where it crosses the
+/// rectangle's side: both the crossing and that end cut the long line, and the rectangle is
+/// split into its two halves.
+#[test]
+fn profiles_crossing_next_to_a_stray_end_still_splits() {
+    let mut sk = Sketch::new();
+    rect(&mut sk, [v(0.0, -1.0), v(1.0, -1.0), v(1.0, 1.0), v(0.0, 1.0)]);
+    sk.add_line(v(-1.0, 0.0), v(2.0, 0.0), None, None, None).unwrap();
+    sk.add_line(v(0.00099998, 0.0000099), v(0.3, 0.6), None, None, None).unwrap();
+    let areas: Vec<f64> = find_profiles(&sk).iter().map(|p| p.area).collect();
+    assert_eq!(areas.len(), 2, "{areas:?}");
+    assert!(areas.iter().all(|x| (x - 1.0).abs() < 1e-9), "{areas:?}");
+}
+
+/// A line whose own end overshoots a crossing line by 2e-5, with a rectangle standing on it 1e-3
+/// further on: the crossing next to that end gives way to the rectangle's corner, which still
+/// cuts the line, and the rectangle stays a profile.
+#[test]
+fn profiles_crossing_next_to_an_overshooting_end_keeps_the_corner_beside_it() {
+    let mut sk = Sketch::new();
+    sk.add_line(v(-2e-5, 0.0), v(3.0, 0.0), None, None, None).unwrap();
+    sk.add_line(v(0.0, -0.5), v(0.0, 0.5), None, None, None).unwrap();
+    let x = 0.00099999;
+    let p = [v(x, 0.0000099), v(x, 1.0), v(2.0, 1.0), v(2.0, 0.0)].map(|q| sk.add_point(q, None).unwrap());
+    for w in p.windows(2) {
+        sk.add_line_pts(w[0], w[1], None).unwrap();
+    }
+    let areas: Vec<f64> = find_profiles(&sk).iter().map(|p| p.area).collect();
+    assert_eq!(areas.len(), 1, "{areas:?}");
+    assert!(areas.iter().all(|a| (a - (2.0 - x)).abs() < 1e-4), "{areas:?}");
+}

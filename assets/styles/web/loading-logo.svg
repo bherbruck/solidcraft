@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="56 24 912 1060" width="456" height="530" role="img" aria-labelledby="t d">
+  <title id="t">SolidCraft</title>
+  <desc id="d">A plain cube drawn in thick lines is cut twice. Each cut starts as a flat footprint on a face and presses into the solid: first a corner block through the left face, then a pocket pressed down from the top. The cut exposes its shaded faces, then the lines fade and the gaps between faces appear, leaving the SolidCraft logo.</desc>
+  <defs>
+    <linearGradient id="linear-gradient-1" x1="619.14" y1="179.734" x2="694.687" y2="396.761" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1d63c6"/>
+      <stop offset="1" stop-color="#15499e"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="619.14" y1="413.244" x2="790.839" y2="605.547" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#459fff"/>
+      <stop offset="1" stop-color="#2379e7"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-3" x1="632.876" y1="399.508" x2="783.971" y2="968.175" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b66cf"/>
+      <stop offset="1" stop-color="#124596"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-4" x1="207.063" y1="303.357" x2="426.837" y2="968.175" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#258df5"/>
+      <stop offset="1" stop-color="#1461da"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-5" x1="385.63" y1="53.364" x2="522.989" y2="510.769" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#51adff"/>
+      <stop offset="1" stop-color="#2b83f1"/>
+    </linearGradient>
+    <radialGradient id="gfade" cx="512" cy="740" r="620" gradientTransform="translate(512 740) scale(1 .5) translate(-512 -740)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff"/><stop offset=".6" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <mask id="gmask" maskUnits="userSpaceOnUse" x="-100" y="-100" width="1300" height="1300"><rect x="-100" y="-100" width="1300" height="1300" fill="url(#gfade)"/></mask>
+  </defs>
+  <style>
+    :root { --grid: #507eaa; --word: #15499e; --line: #0b2f66; --tool: #ff6a3d; }
+    .grid { stroke: var(--grid); stroke-width: 3; fill: none; opacity: .32; }
+    .word { font: 700 64px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--word); letter-spacing: .02em; }
+    /* base styles are the finished logo (gaps, no lines, cuts done), so reduced-motion shows it whole */
+    .stk { fill: none; stroke: var(--line); stroke-width: 18; stroke-linejoin: round; stroke-linecap: round; opacity: 0; }
+    .old, .plug, .dep { opacity: 0; }
+    .tl { opacity: 0; }
+    .pface { fill: var(--tool); fill-opacity: .20; stroke: var(--tool); stroke-width: 14; stroke-linejoin: round; }
+    .ptop  { fill: var(--tool); fill-opacity: .38; stroke: var(--tool); stroke-width: 18; stroke-linejoin: round; }
+    .all   { animation: all 5.4s linear infinite; }
+    .gridg { animation: gridin 5.4s ease-out infinite; }
+    .cube  { transform-box: view-box; transform-origin: 512px 505px; animation: cube 5.4s cubic-bezier(.3,1.3,.5,1) infinite; }
+    .old   { animation: old 5.4s linear infinite; }
+    .s0 { animation: s0 5.4s linear infinite; } .s1k { animation: s1k 5.4s linear infinite; } .s3 { animation: s3 5.4s linear infinite; }
+    .plugL { animation: plugL 5.4s ease-in infinite; } .plugR { animation: plugR 5.4s ease-in infinite; } .plugN { animation: plugN 5.4s ease-in infinite; }
+    .dep { animation: dep 5.4s ease-in-out infinite; }
+    .tL { animation: tL 5.4s ease-in-out infinite; } .tP { animation: tP 5.4s ease-in-out infinite; }
+    .fin { animation: fin 5.4s ease-in-out infinite; }
+    @keyframes all    { 0% { opacity: 0; } 2%, 96% { opacity: 1; } 99.5%, 100% { opacity: 0; } }
+    @keyframes gridin { 0% { opacity: 0; } 7%, 100% { opacity: 1; } }
+    @keyframes cube   { 0%, 3% { opacity: 0; transform: scale(.82); } 12%, 100% { opacity: 1; transform: scale(1); } }
+    @keyframes old    { 0%, 3% { opacity: 0; } 8%, 56% { opacity: 1; } 62%, 100% { opacity: 0; } }
+    /* each cut's edge set fades in before the previous one fades out, so shared lines never dim */
+    @keyframes s0  { 0%, 3% { opacity: 0; } 8%, 32.5% { opacity: 1; } 34%, 100% { opacity: 0; } }
+    @keyframes s1k { 0%, 31% { opacity: 0; } 32.5%, 48.5% { opacity: 1; } 50.5%, 100% { opacity: 0; } }
+    @keyframes s3  { 0%, 47% { opacity: 0; } 48.5%, 54% { opacity: 1; } 60%, 100% { opacity: 0; } }
+    @keyframes plugL { 0%, 3% { opacity: 0; } 8%, 31% { opacity: 1; } 34%, 100% { opacity: 0; } }
+    @keyframes plugR { 0%, 3% { opacity: 0; } 8%, 47% { opacity: 1; } 51%, 100% { opacity: 0; } }
+    @keyframes plugN { 0%, 3% { opacity: 0; } 8%, 47% { opacity: 1; } 51%, 100% { opacity: 0; } }
+    /* the cut's shaded faces are exposed by the removal itself */
+    @keyframes dep { 0%, 47% { opacity: 0; } 51%, 100% { opacity: 1; } }
+    @keyframes tL { 0%, 22% { opacity: 0; } 24%, 33% { opacity: 1; } 38%, 100% { opacity: 0; } }
+    @keyframes tP { 0%, 38% { opacity: 0; } 40%, 50% { opacity: 1; } 56%, 100% { opacity: 0; } }
+    @keyframes fin { 0%, 52% { opacity: 0; } 59%, 100% { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .all, .gridg, .cube, .old, .s0, .s1k, .s3, .plugL, .plugR, .plugN, .dep, .tL, .tP, .fin { animation: none; } }
+  </style>
+  <g class="all">
+    <g mask="url(#gmask)"><path class="grid gridg" d="M-40 -1400.0L1100 -741.8M-40 -741.8L1100 -1400.0M-40 -1286.0L1100 -627.8M-40 -627.8L1100 -1286.0M-40 -1172.0L1100 -513.8M-40 -513.8L1100 -1172.0M-40 -1058.0L1100 -399.8M-40 -399.8L1100 -1058.0M-40 -944.0L1100 -285.8M-40 -285.8L1100 -944.0M-40 -830.0L1100 -171.8M-40 -171.8L1100 -830.0M-40 -716.0L1100 -57.8M-40 -57.8L1100 -716.0M-40 -602.0L1100 56.2M-40 56.2L1100 -602.0M-40 -488.0L1100 170.2M-40 170.2L1100 -488.0M-40 -374.0L1100 284.2M-40 284.2L1100 -374.0M-40 -260.0L1100 398.2M-40 398.2L1100 -260.0M-40 -146.0L1100 512.2M-40 512.2L1100 -146.0M-40 -32.0L1100 626.2M-40 626.2L1100 -32.0M-40 82.0L1100 740.2M-40 740.2L1100 82.0M-40 196.0L1100 854.2M-40 854.2L1100 196.0M-40 310.0L1100 968.2M-40 968.2L1100 310.0M-40 424.0L1100 1082.2M-40 1082.2L1100 424.0M-40 538.0L1100 1196.2M-40 1196.2L1100 538.0M-40 652.0L1100 1310.2M-40 1310.2L1100 652.0M-40 766.0L1100 1424.2M-40 1424.2L1100 766.0M-40 880.0L1100 1538.2M-40 1538.2L1100 880.0M-40 994.0L1100 1652.2M-40 1652.2L1100 994.0M-40 1108.0L1100 1766.2M-40 1766.2L1100 1108.0M-40 1222.0L1100 1880.2M-40 1880.2L1100 1222.0M-40 1336.0L1100 1994.2M-40 1994.2L1100 1336.0M-40 1450.0L1100 2108.2M-40 2108.2L1100 1450.0M-40 1564.0L1100 2222.2M-40 2222.2L1100 1564.0M-40 1678.0L1100 2336.2M-40 2336.2L1100 1678.0M-40 1792.0L1100 2450.2M-40 2450.2L1100 1792.0M-40 1906.0L1100 2564.2M-40 2564.2L1100 1906.0M-40 2020.0L1100 2678.2M-40 2678.2L1100 2020.0M-40 2134.0L1100 2792.2M-40 2792.2L1100 2134.0M-40 2248.0L1100 2906.2M-40 2906.2L1100 2248.0M-40 2362.0L1100 3020.2M-40 3020.2L1100 2362.0"/></g>
+    <g class="cube">
+      <!-- fills: the carved faces always, the material each cut will remove (fades at its cut), and the cut's own faces (appear with the removal) -->
+      <g class="old">
+        <path class="plug plugL" d="M116.41 531.55 L296.20 635.36 L296.20 843.81 L116.41 740.00 Z" fill="url(#linear-gradient-4)" stroke="url(#linear-gradient-4)" stroke-width="3"/>
+        <path class="plug plugR" d="M709.80 395.96 L907.59 281.76 L907.59 510.55 L709.80 624.75 Z" fill="url(#linear-gradient-3)" stroke="url(#linear-gradient-3)" stroke-width="3"/>
+        <path class="plug plugN" d="M710.80 168.14 L907.59 281.76 L709.08 396.37 L512.28 282.75 Z" fill="url(#linear-gradient-5)" stroke="url(#linear-gradient-5)" stroke-width="3"/>
+        <path d="M116.41 281.76 L512.00 510.16 L512.00 968.40 L296.20 843.81 L296.20 635.36 L116.41 531.55 Z" fill="url(#linear-gradient-4)"/><path d="M512.00 510.16 L709.80 395.96 L709.80 624.75 L907.59 510.55 L907.59 740.00 L512.00 968.40 Z" fill="url(#linear-gradient-3)"/><path d="M116.41 281.76 L512.00 53.36 L710.80 168.14 L512.28 282.75 L709.08 396.37 L512.00 510.16 Z" fill="url(#linear-gradient-5)"/>
+        <path class="dep" d="M512.28 282.75 L709.80 168.71 L709.80 395.96 Z" fill="url(#linear-gradient-1)"/>
+        <path class="dep" d="M709.80 395.96 L907.59 510.55 L709.80 624.75 Z" fill="url(#linear-gradient-2)"/>
+      </g>
+      <g class="stk s0"><path d="M116.41 281.76 L512.00 510.16 L512.00 968.40 L116.41 740.00 Z"/><path d="M512.00 510.16 L907.59 281.76 L907.59 740.00 L512.00 968.40 Z"/><path d="M116.41 281.76 L512.00 53.36 L907.59 281.76 L512.00 510.16 Z"/></g>
+      <g class="stk s1k"><path d="M116.41 281.76 L512.00 510.16 L512.00 968.40 L296.20 843.81 L296.20 635.36 L116.41 531.55 Z"/><path d="M512.00 510.16 L907.59 281.76 L907.59 740.00 L512.00 968.40 Z"/><path d="M116.41 281.76 L512.00 53.36 L907.59 281.76 L512.00 510.16 Z"/></g>
+      <g class="stk s3"><path d="M116.41 281.76 L512.00 510.16 L512.00 968.40 L296.20 843.81 L296.20 635.36 L116.41 531.55 Z"/><path d="M512.00 510.16 L709.80 395.96 L709.80 624.75 L907.59 510.55 L907.59 740.00 L512.00 968.40 Z"/><path d="M116.41 281.76 L512.00 53.36 L710.80 168.14 L512.28 282.75 L709.08 396.37 L512.00 510.16 Z"/><path d="M709.80 168.71 L709.80 395.96 L907.59 510.55"/></g>
+    </g>
+    <!-- the logo itself, with its gaps and its two depth faces, which replaces the touching cube once the cuts are done -->
+    <g class="fin"><path d="M116.406 510.769 L116.406 303.529 L494 521.17 L494 957.8 L314.203 854.167 L314.203 624.777 Z" fill="url(#linear-gradient-4)"/><path d="M530 521.17 L691.797 427.912 L691.797 655.928 L907.594 531.545 L907.594 740.159 L530 957.8 Z" fill="url(#linear-gradient-3)"/><path d="M134.374 272.334 L512 53.364 L691.828 157.015 L476.117 282.846 L673.752 396.761 L512 489.993 Z" fill="url(#linear-gradient-5)"/><path d="M547.883 282.66 L709.797 188.211 L709.797 375.985 Z" fill="url(#linear-gradient-1)"/><path d="M727.797 593.626 L727.797 407.136 L889.571 500.381 Z" fill="url(#linear-gradient-2)"/></g>
+    <g class="tl tL"><polygon class="pface" points="116.41,531.55 296.20,635.36 296.20,635.36 116.41,531.55"><animate attributeName="points" dur="5.4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.24;0.31;1" keySplines="0 0 1 1;.5 0 .35 1;0 0 1 1" values="116.41,531.55 296.20,635.36 296.20,635.36 116.41,531.55;116.41,531.55 296.20,635.36 296.20,635.36 116.41,531.55;116.41,531.55 296.20,635.36 691.80,406.96 512.00,303.15;116.41,531.55 296.20,635.36 691.80,406.96 512.00,303.15"/></polygon><polygon class="pface" points="296.20,635.36 296.20,843.81 296.20,843.81 296.20,635.36"><animate attributeName="points" dur="5.4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.24;0.31;1" keySplines="0 0 1 1;.5 0 .35 1;0 0 1 1" values="296.20,635.36 296.20,843.81 296.20,843.81 296.20,635.36;296.20,635.36 296.20,843.81 296.20,843.81 296.20,635.36;296.20,635.36 296.20,843.81 691.80,615.41 691.80,406.96;296.20,635.36 296.20,843.81 691.80,615.41 691.80,406.96"/></polygon><polygon class="pface" points="116.41,531.55 296.20,635.36 296.20,843.81 116.41,740.00"><animate attributeName="points" dur="5.4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.24;0.31;1" keySplines="0 0 1 1;.5 0 .35 1;0 0 1 1" values="116.41,531.55 296.20,635.36 296.20,843.81 116.41,740.00;116.41,531.55 296.20,635.36 296.20,843.81 116.41,740.00;512.00,303.15 691.80,406.96 691.80,615.41 512.00,511.60;512.00,303.15 691.80,406.96 691.80,615.41 512.00,511.60"/></polygon><path class="ptop" d="M116.41 531.55 L296.20 635.36 L296.20 843.81 L116.41 740.00 Z"/></g>
+    <g class="tl tP"><polygon class="pface" points="709.08,396.37 512.28,282.75 512.28,282.75 709.08,396.37"><animate attributeName="points" dur="5.4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.4;0.47;1" keySplines="0 0 1 1;.5 0 .35 1;0 0 1 1" values="709.08,396.37 512.28,282.75 512.28,282.75 709.08,396.37;709.08,396.37 512.28,282.75 512.28,282.75 709.08,396.37;709.08,396.37 512.28,282.75 512.28,511.54 709.08,625.17;709.08,396.37 512.28,282.75 512.28,511.54 709.08,625.17"/></polygon><polygon class="pface" points="907.59,281.76 709.08,396.37 709.08,396.37 907.59,281.76"><animate attributeName="points" dur="5.4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.4;0.47;1" keySplines="0 0 1 1;.5 0 .35 1;0 0 1 1" values="907.59,281.76 709.08,396.37 709.08,396.37 907.59,281.76;907.59,281.76 709.08,396.37 709.08,396.37 907.59,281.76;907.59,281.76 709.08,396.37 709.08,625.17 907.59,510.55;907.59,281.76 709.08,396.37 709.08,625.17 907.59,510.55"/></polygon><polygon class="pface" points="710.80,168.14 907.59,281.76 709.08,396.37 512.28,282.75"><animate attributeName="points" dur="5.4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.4;0.47;1" keySplines="0 0 1 1;.5 0 .35 1;0 0 1 1" values="710.80,168.14 907.59,281.76 709.08,396.37 512.28,282.75;710.80,168.14 907.59,281.76 709.08,396.37 512.28,282.75;710.80,396.93 907.59,510.55 709.08,625.17 512.28,511.54;710.80,396.93 907.59,510.55 709.08,625.17 512.28,511.54"/></polygon><path class="ptop" d="M710.80 168.14 L907.59 281.76 L709.08 396.37 L512.28 282.75 Z"/></g>
+    <text class="word" x="512" y="1058" text-anchor="middle">SolidCraft</text>
+  </g>
+</svg>

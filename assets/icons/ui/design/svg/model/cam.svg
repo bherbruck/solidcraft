@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Cam coupling</title>
+  <path d="M30.64 21.5C37.64 21.5 46.64 32.5 46.64 42.5C46.64 51.89 39.48 59.5 30.64 59.5C21.8 59.5 14.64 51.89 14.64 42.5C14.64 32.5 23.64 21.5 30.64 21.5Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M27.64 18.5C34.64 18.5 43.64 29.5 43.64 39.5C43.64 48.89 36.48 56.5 27.64 56.5C18.8 56.5 11.64 48.89 11.64 39.5C11.64 29.5 20.64 18.5 27.64 18.5Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="27.64" cy="40.5" r="4" fill="#8e9faf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M25.14 4.5L30.14 4.5A2 2 0 0 1 32.14 6.5L32.14 10.5A2 2 0 0 1 30.14 12.5L25.14 12.5A2 2 0 0 1 23.14 10.5L23.14 6.5A2 2 0 0 1 25.14 4.5Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="27.64" cy="14.5" r="4.2" fill="#b9ddf8" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M49.64 25.5L49.64 11.5" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M49.64 5.5L53.64 13.5L45.64 13.5Z" fill="#236ead"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Infinite line</title>
+  <path d="M32 32L15.66 48.34" fill="none" stroke="#34465b" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10 54L13.18 44.45L19.55 50.82Z" fill="#34465b"/>
+  <path d="M32 32L48.34 15.66" fill="none" stroke="#34465b" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M54 10L50.82 19.55L44.45 13.18Z" fill="#34465b"/>
+  <path d="M32 32C26.86 22.57 20 23.43 20 32C20 40.57 26.86 41.43 32 32C37.14 22.57 44 23.43 44 32C44 40.57 37.14 41.43 32 32" fill="none" stroke="#ffffff" stroke-width="10.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 32C26.86 22.57 20 23.43 20 32C20 40.57 26.86 41.43 32 32C37.14 22.57 44 23.43 44 32C44 40.57 37.14 41.43 32 32" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

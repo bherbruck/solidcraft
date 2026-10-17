@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Activate</title>
+  <path d="M10 32A22 22 0 1 0 54 32A22 22 0 1 0 10 32Z" fill="#b9ddf8"/>
+  <path d="M10 32A22 22 0 1 0 54 32A22 22 0 1 0 10 32Z" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M21 33L29 41L44 24" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

@@ -1,9 +1,10 @@
 //! Blending a whole boundary loop of a planar face whose neighbours are walls standing
 //! perpendicular to it (planes, and cylinders with axes along the face normal): a pocket floor,
-//! the top outline of an extruded plate. The loop must be smooth (lines and arcs meeting
-//! tangentially). The face shrinks by the radius, the walls are trimmed by it, and each loop edge
+//! the top outline of an extruded plate. Lines and arcs can meet tangentially or at mitred sharp
+//! corners. The face shrinks by the radius, the walls are trimmed by it, and each loop edge
 //! gets a blend face: a cylinder (or plane, for a chamfer) along a line, a torus (or cone) along
-//! an arc, all meeting along the profile arcs at the joints. The result is exact.
+//! an arc, all meeting along the profile curves at the joints. Sharp joints at perpendicular
+//! curved walls follow the intersections of the exact offsets, fitted within tolerance.
 
 use std::collections::HashMap;
 
@@ -54,6 +55,74 @@ impl Seg {
             Seg::Arc { c, axis, .. } => axis.cross(p - c).normalized(),
         }
     }
+}
+
+/// Intersection of two inward offsets nearest their shared corner, in the face plane.
+fn offset_joint(prev: &Seg, cur: &Seg, n: Vec3, d: f64) -> Option<Vec3> {
+    let p = cur.start();
+    let line_circle = |line: &Seg, arc: &Seg| {
+        let Seg::Arc { a, c, .. } = *arc else { return None };
+        let tangent = line.tangent(p)?;
+        let origin = p + n.cross(tangent) * d;
+        let radius = a.dist(c) + n.cross(arc.tangent(p)?).dot((p - c).normalized()?) * d;
+        let foot = origin + tangent * (c - origin).dot(tangent);
+        let height2 = radius * radius - foot.dist(c).powi(2);
+        if !(radius > 0.0 && height2 >= 0.0) {
+            return None;
+        }
+        let (a, b) = (foot + tangent * height2.sqrt(), foot - tangent * height2.sqrt());
+        Some(if a.dist(p) < b.dist(p) { a } else { b })
+    };
+    match (prev, cur) {
+        (Seg::Line { .. }, Seg::Arc { .. }) => line_circle(prev, cur),
+        (Seg::Arc { .. }, Seg::Line { .. }) => line_circle(cur, prev),
+        (Seg::Arc { a: a0, c: c0, .. }, Seg::Arc { a: a1, c: c1, .. }) => {
+            let delta = *c1 - *c0;
+            let distance = delta.len();
+            let axis = delta.normalized()?;
+            let r0 = a0.dist(*c0) + n.cross(prev.tangent(p)?).dot((p - *c0).normalized()?) * d;
+            let r1 = a1.dist(*c1) + n.cross(cur.tangent(p)?).dot((p - *c1).normalized()?) * d;
+            let along = (r0 * r0 - r1 * r1 + distance * distance) / (2.0 * distance);
+            let height2 = r0 * r0 - along * along;
+            if !(r0 > 0.0 && r1 > 0.0 && height2 >= 0.0) {
+                return None;
+            }
+            let foot = *c0 + axis * along;
+            let across = n.cross(axis) * height2.sqrt();
+            let (a, b) = (foot + across, foot - across);
+            Some(if a.dist(p) < b.dist(p) { a } else { b })
+        }
+        _ => None,
+    }
+}
+
+/// A curved-wall joint is generally not planar. Fit its exact offset slices rather than
+/// projecting a circular section onto a tangent mitre and revolving that distorted section.
+fn offset_profile(prev: &Seg, cur: &Seg, n: Vec3, side: f64, r: f64, round: bool, tol: f64) -> Result<mt::Curve> {
+    use mt::ParametricCurve;
+    let point = |u: f64| {
+        let (d, h) = if round {
+            let (sin, cos) = (u * std::f64::consts::FRAC_PI_2).sin_cos();
+            (r * (1.0 - sin), r * (1.0 - cos))
+        } else {
+            (r * (1.0 - u), r * u)
+        };
+        offset_joint(prev, cur, n, d).map(|p| p + n * (side * h))
+    };
+    for count in [8, 16, 32, 64, 128] {
+        let pts = (0..=count)
+            .map(|i| point(f64::from(i) / f64::from(count)))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| too_large("the blend's offset walls do not meet"))?;
+        let curve = crate::build::interpolate_cubic(&pts).ok_or_else(|| unsupported("curved corner profile"))?;
+        if (0..count).all(|i| {
+            let u = (f64::from(i) + 0.5) / f64::from(count);
+            point(u).is_some_and(|p| p.dist(from_p3(curve.subs(u))) <= tol)
+        }) {
+            return Ok(mt::Curve::BSplineCurve(curve));
+        }
+    }
+    Err(unsupported("could not fit the curved corner within tolerance"))
 }
 
 /// The exact shape of an oriented loop edge (a line, or an arc found from samples).
@@ -158,10 +227,19 @@ fn face_normal(f: &mt::Face, p: Vec3) -> Option<Vec3> {
     Vec3::new(n.x, n.y, n.z).normalized()
 }
 
-/// Blend the loop of `edges` (by id) if it is a whole smooth boundary loop of a planar face with
+/// Blend `edges` (by id) if they form a boundary loop or neighbouring run of a planar face with
 /// perpendicular walls, with what it built from `solid` (each blend face in place of its loop
 /// edge). `None` when the edges are not such a loop.
 pub(crate) fn loop_blend(solid: &Solid, edge_ids: &[mt::EdgeID], size: f64, r: f64, round: bool) -> Option<Result<(Solid, Rebuild)>> {
+    match crate::guard("loop blend", || Ok(loop_blend_inner(solid, edge_ids, size, r, round))) {
+        Ok(result) => result,
+        Err(error) => Some(Err(error)),
+    }
+}
+
+fn loop_blend_inner(solid: &Solid, edge_ids: &[mt::EdgeID], size: f64, r: f64, round: bool) -> Option<Result<(Solid, Rebuild)>> {
+    #[cfg(test)]
+    assert!(crate::guarded(), "loop selection must run inside the kernel guard");
     let tol = (size * 1e-6).max(1e-7);
     for (si, shell) in solid.boundaries().iter().enumerate() {
         let faces: Vec<&mt::Face> = shell.face_iter().collect();
@@ -204,6 +282,8 @@ fn build(
     round: bool,
     run: Option<(usize, usize)>,
 ) -> Result<(Solid, Rebuild)> {
+    #[cfg(test)]
+    assert!(crate::guarded(), "loop construction must run inside the kernel guard");
     let f = faces.get(fi).ok_or_else(|| KernelError::Failed("face".into()))?;
     let wire = f.boundaries().get(wi).cloned().ok_or_else(|| KernelError::Failed("loop".into()))?;
     let all_edges: Vec<mt::Edge> = wire.edge_iter().cloned().collect();
@@ -226,7 +306,8 @@ fn build(
     // Joints: k round a whole loop; k + 1 along a run (its two ends included).
     let nj = if open { k + 1 } else { k };
     let nxt = |i: usize| if open { i + 1 } else { (i + 1) % k };
-    // Joints: smooth, or sharp between two lines (the blends then meet in a mitre).
+    // Joints: smooth, or sharp where the walls meet in one straight seam (the blends
+    // then meet in a mitre). A loop can therefore mix lines and arcs at its corners.
     let mut mitre = vec![false; nj];
     for i in 0..k {
         if open && i == 0 {
@@ -236,7 +317,7 @@ fn build(
         let p = cur.start();
         let (Some(ta), Some(tb)) = (prev.tangent(p), cur.tangent(p)) else { return Err(unsupported("degenerate loop edge")) };
         if ta.dot(tb) < 1.0 - 1e-6 {
-            if !(matches!(prev, Seg::Line { .. }) && matches!(cur, Seg::Line { .. })) || ta.dot(tb) < -1.0 + 1e-3 {
+            if ta.dot(tb) < -1.0 + 1e-3 {
                 return Err(unsupported("blending a loop with sharp corners next to arcs"));
             }
             if let Some(x) = mitre.get_mut(i) {
@@ -340,6 +421,7 @@ fn build(
     let mut pa = Vec::with_capacity(nj);
     let mut pb = Vec::with_capacity(nj);
     let mut centres = Vec::with_capacity(nj);
+    let mut curved_joint = vec![false; nj];
     // Joint i: the start of piece i (the end of the last piece for a run's far end).
     let joint_point = |i: usize| if i < k { segs.get(i).map(|s| s.start()) } else { segs.last().map(|s| s.end()) };
     for i in 0..nj {
@@ -360,7 +442,18 @@ fn build(
         };
         let x = d0.cross(d1);
         let lam = ((m * sb - m0 * sb0).cross(d1)).dot(x) / x.len2();
-        pa.push(p + m0 * sb0 + d0 * lam);
+        let exact = (matches!(segs.get(ip), Some(Seg::Arc { .. })) || matches!(segs.get(i), Some(Seg::Arc { .. })))
+            && t.dot(n * side) > 1.0 - 1e-9
+            && t0.dot(n * side) > 1.0 - 1e-9;
+        if exact {
+            let (Some(prev), Some(cur)) = (segs.get(ip), segs.get(i)) else { return Err(unsupported("corner segments")) };
+            pa.push(offset_joint(prev, cur, n, r).ok_or_else(|| too_large("the blend's offset walls do not meet"))?);
+            if let Some(slot) = curved_joint.get_mut(i) {
+                *slot = true;
+            }
+        } else {
+            pa.push(p + m0 * sb0 + d0 * lam);
+        }
         let e = seam_dir(i, p).ok_or_else(|| unsupported("a sharp corner without one straight seam"))?;
         let (h0, h1) = (e.dot(t0), e.dot(t));
         if h0 < 1e-6 || h1 < 1e-6 || (sb0 / h0 - sb / h1).abs() > tol * 10.0 {
@@ -453,6 +546,12 @@ fn build(
     let mut profiles: Vec<mt::Edge> = Vec::with_capacity(nj);
     for i in 0..nj {
         let (Some(a), Some(b)) = (va.get(i), vb.get(i)) else { return Err(KernelError::Failed("joint".into())) };
+        if curved_joint.get(i).copied().unwrap_or(false) {
+            let (Some(prev), Some(cur)) = (segs.get((i + k - 1) % k), segs.get(i)) else { return Err(unsupported("corner segments")) };
+            let curve = offset_profile(prev, cur, n, side, r, round, (r * 1e-7).max(1e-9))?;
+            profiles.push(mt::Edge::try_new(a, b, curve).map_err(|e| KernelError::Failed(format!("curved corner: {e}")))?);
+            continue;
+        }
         if !round {
             profiles.push(builder::line(a, b));
             continue;
@@ -471,6 +570,8 @@ fn build(
         let cc = centre(i) + d1 * lam;
         let q = p + t * sb + d1 * lam;
         let mid = cc + ((pa_i - cc) + (q - cc)).normalized().unwrap_or(t) * r;
+        // q projects onto the wall rail at pb_i; fitting through pb_i before projection
+        // would distort the circular cross-section at mixed line/arc corners.
         let arc = builder::circle_arc(&builder::vertex(p3(pa_i)), &builder::vertex(p3(q)), p3(mid));
         let nb = (pa_i - p).cross(pb_i - p).normalized().ok_or_else(|| unsupported("mitre plane"))?;
         let den = d1.dot(nb);
@@ -692,7 +793,19 @@ fn build(
                 let meridian = builder::circle_arc(&top, &bottom, eq);
                 builder::rsweep(&meridian, p3(c), v3(w), mt::Rad(std::f64::consts::TAU))
             }
-            Seg::Arc { c, axis, angle, .. } => builder::rsweep(pr, p3(c), v3(axis), mt::Rad(angle)),
+            Seg::Arc { c, axis, angle, .. }
+                if !curved_joint.get(i).copied().unwrap_or(false) && !curved_joint.get(nxt(i)).copied().unwrap_or(false) =>
+            {
+                builder::rsweep(pr, p3(c), v3(axis), mt::Rad(angle))
+            }
+            Seg::Arc { a, c, axis, angle, .. } => {
+                // Sweep a radial section, not the shared corner curve: the latter can be
+                // nonplanar and would change the round's radius all along this edge.
+                let (_, t, sb, _) = frame(i, a).ok_or_else(|| unsupported("frame"))?;
+                let (fa, wa) = (builder::vertex(p3(a + into(s, a) * sb)), builder::vertex(p3(a + t * sb)));
+                let base = if round { builder::circle_arc(&fa, &wa, p3(profile_mid(i))) } else { builder::line(&fa, &wa) };
+                builder::rsweep(&base, p3(c), v3(axis), mt::Rad(angle))
+            }
         };
         let mut surf = swept.face_iter().next().map(|x| x.oriented_surface()).ok_or_else(|| KernelError::Failed("blend surface".into()))?;
         // Outward: toward the profile centre on a concave loop, away from it on a convex one.

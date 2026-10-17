@@ -387,8 +387,19 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
     } else if !primary_down && !primary_released {
         app.viewport.primary_nav = None;
     }
-    // The fixed navigation mode (navigation bar) or the preset's left-button binding.
-    let primary_nav = app.viewport.nav.or(app.viewport.primary_nav);
+    // Hold Space for a momentary pan: the hand tool of design apps. It overrides whatever the
+    // left button would otherwise do - selecting, dragging geometry, the preset's binding or the
+    // navigation bar's fixed mode - and lasts only while the key is held. Space still types in a
+    // text field, and while a dimension's text is being edited, so those keep the keyboard.
+    let space_pan = (inside || primary_down)
+        && !ui.ctx().egui_wants_keyboard_input()
+        && !crate::dim_view::editing()
+        && ui.input(|i| i.key_down(egui::Key::Space));
+    if space_pan {
+        ui.ctx().set_cursor_icon(if primary_down { egui::CursorIcon::Grabbing } else { egui::CursorIcon::Grab });
+    }
+    // The fixed navigation mode (navigation bar), a held Space, or the preset's left-button binding.
+    let primary_nav = if space_pan { Some(NavMode::Pan) } else { app.viewport.nav.or(app.viewport.primary_nav) };
     let button = if middle {
         Some(crate::prefs::NavButton::Middle)
     } else if secondary_down {
@@ -914,5 +925,27 @@ mod view_key_tests {
             }
         }
         assert!(crate::keymap::RESERVED.contains(&crate::keymap::key_name(egui::Key::Num8, egui::Modifiers::COMMAND).as_str()));
+    }
+
+    /// #1886: Ctrl+8 looks straight at the sketch; pressed again while the view faces it, it
+    /// looks from the other side, and a third press turns it back. Opening a sketch never flips.
+    #[test]
+    fn ctrl_8_again_looks_from_the_other_side() {
+        let mut h = Harness::new();
+        h.app.preferences.look_at_anim = false;
+        h.app.run("sketch.create", json!({"plane": "XY"})).unwrap();
+        h.frames(2);
+        let back_z = |h: &Harness| h.app.cam.back().z;
+        for want in [1.0, -1.0, 1.0] {
+            h.step(&json!({"key": "8", "cmd": true})).unwrap();
+            h.frames(2);
+            assert!((back_z(&h) - want).abs() < 1e-3, "looking from z {want}: back {:?}", h.app.cam.back());
+        }
+        // Programmatic look-at (as on opening a sketch) keeps the sketch's own side.
+        crate::dialogs::look_at_sketch(&mut h.app);
+        h.frames(2);
+        crate::dialogs::look_at_sketch(&mut h.app);
+        h.frames(2);
+        assert!((back_z(&h) - 1.0).abs() < 1e-3, "{:?}", h.app.cam.back());
     }
 }

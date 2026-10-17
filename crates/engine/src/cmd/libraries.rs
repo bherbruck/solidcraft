@@ -6,11 +6,11 @@ use serde_json::{Value, json};
 use solidcraft_io::catalog::{Catalog, Definition, Provenance};
 
 pub static COMMANDS: &[CommandSpec] = &[
-    CommandSpec::new("library.inspect", "Inspect Local Library", inspect).noundo().doc_only()
+    CommandSpec::new("library.inspect", "Inspect Local Library", inspect).icon("inspect").noundo().doc_only()
         .params("path: scalar library JSON; returns validated catalog and exact entry revisions, without changing the design"),
-    CommandSpec::new("library.export", "Export Design Library", export).noundo().doc_only()
+    CommandSpec::new("library.export", "Export Design Library", export).icon("export").noundo().doc_only()
         .params("path: .json; id? (default user.local), name?, provenance?, overwrite? false. Copies assigned looks and design-local physical definitions; never changes the design"),
-    CommandSpec::new("library.apply", "Apply Local Library Entry", apply).enabled(super::not_in_sketch)
+    CommandSpec::new("library.apply", "Apply Local Library Entry", apply).icon("import").enabled(super::not_in_sketch)
         .params("path, entry: qualified ID, revision: exact content SHA-256; targets?: {bodies?, faces?: [{body,point}], components?}; name?: physical material name on import. Copies values in one undo step; material conflicts are explicit"),
 ];
 

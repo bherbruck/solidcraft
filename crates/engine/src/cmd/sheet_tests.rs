@@ -2816,6 +2816,64 @@ fn a_pocket_around_a_cut_out_rebuilds_on_a_folded_sheet() {
     }
 }
 
+/// Engraving a long channel leaves its corner rounds round. The channel (1200 long, 1 thick) has
+/// 2 mm rounds where its legs end, and two 5.95 x 5 pockets 0.1 apart are cut 0.1 deep into a leg
+/// halfway along. Their walls in one plane leave the second pocket to the exact planar fallback,
+/// whose mesh (a thousandth of the body, 1.2 mm) is flat across a 2 mm round: taken for a plane,
+/// the rounds came back flat chamfers beside a round hole, and without one the cut failed.
+#[test]
+fn engraving_a_long_channel_keeps_its_corner_rounds() {
+    for hole in [false, true] {
+        let mut s = Session::default();
+        run(&mut s, "sheet.manage_rules", json!({"name": "Thin", "active": true, "thickness": "1 mm", "bend_radius": "1 mm", "k_factor": "0.44"}));
+        // Along z, 20 wide, its legs 65 and 25 high from the web at y = 65.
+        run(&mut s, "sketch.create", json!({"plane": {"origin": [0, 0, -600], "x_dir": [1, 0, 0], "y_dir": [0, 1, 0]}, "name": "Profile"}));
+        run(&mut s, "sketch.line", json!({"points": [[-10, 0], [-10, 65], [10, 65], [10, 40]], "ids": ["l1", "l2", "l3"]}));
+        run(&mut s, "sketch.finish", json!({}));
+        run(&mut s, "sheet.flange", json!({"sketch": "Profile", "curves": ["l1", "l2", "l3"], "distance": 1200}));
+        // Each leg's free edge rounded at both ends: the corner outside a quarter circle, cut through.
+        let legs = [(-10.0_f64, 0.0_f64), (10.0, 40.0)];
+        for (k, (x, y)) in legs.iter().enumerate() {
+            let name = format!("Rounds{k}");
+            run(&mut s, "sketch.create", json!({"plane": {"origin": [x, 0, 0], "x_dir": [0, 0, 1], "y_dir": [0, 1, 0]}, "name": name}));
+            for end in [-600.0, 600.0_f64] {
+                let c = end - 2.0 * end.signum();
+                let far = end + 2.0 * end.signum();
+                run(&mut s, "sketch.line", json!({"points": [[c, y], [c, y - 2.0], [far, y - 2.0], [far, y + 2.0], [end, y + 2.0]]}));
+                run(&mut s, "sketch.arc.center_point", json!({"center": [c, y + 2.0], "start": [end, y + 2.0], "sweep": -90.0 * end.signum()}));
+            }
+            run(&mut s, "sketch.finish", json!({}));
+            run(&mut s, "solid.extrude", json!({"sketch": name, "distance": 4, "direction": "symmetric", "operation": "cut"}));
+        }
+        if hole {
+            run(&mut s, "sketch.create", json!({"plane": {"origin": [-10, 0, 0], "x_dir": [0, 0, 1], "y_dir": [0, 1, 0]}, "name": "Hole"}));
+            run(&mut s, "sketch.circle.center", json!({"center": [360, 57], "diameter": 4}));
+            run(&mut s, "sketch.finish", json!({}));
+            run(&mut s, "solid.extrude", json!({"sketch": "Hole", "distance": 4, "direction": "symmetric", "operation": "cut"}));
+        }
+        let v0 = volume(&mut s);
+        // Into the outer face of the leg at x = -10 (its material from -10 to -9).
+        run(&mut s, "sketch.create", json!({"plane": {"origin": [-10, 0, 0], "x_dir": [0, 0, 1], "y_dir": [0, 1, 0]}, "name": "Label"}));
+        run(&mut s, "sketch.rectangle.two_point", json!({"p0": [-6, 30], "p1": [-0.05, 35]}));
+        run(&mut s, "sketch.rectangle.two_point", json!({"p0": [0.05, 30], "p1": [6, 35]}));
+        run(&mut s, "sketch.finish", json!({}));
+        run(&mut s, "solid.extrude", json!({"sketch": "Label", "distance": 0.1, "direction": "negative", "operation": "cut"}));
+        // 2 x 5.95 x 5 x 0.1.
+        let removed = v0 - volume(&mut s);
+        assert!((removed - 5.95).abs() < 1e-3, "hole {hole}: removed {removed}");
+        // A point on each round, halfway through the leg: 2 - 2 cos 45 deg in from both edges.
+        let d = 2.0 - std::f64::consts::SQRT_2;
+        let faces: Vec<[f64; 3]> =
+            legs.iter().flat_map(|(x, y)| [-600.0, 600.0_f64].map(|end| [x + 0.5 * -x.signum(), y + d, end - d * end.signum()])).collect();
+        let radii = run(&mut s, "inspect.minimum_radius", json!({"faces": faces}));
+        let items = radii["items"].as_array().unwrap();
+        assert_eq!(items.len(), 4);
+        for item in items {
+            assert!(item["min_radius"].as_f64().is_some_and(|r| (r - 2.0).abs() < 1e-6), "hole {hole}: {item}");
+        }
+    }
+}
+
 /// A fold whose stored `fixed` point ends up off the sheet after a parameter change keeps working:
 /// the point still says which side stays (#370). Only a new pick off the sheet is refused (#263).
 #[test]

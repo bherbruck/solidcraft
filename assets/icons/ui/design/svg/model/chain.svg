@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Chain</title>
+  <path d="M12.34 23.66L23.34 34.66A8 8 0 0 0 34.66 23.34L23.66 12.34A8 8 0 0 0 12.34 23.66Z" fill="none" stroke="#34465b" stroke-width="9.6" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M12.34 23.66L23.34 34.66A8 8 0 0 0 34.66 23.34L23.66 12.34A8 8 0 0 0 12.34 23.66Z" fill="none" stroke="#b8c3cf" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M29.34 40.66L40.34 51.66A8 8 0 0 0 51.66 40.34L40.66 29.34A8 8 0 0 0 29.34 40.66Z" fill="none" stroke="#34465b" stroke-width="9.6" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M29.34 40.66L40.34 51.66A8 8 0 0 0 51.66 40.34L40.66 29.34A8 8 0 0 0 29.34 40.66Z" fill="none" stroke="#328bd3" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <defs><clipPath id="chain-grey-overlap"><path d="M0 0L0 64L64 64Z" fill="none"/></clipPath></defs>
+  <g clip-path="url(#chain-grey-overlap)">
+  <path d="M12.34 23.66L23.34 34.66A8 8 0 0 0 34.66 23.34L23.66 12.34A8 8 0 0 0 12.34 23.66Z" fill="none" stroke="#34465b" stroke-width="9.6" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M12.34 23.66L23.34 34.66A8 8 0 0 0 34.66 23.34L23.66 12.34A8 8 0 0 0 12.34 23.66Z" fill="none" stroke="#b8c3cf" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+</svg>

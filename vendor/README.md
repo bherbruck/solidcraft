@@ -53,6 +53,12 @@ Changes:
   farther from the leader's point than the curve's tolerance (the projection settled on another
   part of a surface, such as the far side of a small hole) is dropped for the search from
   nothing, as before. `crates/kernel/src/issue_1038_tests.rs` holds it to that search.
+- `decorators/revolved_curve.rs`: a point on a revolved surface's seam (angle 0, the same place
+  as 2π) takes the end of the period nearer the hinted angle. The angle was decided by the sign of
+  a cross product that is rounding noise there, so a boundary followed point by point could come
+  back to the seam at the other end of the period and fold its parameter polygon over itself (no
+  intersection loop then lay inside the face). `crates/kernel/src/seam_faces_tests.rs` holds it
+  to a cone read from STEP.
 
 ## truck-stepio 0.3.0 (Apache-2.0, © RICOS Co. Ltd., https://github.com/ricosjp/truck)
 
@@ -204,3 +210,5 @@ SolidCraft changes:
   clamped to it (`clamp_surface_extent`, aspect ratio kept) and egui is drawn at the matching
   smaller scale, instead of a `Surface::configure` validation panic (#869). The resize path and
   an unsupported surface no longer unwrap.
+- `src/winit.rs`: acquire a drawable before preparing paint callbacks, so a skipped
+  surface frame cannot discard initialization commands for cached viewport meshes.

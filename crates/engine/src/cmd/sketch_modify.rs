@@ -31,12 +31,12 @@ pub static COMMANDS: &[CommandSpec] = &[
         .params(concat!("point | a, b: a corner of two lines; distance", created_doc!())),
     CommandSpec::new("sketch.chamfer.distance_angle", "Distance and Angle Chamfer", chamfer_dist_angle)
         .at("SKETCH", "MODIFY")
-        .icon("sketch_chamfer")
+        .icon("sketch_chamfer_angle")
         .enabled(in_sketch)
         .params(concat!("point | a, b: a corner of two lines; distance: along a, angle: deg from a", created_doc!())),
     CommandSpec::new("sketch.chamfer.two_distance", "Two Distance Chamfer", chamfer_two)
         .at("SKETCH", "MODIFY")
-        .icon("sketch_chamfer")
+        .icon("sketch_chamfer_two_distances")
         .enabled(in_sketch)
         .params(concat!("point | a, b: a corner of two lines; distance: along a, distance2: along b", created_doc!())),
     CommandSpec::new("sketch.offset", "Offset", offset)
@@ -50,7 +50,7 @@ pub static COMMANDS: &[CommandSpec] = &[
             "distance2?: positive length expression (Two Sides: an independent distance the other way, as for `solid.extrude`). Each side is its own offset association, listed in `sides`; flip?: bool reverses the primary side; `param`/`param2` name the driving dimensions",
             created_doc!()
         )),
-    CommandSpec::new("sketch.offset.break", "Break Offset Association", break_offset)
+    CommandSpec::new("sketch.offset.break", "Break Offset Association", break_offset).icon("sketch_break")
         .enabled(in_sketch)
         .params("curve: derived offset curve id (retains geometry and makes its points editable)"),
     CommandSpec::new("sketch.trim", "Trim", trim)
@@ -66,17 +66,17 @@ pub static COMMANDS: &[CommandSpec] = &[
         .params("curve: id, at: [x,y] near the end to extend (to the nearest curve)"),
     CommandSpec::new("sketch.break", "Break", break_cmd)
         .at("SKETCH", "MODIFY")
-        .icon("break")
+        .icon("sketch_break")
         .enabled(in_sketch)
         .params(concat!("curve: id, at: [x,y] (split at intersections) | points: [[x,y]…] (1…1000 positions projected onto the curve; duplicates are merged)", created_doc!())),
     CommandSpec::new("sketch.scale", "Sketch Scale", scale)
         .at("SKETCH", "MODIFY")
-        .icon("scale")
+        .icon("sketch_scale")
         .enabled(in_sketch)
         .params("entities: [curve/point ids], base: [x,y] or point ref, factor: number"),
     CommandSpec::new("sketch.move", "Move/Copy Sketch Entities", move_copy)
         .at("SKETCH", "MODIFY")
-        .icon("move")
+        .icon("sketch_move")
         .enabled(in_sketch)
         .params(concat!("entities: [ids], translate?: [dx,dy], angle?: deg, center?: [x,y], copy?: bool; picking a text outline or linked point transforms its whole text source once, and copies remain editable text", created_doc!())),
     CommandSpec::new("sketch.mirror", "Mirror", mirror)

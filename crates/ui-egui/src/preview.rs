@@ -26,6 +26,8 @@ use crate::theme::Tokens;
 pub struct Colors {
     pub body: [u8; 4],
     pub added: [u8; 4],
+    /// A body the preview creates (New Body), so it doesn't look like a join.
+    pub new_body: [u8; 4],
     pub removed: [u8; 4],
     pub edge: [u8; 4],
 }
@@ -33,7 +35,7 @@ pub struct Colors {
 impl Colors {
     pub fn from_tokens(t: &Tokens) -> Colors {
         let c = |c: egui::Color32| c.to_srgba_unmultiplied();
-        Colors { body: c(t.body), added: c(t.preview_add), removed: c(t.preview_cut), edge: c(t.body_edge) }
+        Colors { body: c(t.body), added: c(t.preview_add), new_body: c(t.preview_new), removed: c(t.preview_cut), edge: c(t.body_edge) }
     }
 }
 
@@ -501,7 +503,11 @@ pub fn build(before: &ModelState, after: &ModelState, c: Colors) -> Built {
         let cut = old.as_ref().is_some_and(|bm| am.measure().volume < bm.measure().volume - 1e-6);
         for (t, f) in am.triangles.iter().zip(&am.tri_face) {
             let new = added.get(*f as usize).copied().unwrap_or(true);
-            let col = if new { c.added } else { c.body };
+            let col = match (new, old.is_some()) {
+                (false, _) => c.body,
+                (true, true) => c.added,
+                (true, false) => c.new_body,
+            };
             for k in t {
                 let i = *k as usize;
                 if let (Some(p), Some(n)) = (am.positions.get(i), am.normals.get(i)) {
@@ -717,7 +723,7 @@ mod tests {
     use serde_json::json;
 
     fn colors() -> Colors {
-        Colors { body: [1, 1, 1, 255], added: [2, 2, 2, 255], removed: [3, 3, 3, 100], edge: [0, 0, 0, 255] }
+        Colors { body: [1, 1, 1, 255], added: [2, 2, 2, 255], new_body: [4, 4, 4, 255], removed: [3, 3, 3, 100], edge: [0, 0, 0, 255] }
     }
 
     #[test]
@@ -1006,6 +1012,9 @@ mod tests {
         let b = compute(&s, &[("solid.extrude".into(), json!({"distance": "15 mm"}))], colors()).unwrap();
         assert!(b.replaced.is_empty());
         assert_eq!(count(&b.scene.tris, crate::gpu::TRI_SIZE, colors().body), 0);
+        // #1805: a new body has its own colour, not a join's.
+        assert!(count(&b.scene.tris, crate::gpu::TRI_SIZE, colors().new_body) > 0);
+        assert_eq!(count(&b.scene.tris, crate::gpu::TRI_SIZE, colors().added), 0);
         assert!(b.scene.ghost.is_empty());
         assert!(compute(&s, &[("solid.extrude".into(), json!({"distance": "1 +"}))], colors()).is_err());
         assert!(s.model.state().bodies.is_empty());

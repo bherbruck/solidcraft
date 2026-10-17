@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Revert position</title>
+  <path d="M20.74 25.5L32 32L32 45L20.74 38.5Z" fill="#b8c3cf"/>
+  <path d="M43.26 25.5L32 32L32 45L43.26 38.5Z" fill="#8e9faf"/>
+  <path d="M32 19L43.26 25.5L32 32L20.74 25.5Z" fill="#e2e8ef"/>
+  <path d="M32 19L43.26 25.5L43.26 38.5L32 45L20.74 38.5L20.74 25.5Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.74 25.5L32 32L43.26 25.5" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 32L32 45" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44 56L56 56L56 44" fill="none" stroke="#8e9faf" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5.6"/>
+  <path d="M20 56L8 56L8 44" fill="none" stroke="#8e9faf" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5.6"/>
+  <path d="M44 8L56 8L56 20" fill="none" stroke="#8e9faf" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5.6"/>
+  <path d="M20 8L8 8L8 20" fill="none" stroke="#8e9faf" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5.6"/>
+</svg>

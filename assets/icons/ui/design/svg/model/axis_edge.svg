@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Axis through edge</title>
+  <path d="M16.25 20.6L36 32L36 54.8L16.25 43.4Z" fill="#b8c3cf"/>
+  <path d="M55.75 20.6L36 32L36 54.8L55.75 43.4Z" fill="#8e9faf"/>
+  <path d="M36 9.2L55.75 20.6L36 32L16.25 20.6Z" fill="#e2e8ef"/>
+  <path d="M36 9.2L55.75 20.6L55.75 43.4L36 54.8L16.25 43.4L16.25 20.6Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M16.25 20.6L36 32L55.75 20.6" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M36 32L36 54.8" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10.2 17.1L42.06 35.5" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10.2 17.1L42.06 35.5" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

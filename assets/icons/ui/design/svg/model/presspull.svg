@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Press pull</title>
+  <path d="M3 36.75L32 53.49L32 61.1L3 44.36Z" fill="#b8c3cf"/>
+  <path d="M61 36.75L32 53.49L32 61.1L61 44.36Z" fill="#8e9faf"/>
+  <path d="M32 20.01L61 36.75L32 53.49L3 36.75Z" fill="#e2e8ef"/>
+  <path d="M32 20.01L61 36.75L61 44.36L32 61.1L3 44.36L3 36.75Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M3 36.75L32 53.49L61 36.75" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 53.49L32 61.1" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M16.18 27.62L32 36.75L32 45.88L16.18 36.75Z" fill="#328bd3"/>
+  <path d="M47.82 27.62L32 36.75L32 45.88L47.82 36.75Z" fill="#236ead"/>
+  <path d="M32 18.48L47.82 27.62L32 36.75L16.18 27.62Z" fill="#b9ddf8"/>
+  <path d="M32 18.48L47.82 27.62L47.82 36.75L32 45.88L16.18 36.75L16.18 27.62Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M16.18 27.62L32 36.75L47.82 27.62" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 36.75L32 45.88" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 9.62L32 24.62" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 1.62L37 10.62L27 10.62Z" fill="#236ead"/>
+</svg>

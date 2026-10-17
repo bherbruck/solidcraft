@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Edge polygon</title>
+  <path d="M56 32L44 52.78L20 52.78L8 32L20 11.22L44 11.22Z" fill="#b9ddf8" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="44" cy="52.78" r="5.8" fill="#ffffff"/>
+  <circle cx="44" cy="52.78" r="3.4" fill="#236ead"/>
+  <circle cx="20" cy="52.78" r="5.8" fill="#ffffff"/>
+  <circle cx="20" cy="52.78" r="3.4" fill="#236ead"/>
+</svg>

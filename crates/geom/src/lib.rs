@@ -18,6 +18,7 @@ pub mod env;
 pub mod fill;
 pub mod fill_general;
 mod mesh;
+pub mod mesh_distance;
 mod plane;
 mod profile;
 pub mod tess;

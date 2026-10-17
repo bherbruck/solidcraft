@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Sketch</title>
+  <path d="M8 8L56 8L56 56L8 56Z" fill="none" stroke="#6f879c" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5.9"/>
+  <path d="M18 27L35 17L46 44L19 43Z" fill="#b9ddf8" stroke="#236ead" stroke-width="2.89" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="18" cy="27" r="3.3" fill="#236ead"/>
+  <circle cx="35" cy="17" r="3.3" fill="#236ead"/>
+  <circle cx="46" cy="44" r="3.3" fill="#236ead"/>
+  <circle cx="19" cy="43" r="3.3" fill="#236ead"/>
+</svg>

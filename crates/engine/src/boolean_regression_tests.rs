@@ -312,3 +312,68 @@ fn joined_loft_frames_plan_their_display_at_every_quality() {
         }
     }
 }
+
+/// The wedge of #1617: a side profile in (y, z) extruded 138 mm along x, its back face leaning
+/// by `lean` (the tangent of its angle), with the issue's rounds. The last one runs along the
+/// outline of both ends. The issue asked for R1 with `fit: reduce`, which reduces it to 0.854 mm;
+/// that radius is asked for here directly, which builds the same body without the fit's search
+/// (about a minute).
+fn raked_wedge(lean: f64) -> Session {
+    let mut s = Session::default();
+    let top = 60.0 - 60.0 * lean;
+    let profile = [[-60.0, 0.0], [60.0, 0.0], [top, 60.0], [38.0, 60.0], [-22.0, 22.0], [-60.0, 22.0]];
+    let back = (60.0 + top) / 2.0;
+    let ends: Vec<[f64; 3]> = [-69.0, 69.0].iter().flat_map(|&x| [[x, -41.0, 22.0], [x, 8.0, 41.0], [x, (38.0 + top) / 2.0, 60.0]]).collect();
+    let steps = [
+        ("sketch.create", json!({"plane": {"origin": [0, 0, 0], "x_dir": [0, 1, 0], "y_dir": [0, 0, 1]}, "name": "Profile"})),
+        ("sketch.line", json!({"points": profile, "closed": true})),
+        ("sketch.finish", json!({})),
+        ("solid.extrude", json!({"distance": 138, "direction": "symmetric", "operation": "new", "body_name": "Wedge"})),
+        ("solid.fillet", json!({"body": "Wedge", "radius": 1.2, "edges": [[0, -60, 22]]})),
+        ("solid.fillet", json!({"body": "Wedge", "radius": 1.5, "edges": [[0, -22, 22]]})),
+        ("solid.fillet", json!({"body": "Wedge", "radius": 1.5, "edges": [[0, 38, 60]]})),
+        ("solid.fillet", json!({"body": "Wedge", "radius": 4, "edges": [[-69, -60, 12], [69, -60, 12], [-69, back, 30], [69, back, 30]]})),
+        ("solid.fillet", json!({"body": "Wedge", "radius": 0.854, "edges": ends})),
+    ];
+    for (command, params) in steps {
+        s.execute(command, &params).unwrap_or_else(|e| panic!("{command}: {e}"));
+    }
+    s
+}
+
+/// A box intersect taking the end slice x >= 55 off the wedge of #1617 failed with "no result"
+/// once its ends were rounded, when its back face leaned 10 degrees (a vertical one worked).
+/// The leaning back shortens the top edge the end round runs along to 11.4 mm. Its strip there
+/// borrowed sections from that short neighbour and folded back on itself past the joint, and
+/// the boolean could not intersect the folded faces (fixed with #1667). The slice and the
+/// rest, cut off by the same box, are sound and add up to the wedge, with the cut plane where
+/// the issue had it and moved by 0.02 mm, as it also tried.
+#[test]
+fn box_intersect_splits_the_end_off_a_raked_wedge_after_its_end_rounds() {
+    for lean in [10f64.to_radians().tan(), 0.0] {
+        let mut s = raked_wedge(lean);
+        let whole = volume(&s, "Wedge");
+        for (i, x0) in [55.0, 55.02].into_iter().enumerate() {
+            let mut piece = |op: &str| -> (f64, solidcraft_geom::Aabb3) {
+                let copy = s.execute("solid.move", &json!({"bodies": ["Wedge"], "translate": [0, 0, 0], "copy": true})).unwrap();
+                let copy = copy["created_bodies"][0].as_str().unwrap().to_string();
+                let cap = format!("Cap{i}{op}");
+                let length = 80.0 - x0;
+                let cap_box = json!({"center": [x0 + length / 2.0, 0, 40], "length": length, "width": 160, "height": 120, "operation": "new", "body_name": cap});
+                s.execute("solid.box", &cap_box).unwrap();
+                let (target, tool) = if op == "intersect" { (cap, copy) } else { (copy, cap) };
+                s.execute("solid.combine", &json!({"target": target, "tools": [tool], "operation": op}))
+                    .unwrap_or_else(|e| panic!("lean {lean}, x >= {x0}, {op}: {e}"));
+                let state = s.model.state();
+                let body = &state.body(&target).unwrap().body;
+                assert!(body.validity().is_empty(), "lean {lean}, x >= {x0}, {op}: {:?}", body.validity());
+                (solidcraft_kernel::measure(body).unwrap().volume, body.tessellate(1e-3).unwrap().bounds())
+            };
+            let (slice, at) = piece("intersect");
+            let (rest, _) = piece("cut");
+            println!("#1617 lean {lean:.4}, x >= {x0}: slice {slice:.6} + rest {rest:.6} = {:.6}, wedge {whole:.6} mm³", slice + rest);
+            assert!((slice + rest - whole).abs() < 1e-6 * whole, "{slice} + {rest} vs {whole}");
+            assert!((at.min.x - x0).abs() < 1e-6 && (at.max.x - 69.0).abs() < 1e-3, "slice spans x {} to {}", at.min.x, at.max.x);
+        }
+    }
+}

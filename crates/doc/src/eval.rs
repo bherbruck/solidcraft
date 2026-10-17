@@ -145,8 +145,8 @@ impl ModelBody {
         Some((Arc::new(plan), Arc::new(mesh)))
     }
 
-    /// The display mesh's chord tolerance: 1/1000 of the body's size.
-    fn display_tol(&self) -> f64 {
+    /// The chord tolerance of [`ModelBody::mesh`] (mm): 1/1000 of the body's size, at least 1 µm.
+    pub fn display_tol(&self) -> f64 {
         (self.body.size() * 1e-3).max(1e-3)
     }
 
@@ -747,6 +747,8 @@ pub struct Model {
     pub cache: Arc<std::sync::Mutex<EvalCache>>,
     /// Evaluate everything from scratch (no reuse; tests compare the two).
     pub no_cache: bool,
+    /// The imported texts' digests the last `evaluate` fingerprinted the features with.
+    step_digests: StepDigests,
 }
 
 /// Parameters a feature uses directly (inputs, sketch dimensions and the expressions of a
@@ -762,12 +764,12 @@ fn param_names(f: &Feature) -> Vec<String> {
     names
 }
 
-fn fingerprint(prev: u64, f: &Feature, vals: &BTreeMap<String, Value>, rolled_back: bool) -> u64 {
+fn fingerprint(prev: u64, f: &Feature, vals: &BTreeMap<String, Value>, rolled_back: bool, steps: &StepDigests) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     prev.hash(&mut h);
     rolled_back.hash(&mut h);
     vals.get(DESIGN_LEN).map(|v| v.v.to_bits()).hash(&mut h);
-    feature_json(f).hash(&mut h);
+    feature_json(f, steps).hash(&mut h);
     for n in param_names(f) {
         n.hash(&mut h);
         match vals.get(&n) {
@@ -779,6 +781,44 @@ fn fingerprint(prev: u64, f: &Feature, vals: &BTreeMap<String, Value>, rolled_ba
             None => 0u8.hash(&mut h),
         }
     }
+    h.finish()
+}
+
+/// The digests of the Import features' STEP texts, by feature id, with the text each was taken
+/// from. Every evaluation fingerprints every feature, and writing out a design's imported files
+/// each time made every command as slow as the files are large: a text is shared (`Arc`), so
+/// its digest is taken once and kept while the feature holds that same text.
+#[derive(Clone, Debug, Default)]
+struct StepDigests(std::collections::HashMap<u64, (Arc<str>, u64)>);
+
+impl StepDigests {
+    /// The digests of `doc`'s imported texts, reusing `known` for texts it has seen.
+    fn of(doc: &Document, known: &StepDigests) -> StepDigests {
+        let texts = doc.features.iter().filter_map(|f| match &f.kind {
+            FeatureKind::Import { step, .. } => Some((f.id, step)),
+            _ => None,
+        });
+        StepDigests(
+            texts
+                .map(|(id, step)| {
+                    let digest = known.get(id, step).unwrap_or_else(|| step_text_digest(step));
+                    (id, (step.clone(), digest))
+                })
+                .collect(),
+        )
+    }
+
+    /// The digest of `step`, when it is the text feature `id` was last seen with.
+    fn get(&self, id: u64, step: &Arc<str>) -> Option<u64> {
+        self.0.get(&id).filter(|(text, _)| Arc::ptr_eq(text, step)).map(|(_, digest)| *digest)
+    }
+}
+
+fn step_text_digest(text: &str) -> u64 {
+    #[cfg(test)]
+    cost_tests::count(|c| c.digested += 1);
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    text.hash(&mut h);
     h.finish()
 }
 
@@ -806,8 +846,17 @@ fn quantize(sk: &mut solidcraft_sketch::Sketch) {
     }
 }
 
-/// A feature as fingerprinted: its definition, a sketch's stored solve quantized.
-fn feature_json(f: &Feature) -> String {
+/// A feature as fingerprinted: its definition, a sketch's stored solve quantized, an imported
+/// file's text by its digest.
+fn feature_json(f: &Feature, steps: &StepDigests) -> String {
+    if let FeatureKind::Import { step, .. } = &f.kind {
+        let mut g = f.clone();
+        if let FeatureKind::Import { step: text, .. } = &mut g.kind {
+            let digest = steps.get(f.id, step).unwrap_or_else(|| step_text_digest(step));
+            *text = Arc::from(format!("{digest:016x}:{}", step.len()));
+        }
+        return serde_json::to_string(&g).unwrap_or_default();
+    }
     if let FeatureKind::Sketch { .. } = &f.kind {
         let mut g = f.clone();
         if let FeatureKind::Sketch { sketch, .. } = &mut g.kind {
@@ -866,8 +915,8 @@ fn evaluation_values(doc: &Document) -> (BTreeMap<String, Value>, BTreeMap<Strin
 
 /// A feature's fingerprint in the chain after `prev`: its own inputs, where it is placed, and
 /// the sheet metal or plastic rules it takes defaults from.
-fn chain_fingerprint(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, prev: u64, rolled_back: bool) -> u64 {
-    let mut fp = fingerprint(prev, f, vals, rolled_back) ^ placement_digest(doc, f);
+fn chain_fingerprint(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, prev: u64, rolled_back: bool, steps: &StepDigests) -> u64 {
+    let mut fp = fingerprint(prev, f, vals, rolled_back, steps) ^ placement_digest(doc, f);
     // Sheet metal features also depend on the rules (and the parameters they use).
     if f.kind.is_sheet() {
         let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -906,7 +955,7 @@ fn context_digest(doc: &Document, vals: &BTreeMap<String, Value>) -> u64 {
     for f in doc.features.iter().filter(|f| {
         matches!(f.kind, FeatureKind::ConstructionPlane { .. } | FeatureKind::ConstructionAxis { .. } | FeatureKind::ConstructionPoint { .. })
     }) {
-        fingerprint(0, f, vals, false).hash(&mut h);
+        fingerprint(0, f, vals, false, &StepDigests::default()).hash(&mut h);
     }
     doc.units.hash(&mut h);
     serde_json::to_string(&doc.sheet).unwrap_or_default().hash(&mut h);
@@ -962,17 +1011,25 @@ fn placement_digest(doc: &Document, f: &Feature) -> u64 {
         | FeatureKind::Pattern { pattern: crate::PatternKind::Path { path_sketch, .. }, .. } => Some(*path_sketch),
         _ => None,
     };
+    let wired = |id: &crate::SketchId| doc.sketch(id.0).is_ok_and(|sketch| !sketch.wires.is_empty());
+    let rails: &[crate::SweepRail] = match &f.kind {
+        FeatureKind::Sweep { rails, .. } | FeatureKind::SurfaceSweep { rails, .. } => rails,
+        _ => &[],
+    };
     if let Some(path) = path
-        && doc.sketch(path.0).is_ok_and(|sketch| !sketch.wires.is_empty())
+        && (wired(&path) || rails.iter().any(|r| wired(&r.sketch)))
     {
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         let owner = doc.feature(path.0).map(|feature| feature.component).unwrap_or(0);
         for frame in [doc.component_transform(f.component), doc.component_transform(owner)] {
             frame.iter().flatten().for_each(|value| value.to_bits().hash(&mut hash));
         }
-        if let FeatureKind::Sweep { sketch, .. } | FeatureKind::SurfaceSweep { sketch, .. } = &f.kind {
-            let owner = doc.feature(sketch.0).map(|feature| feature.component).unwrap_or(0);
-            doc.component_transform(owner).iter().flatten().for_each(|value| value.to_bits().hash(&mut hash));
+        if let FeatureKind::Sweep { sketch, rails, .. } | FeatureKind::SurfaceSweep { sketch, rails, .. } = &f.kind {
+            // The profile's and the rails' components place them too.
+            for sketch in std::iter::once(sketch).chain(rails.iter().map(|r| &r.sketch)) {
+                let owner = doc.feature(sketch.0).map(|feature| feature.component).unwrap_or(0);
+                doc.component_transform(owner).iter().flatten().for_each(|value| value.to_bits().hash(&mut hash));
+            }
         }
         return hash.finish();
     }
@@ -982,7 +1039,9 @@ fn placement_digest(doc: &Document, f: &Feature) -> u64 {
         FeatureKind::Revolve { to, .. } => to.is_some(),
         _ => false,
     };
-    if to_object {
+    // A mirror of placed bodies follows where they are placed.
+    let placed_mirror = matches!(&f.kind, FeatureKind::Mirror { placements, .. } if !placements.is_empty());
+    if to_object || placed_mirror {
         return if doc.occurrences.is_empty() && doc.body_offsets.is_empty() { 0 } else { placements_hash(doc) };
     }
     let FeatureKind::Sketch { plane, sketch } = &f.kind else { return 0 };
@@ -1081,10 +1140,11 @@ impl Model {
         }
         // The fingerprints from the first stored sketch on.
         let vals = evaluation_values(doc).0;
+        let steps = StepDigests::of(doc, &self.step_digests);
         let marker = doc.marker.unwrap_or(usize::MAX);
         let mut prev_fp = first.checked_sub(1).and_then(|i| self.results.get(i)).map_or(0, |r| r.fingerprint);
         for (i, f) in doc.features.iter().enumerate().skip(first) {
-            prev_fp = chain_fingerprint(doc, &vals, f, prev_fp, i >= marker);
+            prev_fp = chain_fingerprint(doc, &vals, f, prev_fp, i >= marker, &steps);
             if let Some(r) = self.results.get_mut(i).filter(|r| r.id == f.id) {
                 r.fingerprint = prev_fp;
             }
@@ -1112,6 +1172,7 @@ impl Model {
         let mut restored = 0;
         let marker = doc.marker.unwrap_or(usize::MAX);
         let ctx = context_digest(doc, &vals);
+        self.step_digests = StepDigests::of(doc, &self.step_digests);
         // Each feature's component, for `Document::legacy_body_component` on every body after
         // every feature without searching the timeline for each (the first feature with an id).
         let mut feature_component: std::collections::HashMap<u64, u64> = std::collections::HashMap::with_capacity(doc.features.len());
@@ -1123,7 +1184,7 @@ impl Model {
             let rolled_back = i >= marker;
             // Opening was cancelled: the rest is skipped and the result discarded.
             let cancelled = watched.step(i);
-            let fp = chain_fingerprint(doc, &vals, f, prev_fp, rolled_back);
+            let fp = chain_fingerprint(doc, &vals, f, prev_fp, rolled_back, &self.step_digests);
             prev_fp = fp;
             if reuse
                 && let Some(old) = self.results.get(i)
@@ -1154,7 +1215,7 @@ impl Model {
                 continue;
             }
             // The same feature on the same inputs: its earlier result.
-            let key = cache_key(f, fp, fingerprint(0, f, &vals, false) ^ placement_digest(doc, f), ctx, &state);
+            let key = cache_key(f, fp, fingerprint(0, f, &vals, false, &self.step_digests) ^ placement_digest(doc, f), ctx, &state);
             if !self.no_cache
                 && let Some(c) = self.cache.lock().ok().and_then(|mut m| m.get(key))
             {
@@ -1746,7 +1807,9 @@ fn fill_void_holes(st: &ModelState, r: &Region2, op: Operation, targets: &[Strin
     let size = bodies.iter().map(|b| b.body.size()).fold(0.0, f64::max);
     let margin = (size * 1e-4).max(1e-4);
     let n = plane.normal();
-    let inside_any = |p: Vec3| meshes.iter().any(|m| m.contains(p));
+    // Many probes on one mesh each: indexed, the same answers as `Mesh::contains`.
+    let inside: Vec<_> = meshes.iter().map(|m| m.inside_index()).collect();
+    let inside_any = |p: Vec3| inside.iter().any(|m| m.contains(p));
     let want = op == Operation::Join;
     let mut holes = Vec::with_capacity(r.holes.len());
     for h in &r.holes {
@@ -1808,7 +1871,9 @@ fn grow_profile_for_coplanar(st: &ModelState, r: &Region2, op: Operation, target
             _ => None,
         }
     };
-    let inside_any = |p: Vec3| meshes.iter().any(|m| m.contains(p));
+    // Many probes on one mesh each: indexed, the same answers as `Mesh::contains`.
+    let inside: Vec<_> = meshes.iter().map(|m| m.inside_index()).collect();
+    let inside_any = |p: Vec3| inside.iter().any(|m| m.contains(p));
     let mut grow = vec![0.0; segs.len()];
     let mut any = false;
     for (i, seg) in segs.iter().enumerate() {
@@ -1904,7 +1969,9 @@ fn extend_for_coplanar(st: &ModelState, plane: &Plane, r: &Region2, lo: f64, hi:
     let meshes: Vec<Arc<Mesh>> = bodies.iter().map(|b| b.mesh()).collect();
     let samples = region_samples(r);
     let n = plane.normal();
-    let inside_any = |p: Vec3| meshes.iter().any(|m| m.contains(p));
+    // Many probes on one mesh each: indexed, the same answers as `Mesh::contains`.
+    let inside: Vec<_> = meshes.iter().map(|m| m.inside_index()).collect();
+    let inside_any = |p: Vec3| inside.iter().any(|m| m.contains(p));
     // Heights of the targets' faces parallel to the profile plane.
     let tol = (size * 1e-7).max(1e-9);
     let levels: Vec<f64> = meshes
@@ -3271,8 +3338,7 @@ fn feature_tools_with_constructor(
             let roles = crate::lineage::SectionRoles { sections: sketches.into_iter().zip(secs.iter().map(|(_, lp)| lp)).collect() };
             Ok(vec![roles.tool(body)])
         }
-        FeatureKind::Sweep { sketch, profiles, path_sketch, path, orientation, twist, scale, .. } => {
-            let ctl = sweep_control(vals, orientation, twist, scale)?;
+        FeatureKind::Sweep { sketch, profiles, path_sketch, path, orientation, twist, scale, rails, rail_fit, .. } => {
             let ss = st.sketch(sketch.0).ok_or_else(|| DocError::Unknown(format!("sketch {sketch} (it must come earlier in the timeline)")))?;
             let ps =
                 st.sketch(path_sketch.0).ok_or_else(|| DocError::Unknown(format!("sketch {path_sketch} (it must come earlier in the timeline)")))?;
@@ -3288,11 +3354,25 @@ fn feature_tools_with_constructor(
             let regions = solidcraft_sketch::merge_regions(&select_profiles(ss, profiles)?);
             let start = regions.first().map(|r| ss.plane.to_world(r.centroid())).unwrap_or_default();
             let tool = |r: &Region2, body: Body| crate::lineage::ProfileRoles::swept(Some(ss), Some(r)).tool(body, None);
+            let points = path_points(ps, path, start)?;
+            let segs = match points {
+                Some(_) => Vec::new(),
+                None => path_segments(ps, path, start)?,
+            };
+            let path_start = points
+                .as_ref()
+                .and_then(|p| p.first().copied())
+                .or_else(|| match segs.first() {
+                    Some(kernel::PathSeg::Line { a, .. } | kernel::PathSeg::Arc { a, .. }) => Some(*a),
+                    None => None,
+                })
+                .unwrap_or(start);
+            let rails = rail_polylines(doc, st, rails, f.component, path_start)?;
+            let ctl = sweep_control(vals, orientation, twist, scale, rails, *rail_fit)?;
             // A path through 3D sketch curves follows them as points.
-            if let Some(pts) = path_points(ps, path, start)? {
+            if let Some(pts) = points {
                 return regions.iter().map(|r| Ok(tool(r, kernel::sweep_path_with(&ss.plane, r, &pts, &ctl)?))).collect();
             }
-            let segs = path_segments(ps, path, start)?;
             regions.iter().map(|r| Ok(tool(r, kernel::sweep_with(&ss.plane, r, &segs, &ctl)?))).collect()
         }
         FeatureKind::Pipe { path_sketch, path, diameter, wall, .. } => {
@@ -3341,13 +3421,16 @@ fn feature_tools_with_constructor(
 }
 
 /// A chain of sketch curves as 3D path segments, starting at the end nearest `start`.
-/// A sweep's options from its stored orientation and its twist and end scale expressions
-/// (none: no twist, scale 1). Out-of-range values are refused by the kernel.
+/// A sweep's options from its stored orientation, its twist and end scale expressions (none: no
+/// twist, scale 1) and its guide rails as polylines (see [`rail_polylines`]). Out-of-range values
+/// are refused by the kernel.
 pub(crate) fn sweep_control(
     vals: &BTreeMap<String, Value>,
     orientation: &crate::SweepOrientation,
     twist: &Option<crate::Expr>,
     scale: &Option<crate::Expr>,
+    rails: Vec<Vec<Vec3>>,
+    rail_fit: crate::RailFit,
 ) -> Result<kernel::SweepControl> {
     let orientation = match *orientation {
         crate::SweepOrientation::Perpendicular => kernel::SweepOrientation::Perpendicular,
@@ -3362,9 +3445,38 @@ pub(crate) fn sweep_control(
         Some(k) => val(vals, k, Kind::Unitless)?,
         None => 1.0,
     };
-    let ctl = kernel::SweepControl { orientation, twist, scale };
+    let rail_fit = match rail_fit {
+        crate::RailFit::Scale => kernel::RailFit::Scale,
+        crate::RailFit::Stretch => kernel::RailFit::Stretch,
+    };
+    let ctl = kernel::SweepControl { orientation, twist, scale, rails, rail_fit };
     ctl.check()?;
     Ok(ctl)
+}
+
+/// A sweep's guide rails as polylines in the feature's frame, each a chain of its sketch's curves
+/// (planar or 3D) from the end nearest `start`, the start of the path.
+pub(crate) fn rail_polylines(doc: &Document, st: &ModelState, rails: &[crate::SweepRail], consumer: u64, start: Vec3) -> Result<Vec<Vec<Vec3>>> {
+    if rails.len() > 2 {
+        return Err(DocError::Invalid("a sweep takes one or two guide rails".into()));
+    }
+    rails
+        .iter()
+        .map(|rail| {
+            if rail.curves.is_empty() {
+                return Err(DocError::Invalid("a guide rail needs its curves".into()));
+            }
+            let rs = st
+                .sketch(rail.sketch.0)
+                .ok_or_else(|| DocError::Unknown(format!("rail sketch {} (it must come earlier in the timeline)", rail.sketch)))?;
+            let mapped = path_in_frame(doc, rs, consumer)?;
+            let rs = mapped.as_ref();
+            match path_points(rs, &rail.curves, start)? {
+                Some(pts) => Ok(pts),
+                None => Ok(kernel::path_polyline(&path_segments(rs, &rail.curves, start)?)?),
+            }
+        })
+        .collect()
 }
 
 /// A pipe's section: a circle of radius `r`, hollow when it has a wall.
@@ -3630,6 +3742,20 @@ fn mirror_matrix(pl: &Plane) -> Mat {
 }
 
 const MAX_INSTANCES: usize = 1000;
+
+/// Where a mirrored body is, in the frame of the mirror's component: through the placement it
+/// was picked at and the feature's component frame. `None` when that is the body's own frame
+/// (and in older designs, which saved no placement).
+fn mirrored_placement(doc: &Document, f: &Feature, mb: &ModelBody, path: Option<&[u64]>) -> Result<Option<Mat>> {
+    let Some(path) = path else { return Ok(None) };
+    let owner = doc.model_body_component(mb);
+    let lost = || DocError::Invalid(format!("the placement `{}` was mirrored at no longer exists", mb.name));
+    let world = doc.path_transform(owner, path).ok_or_else(lost)?;
+    let world = doc.model_body_offset(mb).map(|offset| crate::mat_mul(&world, offset)).unwrap_or(world);
+    let inverse = crate::mat_inverse(&doc.component_transform(f.component)).ok_or_else(lost)?;
+    let rel = crate::mat_mul(&inverse, &world);
+    Ok((!crate::is_identity(&rel)).then_some(rel))
+}
 
 /// The placements (column-major matrices) of a pattern's copies, the original excluded.
 pub fn pattern_matrices(doc: &Document, st: &ModelState, p: &crate::PatternKind) -> Result<Vec<[[f64; 4]; 4]>> {
@@ -4234,6 +4360,10 @@ fn eval_feature(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, st:
             let anchor = crate::face_anchor::plane_face_anchor(plane);
             let fst = match anchor {
                 Some(anchor) => crate::state_in_face_anchor_frame(doc, st, anchor, f.component)?,
+                // A sketch that reads no geometry (a fixed plane, no projections) needs no other
+                // component's bodies moved into its frame: placing every body of a large
+                // assembly again is what made each sketch edit as slow as the design is big.
+                None if !plane_reads_geometry(plane) && sketch.links.is_empty() => std::borrow::Cow::Borrowed(st),
                 None => state_in_frame(doc, st, f.component),
             };
             let (plane, face_warning) = match (anchor, plane) {
@@ -4397,6 +4527,8 @@ fn eval_feature(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, st:
                     let fst = crate::state_in_face_anchor_frame(doc, st, anchor, f.component)?;
                     doc.resolve_attached_plane(vals, plane, f.component, st, &fst)?
                 }
+                // A plane of numbers alone reads no body: placing them all is the design's size.
+                None if plane_is_fixed(plane) => doc.resolve_plane_in(vals, plane, 0, Some(st))?,
                 // Picks on bodies of other (moved) components are where those bodies are shown.
                 None => doc.resolve_plane_in(vals, plane, 0, Some(&construction_state(doc, st, f.component)))?,
             };
@@ -4554,17 +4686,28 @@ fn eval_feature(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, st:
             }
             Ok(())
         }
-        FeatureKind::Mirror { features, plane, bodies, combine } => {
+        FeatureKind::Mirror { features, plane, bodies, combine, placements } => {
             let pl = doc.resolve_plane_in(vals, plane, 0, Some(st))?;
             if bodies.is_empty() {
                 return replay(doc, vals, f, st, &crate::plain(features), &[mirror_matrix(&pl)], warning);
             }
             let m = mirror_matrix(&pl);
             let mut output = 0;
-            for n in bodies {
+            for (k, n) in bodies.iter().enumerate() {
                 let i = st.bodies.iter().position(|b| &b.name == n).ok_or_else(|| DocError::Unknown(format!("body `{n}`")))?;
                 let Some(mb) = st.bodies.get(i).cloned() else { continue };
-                let mirrored = moved_copy(&mb, kernel::transform_matrix(&mb.body, m)?, 1);
+                // A body of a component placed elsewhere is mirrored where it is shown: the copy
+                // (in this feature's component) from its placement, a joined body in its own frame.
+                let placed = mirrored_placement(doc, f, &mb, placements.get(k).map(Vec::as_slice))?;
+                let (copy, own) = match placed {
+                    Some(rel) => {
+                        let inverse = crate::mat_inverse(&rel).ok_or_else(|| DocError::Invalid(format!("the placement of `{n}` is singular")))?;
+                        let copy = crate::mat_mul(&m, &rel);
+                        (copy, crate::mat_mul(&inverse, &copy))
+                    }
+                    None => (m, m),
+                };
+                let mirrored = moved_copy(&mb, kernel::transform_matrix(&mb.body, if *combine { own } else { copy })?, 1);
                 if *combine {
                     let joined = kernel::boolean(&mb.body, &mirrored.body, BoolOp::Union)?
                         .ok_or_else(|| DocError::Invalid("the mirror join produced nothing".into()))?;
@@ -4979,6 +5122,31 @@ fn construction_state<'a>(doc: &Document, st: &'a ModelState, comp: u64) -> std:
     state_in_frame(doc, st, comp)
 }
 
+/// Whether `plane` is given by the origin planes and numbers alone.
+fn plane_is_fixed(plane: &PlaneRef) -> bool {
+    match plane {
+        PlaneRef::Origin { .. } | PlaneRef::Custom { .. } | PlaneRef::Placed { .. } => true,
+        PlaneRef::Offset { base, .. } | PlaneRef::AtAngle { base, .. } | PlaneRef::Flipped { base, .. } => plane_is_fixed(base),
+        _ => false,
+    }
+}
+
+/// Whether resolving `plane` reads the model's bodies or sketches (a face, edges, points),
+/// rather than only the origin planes, numbers and construction planes.
+fn plane_reads_geometry(plane: &PlaneRef) -> bool {
+    match plane {
+        PlaneRef::Origin { .. } | PlaneRef::Custom { .. } | PlaneRef::Placed { .. } | PlaneRef::Construction { .. } => false,
+        PlaneRef::Offset { base, .. } | PlaneRef::AtAngle { base, .. } | PlaneRef::Flipped { base, .. } => plane_reads_geometry(base),
+        PlaneRef::Midplane { .. }
+        | PlaneRef::TwoEdges { .. }
+        | PlaneRef::ThreePoints { .. }
+        | PlaneRef::Tangent { .. }
+        | PlaneRef::AlongPath { .. }
+        | PlaneRef::Perpendicular { .. }
+        | PlaneRef::Face { .. } => true,
+    }
+}
+
 pub fn state_in_frame<'a>(doc: &Document, st: &'a ModelState, comp: u64) -> std::borrow::Cow<'a, ModelState> {
     state_in_frame_at(doc, st, comp, doc.component_transform(comp))
 }
@@ -5055,6 +5223,8 @@ pub fn state_in_frame_at<'a>(doc: &Document, st: &'a ModelState, comp: u64, fram
         if !crate::is_identity(m)
             && let Ok(t) = kernel::transform_matrix(&b.body, *m)
         {
+            #[cfg(test)]
+            cost_tests::count(|c| c.moved += 1);
             // Moving a body keeps its faces (and their order): it keeps their names.
             let names = crate::naming::NameCell::same(b);
             let mut nb = ModelBody::new(b.name.clone(), t, b.feature);
@@ -5349,6 +5519,10 @@ mod chain_tests {
         assert_eq!(faces.len(), 3, "{faces:?}");
     }
 }
+
+#[cfg(test)]
+#[path = "eval_cost_tests.rs"]
+mod cost_tests;
 
 #[cfg(test)]
 mod body_name_tests {

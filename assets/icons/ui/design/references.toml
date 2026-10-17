@@ -1,0 +1,25 @@
+# Finished visual references, not a list that controls discovery or review status.
+[category.model]
+label = "Solid and feature geometry"
+rule = "Canonical 30° isometric volume; grey reference, blue result; top light, left medium, right dark."
+icons = ["box", "extrude", "hole", "rib", "contact_sets"]
+[category.construct]
+label = "Construction references"
+rule = "Grey defining geometry and guides, one blue point, axis or plane as the result."
+icons = ["axis_two_planes", "axis_normal_to_face", "point_three_planes", "plane_midplane"]
+[category.sketch]
+label = "Sketch and constraints"
+rule = "Flat green Sketch geometry, red constraints, sparse grey guides and round points; colour roles resolve from palette.toml, with no decorative 3D."
+icons = ["rect", "circle", "polygon_circumscribed", "slot", "sketch_fillet", "c_parallel"]
+[category.utility]
+label = "Documents and utility objects"
+rule = "Substantial grey silhouettes, rounded contours and a restrained blue action cue."
+icons = ["delete", "copy", "paste", "library", "new"]
+[category.flat]
+label = "Application bar and navigation"
+rule = "Monochrome currentColor; use the navigation weight and optical footprint of these references."
+icons = ["save", "undo", "orbit", "fit"]
+[category.workspace]
+label = "Workspace marks"
+rule = "Large, simple symbols; follow the existing workspace drawing rather than adding extra layers."
+icons = ["ws_design", "ws_animate"]

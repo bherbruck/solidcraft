@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Convert to sheet</title>
+  <path d="M3.74 35.5L15 42L15 55L3.74 48.5Z" fill="#b8c3cf"/>
+  <path d="M26.26 35.5L15 42L15 55L26.26 48.5Z" fill="#8e9faf"/>
+  <path d="M15 29L26.26 35.5L15 42L3.74 35.5Z" fill="#e2e8ef"/>
+  <path d="M15 29L26.26 35.5L26.26 48.5L15 55L3.74 48.5L3.74 35.5Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M3.74 35.5L15 42L26.26 35.5" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M15 42L15 55" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M29.28 43L44 51.5L44 53.5L29.28 45Z" fill="#328bd3"/>
+  <path d="M58.72 43L44 51.5L44 53.5L58.72 45Z" fill="#236ead"/>
+  <path d="M44 34.5L58.72 43L44 51.5L29.28 43Z" fill="#b9ddf8"/>
+  <path d="M44 34.5L58.72 43L58.72 45L44 53.5L29.28 45L29.28 43Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M29.28 43L44 51.5L58.72 43" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44 51.5L44 53.5" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M18 16L38 16" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M48 16L38 21.5L38 10.5Z" fill="#236ead"/>
+</svg>

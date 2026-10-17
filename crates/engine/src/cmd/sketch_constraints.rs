@@ -41,14 +41,14 @@ pub static COMMANDS: &[CommandSpec] = &[
         .icon("constrainer")
         .enabled(in_sketch)
         .params("entities: [one or two sketch entity ids]: applies the constraint the geometry nearly has (horizontal/vertical, parallel, perpendicular, collinear, coincident, concentric, equal, tangent)"),
-    CommandSpec::new("sketch.toggle_driven", "Toggle Driven Dimension", toggle_driven)
+    CommandSpec::new("sketch.toggle_driven", "Toggle Driven Dimension", toggle_driven).icon("dimension")
         .enabled(in_sketch)
         .params("constraint: dimension id, driven?: bool (default toggles); a driving dimension gets a parameter with its current value"),
-    CommandSpec::new("sketch.glyphs", "Constraint Glyphs", glyphs)
+    CommandSpec::new("sketch.glyphs", "Constraint Glyphs", glyphs).icon("eye")
         .enabled(in_sketch)
         .noundo()
         .params("sketch?: id|name: every constraint with where to draw its glyph (sketch coordinates)"),
-    CommandSpec::new("sketch.snap", "Snap Inference", snap)
+    CommandSpec::new("sketch.snap", "Snap Inference", snap).icon("snap")
         .enabled(in_sketch)
         .noundo()
         .params("at: [x,y], from?: [x,y] (previous click), radius?: mm (snap distance, default 1): what a click there would snap to and infer"),

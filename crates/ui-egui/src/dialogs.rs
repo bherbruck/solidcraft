@@ -114,6 +114,8 @@ pub enum Kind {
     OffsetPlane {
         offset: String,
     },
+    /// Halfway between two planes or planar faces.
+    Midplane,
     /// A construction plane through an axis at an angle to a plane.
     AnglePlane {
         angle: String,
@@ -521,6 +523,10 @@ impl Dialog {
             "construct.plane.offset" => {
                 Dialog::new(Kind::OffsetPlane { offset: "10 mm".into() }, vec![SelInput::new("Plane", PLANES | PLANAR_FACES, false)])
             }
+            "construct.plane.midplane" => Dialog::new(
+                Kind::Midplane,
+                vec![SelInput::new("First plane", PLANES | PLANAR_FACES, false), SelInput::new("Second plane", PLANES | PLANAR_FACES, false)],
+            ),
             "construct.plane.along_path" => {
                 Dialog::new(Kind::PathPlane { t: "0.5".into(), sketch: None }, vec![SelInput::new("Path", CURVES | EDGES, false)])
             }
@@ -559,10 +565,16 @@ impl Dialog {
                 vec![SelInput::new("Objects", BODIES, true), SelInput::new("Axis", AXES, false)],
             ),
             "solid.loft" => Dialog::new(Kind::Loft { operation: usize::from(has_bodies) }, vec![SelInput::new("Profiles", PROFILES, true)]),
-            "solid.sweep" => Dialog::new(
-                Kind::Sweep { operation: usize::from(has_bodies), opts: crate::dialogs_sweep::SweepOpts::default() },
-                vec![SelInput::new("Profile", PROFILES, true), SelInput::new("Path", CURVES, true), crate::dialogs_sweep::direction_input()],
-            ),
+            "solid.sweep" => Dialog::new(Kind::Sweep { operation: usize::from(has_bodies), opts: crate::dialogs_sweep::SweepOpts::default() }, {
+                let [rail, rail2] = crate::dialogs_sweep::rail_inputs();
+                vec![
+                    SelInput::new("Profile", PROFILES, true),
+                    SelInput::new("Path", CURVES, true),
+                    crate::dialogs_sweep::direction_input(),
+                    rail,
+                    rail2,
+                ]
+            }),
             "solid.move" => Dialog::new(crate::dialogs_move::kind(0), crate::dialogs_move::inputs(0)),
             "solid.hole" => Dialog::new(hole_defaults(), vec![SelInput::new("Face", HOLE_FACES, true)]),
             "solid.box" => Dialog::new(
@@ -790,6 +802,7 @@ impl Dialog {
                 | Kind::Loft { .. }
                 | Kind::Sweep { .. }
                 | Kind::PathPlane { .. }
+                | Kind::Midplane
                 | Kind::Move { .. }
                 | Kind::Hole { .. }
                 | Kind::Primitive { .. }
@@ -1379,6 +1392,7 @@ fn title(k: &Kind) -> &'static str {
         Kind::Measure { .. } => "MEASURE",
         Kind::Material { .. } => "PHYSICAL MATERIAL",
         Kind::OffsetPlane { .. } => "OFFSET PLANE",
+        Kind::Midplane => "MIDPLANE",
         Kind::PathPlane { .. } => "PLANE ALONG PATH",
         Kind::Rib { web: false, .. } => "RIB",
         Kind::Rib { web: true, .. } => "WEB",
@@ -2686,7 +2700,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
                         enter |= field(ui, t);
                         ui.end_row();
                     }
-                    Kind::Split | Kind::ReplaceFace | Kind::Remove => {}
+                    Kind::Split | Kind::ReplaceFace | Kind::Remove | Kind::Midplane => {}
                     Kind::Rib { thickness, depth, flip, .. } => {
                         row_label(ui, "Thickness");
                         enter |= field(ui, thickness);
@@ -3491,17 +3505,34 @@ fn plane_by_name(app: &SolveApp, name: &str) -> Option<solidcraft_engine::geom::
 
 /// Animate the camera to look straight at the active sketch plane.
 pub fn look_at_sketch(app: &mut SolveApp) {
+    look_at_sketch_from(app, false);
+}
+
+/// Look At asked for by the user (Ctrl+8, the Look At buttons): like [`look_at_sketch`], and
+/// from the sketch's other side when the view already faces it (#1886).
+pub fn look_at_sketch_again(app: &mut SolveApp) {
+    look_at_sketch_from(app, true);
+}
+
+fn look_at_sketch_from(app: &mut SolveApp, again: bool) {
     let st = app.session.world_state();
     if let Some(ss) = app.session.active_sketch.and_then(|id| st.sketch(id)) {
-        let mut to = app.cam.looking_from(ss.plane.normal());
+        let n = facing(app, ss.plane.normal(), again);
+        let mut to = app.cam.looking_from(n);
         // Keep the sketch's own x axis to the right when looking straight down or up.
-        if ss.plane.normal().z.abs() > 0.999 {
+        if n.z.abs() > 0.999 {
             let x = ss.plane.x;
-            to.yaw = if ss.plane.normal().z > 0.0 { (-x.y).atan2(x.x) } else { x.y.atan2(x.x) };
+            to.yaw = if n.z > 0.0 { (-x.y).atan2(x.x) } else { x.y.atan2(x.x) };
         }
         to.target = ss.plane.origin;
         app.animate_to(to);
     }
+}
+
+/// The side to look from at a plane with normal `n`: its own side, or with `again` the other
+/// side when the view already looks from `n`, so a second Look At turns the view round (#1886).
+pub(crate) fn facing(app: &SolveApp, n: Vec3, again: bool) -> Vec3 {
+    if again && app.cam.back().dot(n) > 0.999 { -n } else { n }
 }
 
 fn sels(d: &Dialog, i: usize) -> &[Sel] {
@@ -3892,19 +3923,20 @@ fn dialog_commands(app: &SolveApp, d: &Dialog) -> Result<Vec<(String, Value)>, S
             let path: Vec<String> = sels(d, 1).iter().filter_map(|x| if let Sel::SketchCurve { id } = x { Some(id.clone()) } else { None }).collect();
             let path_sketch = curves_sketch(app, &path, sketch.as_u64()).ok_or("the path curves must be in one sketch")?;
             let mut p = json!({"sketch": sketch, "profiles": idx, "path_sketch": path_sketch, "path": path, "operation": OPS.get(*operation).copied().unwrap_or("new")});
-            crate::dialogs_sweep::params(app, opts, sels(d, 2).first(), &mut p)?;
+            crate::dialogs_sweep::params(app, opts, sels(d, 2).first(), [sels(d, 3), sels(d, 4)], &mut p)?;
             ("solid.sweep", p)
         }
         Kind::OffsetPlane { offset } => {
             need(0, "a plane")?;
-            let base = match sels(d, 0).first() {
-                Some(Sel::Plane { name }) => json!(name),
-                Some(face @ Sel::Face { .. }) => {
-                    crate::sketch_attachment_ui::face_plane(app, face).ok_or("the picked face is no longer in the model")?
-                }
-                _ => return Err("pick an origin or construction plane, or a planar face".into()),
-            };
+            let base = plane_arg(app, sels(d, 0).first())?;
             ("construct.plane.offset", json!({"base": base, "offset": offset}))
+        }
+        Kind::Midplane => {
+            need(0, "the first plane")?;
+            need(1, "the second plane")?;
+            let a = plane_arg(app, sels(d, 0).first())?;
+            let b = plane_arg(app, sels(d, 1).first())?;
+            ("construct.plane.midplane", json!({"a": a, "b": b}))
         }
         Kind::PathPlane { t, sketch } => {
             need(0, "a path")?;
@@ -4495,6 +4527,24 @@ fn emboss_face_sel(s: &Session, component: u64, face: &solidcraft_engine::doc::E
     Some(Sel::Face { body: world_name, index, point })
 }
 
+/// A picked plane or planar face as `construct.plane.*` takes it.
+fn plane_arg(app: &SolveApp, sel: Option<&Sel>) -> Result<Value, String> {
+    match sel {
+        Some(Sel::Plane { name }) => Ok(json!(name)),
+        Some(face @ Sel::Face { .. }) => crate::sketch_attachment_ui::face_plane(app, face).ok_or("the picked face is no longer in the model".into()),
+        _ => Err("pick an origin or construction plane, or a planar face".into()),
+    }
+}
+
+/// A stored construction reference back into a dialog pick.
+fn geo_sel(s: &Session, g: &solidcraft_engine::doc::construct::GeoRef) -> Option<Sel> {
+    match g {
+        solidcraft_engine::doc::construct::GeoRef::Plane { plane } => plane_sel(s, plane),
+        solidcraft_engine::doc::construct::GeoRef::Face { at, .. } => face_sel(s, *at),
+        _ => None,
+    }
+}
+
 pub(crate) fn plane_sel(s: &Session, pl: &PlaneRef) -> Option<Sel> {
     match pl {
         PlaneRef::Origin { name } => Some(Sel::Plane { name: name.clone() }),
@@ -4871,14 +4921,20 @@ pub fn for_feature(app: &SolveApp, id: u64, marker: Option<usize>) -> Option<Dia
             }
             d
         }
-        FeatureKind::Mirror { features, plane, bodies, .. } => {
+        FeatureKind::Mirror { features, plane, bodies, placements, .. } => {
             let mut d = start("solid.mirror")?;
             let ids: Vec<u64> = features.iter().filter_map(|n| s.doc.find_feature(n).map(|f| f.id)).collect();
             // Replay references stay features, including features that created a body.
             let as_features = !features.is_empty();
             if let Some(inp) = d.inputs.get_mut(0) {
                 if !bodies.is_empty() {
-                    inp.items = bodies.iter().map(|name| Sel::Body { name: name.to_string() }).collect();
+                    // Each body as the placement it was mirrored at shows it (an instance by its world name).
+                    let own = s.model.state();
+                    let world = |k: usize, name: &str| match (placements.get(k), own.body(name)) {
+                        (Some(path), Some(b)) => s.doc.world_body_name(&own, name, s.doc.model_body_component(b), path),
+                        _ => name.to_string(),
+                    };
+                    inp.items = bodies.iter().enumerate().map(|(k, name)| Sel::Body { name: world(k, name) }).collect();
                 } else if as_features {
                     inp.accept = selection::FEATURES;
                     inp.label = objects_label(inp.accept);
@@ -4978,12 +5034,15 @@ pub fn for_feature(app: &SolveApp, id: u64, marker: Option<usize>) -> Option<Dia
             }
             d
         }
-        FeatureKind::Sweep { sketch, profiles, path, operation, targets, orientation, twist, scale, .. } => {
+        FeatureKind::Sweep { sketch, profiles, path, operation, targets, orientation, twist, scale, rails, rail_fit, .. } => {
             let mut d = start("solid.sweep")?;
-            let (opts, direction) = crate::dialogs_sweep::SweepOpts::of(orientation, twist, scale, &feature_frame(s, f.component));
+            let (opts, direction) = crate::dialogs_sweep::SweepOpts::of(orientation, twist, scale, *rail_fit, &feature_frame(s, f.component));
             d.kind = Kind::Sweep { operation: op_index(operation), opts };
             if let Some(inp) = d.inputs.get_mut(2) {
                 inp.items = direction.into_iter().collect();
+            }
+            for (inp, items) in d.inputs.iter_mut().skip(3).zip(crate::dialogs_sweep::rail_sels(rails)) {
+                inp.items = items;
             }
             let items = st.sketch(sketch.0).map(|ss| profile_indices(ss, profiles)).unwrap_or_default();
             if let Some(inp) = d.inputs.get_mut(0) {
@@ -5019,6 +5078,16 @@ pub fn for_feature(app: &SolveApp, id: u64, marker: Option<usize>) -> Option<Dia
             d.kind = Kind::PathPlane { t: t.to_string(), sketch };
             if let Some(input) = d.inputs.first_mut() {
                 input.items = vec![item];
+            }
+            d
+        }
+        FeatureKind::ConstructionPlane { plane: PlaneRef::Midplane { a, b } } => {
+            let mut d = start("construct.plane.midplane")?;
+            if let Some(inp) = d.inputs.first_mut() {
+                inp.items = geo_sel(s, a).into_iter().collect();
+            }
+            if let Some(inp) = d.inputs.get_mut(1) {
+                inp.items = geo_sel(s, b).into_iter().collect();
             }
             d
         }

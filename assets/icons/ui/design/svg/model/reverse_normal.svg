@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Reverse normal</title>
+  <path d="M32 31.5L32 50.5" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 57.5L27 49L37 49Z" fill="#ffffff" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 31.5L32 50.5" fill="none" stroke="#8e9faf" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 57.5L27 49L37 49Z" fill="#8e9faf"/>
+  <path d="M32 19.5L56.25 33.5L32 47.5L7.75 33.5Z" fill="none" stroke="#ffffff" stroke-width="4.8" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5.2"/>
+  <path d="M32 19.5L56.25 33.5L32 47.5L7.75 33.5Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5.2"/>
+  <path d="M32 33.5L32 13.5" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 6.5L37 15L27 15Z" fill="#ffffff" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 33.5L32 13.5" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 6.5L37 15L27 15Z" fill="#236ead"/>
+</svg>
