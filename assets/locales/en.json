@@ -1146,6 +1146,8 @@
   "ui.fully_constrained": "Fully constrained",
   "ui.general": "General",
   "ui.graphics": "Graphics",
+  "ui.grid_follows_view": "Grid follows the view",
+  "ui.grid_follows_view_hint": "Side views show the grid on the upright plane facing them instead of the ground",
   "ui.ground_shadow": "Ground shadow",
   "ui.groupSelected": "Group Selected",
   "ui.heading_add_ins": "ADD-INS",

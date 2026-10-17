@@ -290,7 +290,10 @@ fn unzip_one(zip: &Path, name: &str, to: &Path) -> Result<bool, String> {
     let file = std::fs::File::open(zip).map_err(|e| format!("{}: {e}", zip.display()))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("{}: {e}", zip.display()))?;
     let index = (0..archive.len()).find(|&i| {
-        archive.name_for_index(i).is_some_and(|n| n.rsplit(['/', '\\']).next().is_some_and(|f| f.eq_ignore_ascii_case(name)) && !n.ends_with('/'))
+        archive
+            .name_for_index(i)
+            .and_then(Result::ok)
+            .is_some_and(|n| n.rsplit(['/', '\\']).next().is_some_and(|f| f.eq_ignore_ascii_case(name)) && !n.ends_with('/'))
     });
     let Some(index) = index else { return Ok(false) };
     let mut entry = archive.by_index(index).map_err(|e| format!("{}: {e}", zip.display()))?;
