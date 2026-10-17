@@ -1494,6 +1494,33 @@ impl Body {
         shell_groups::meshes_meet(&a, &b, 2.0 * tol)
     }
 
+    /// The same contact test for several tools, reusing this unchanged body's
+    /// fine mesh at each required tolerance. No contact threshold is relaxed.
+    pub fn meets_each(&self, others: &[Body]) -> Result<Vec<bool>> {
+        if others.len() > 1024 {
+            return Err(KernelError::Invalid("too many contact tools".into()));
+        }
+        self.require_brep("contact test")?;
+        let size = self.size();
+        let mut meshes = std::collections::HashMap::new();
+        let mut contacts = Vec::with_capacity(others.len());
+        for other in others {
+            other.require_brep("contact test")?;
+            let tol = (size.max(other.size()) * 1e-4).max(1e-6);
+            let key = tol.to_bits();
+            if !meshes.contains_key(&key) {
+                // Bound retained meshes even when hostile inputs request many tolerances.
+                if meshes.len() == 16 {
+                    meshes.clear();
+                }
+                meshes.insert(key, self.tessellate(tol)?);
+            }
+            let mesh = meshes.get(&key).ok_or_else(|| KernelError::Internal("contact mesh disappeared".into()))?;
+            contacts.push(shell_groups::meshes_meet(mesh, &other.tessellate(tol)?, 2.0 * tol)?);
+        }
+        Ok(contacts)
+    }
+
     /// A boolean shortcut needs clearance larger than both shell mesh deflections.
     pub(crate) fn separated_lumps(&self) -> Result<Vec<Body>> {
         self.lumps_with_clearance(4.0 * (self.size() * 1e-3).max(1e-3))
