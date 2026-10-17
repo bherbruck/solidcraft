@@ -4,7 +4,7 @@
  },
  {
   "click": {
-   "handle": "panel:SOLID:CREATE"
+   "handle": "panel:MODEL:CREATE"
   }
  },
  {
@@ -52,7 +52,7 @@
  },
  {
   "expect": {
-   "shown_handles": ["dropdown_hot:sketch.create"]
+   "shown_handles": ["dropdown_hot:solid.extrude"]
   }
  },
  {
@@ -60,8 +60,8 @@
  },
  {
   "expect": {
-   "shown_handles": ["dropdown_hot:solid.extrude"],
-   "hidden_handles": ["dropdown_hot:sketch.create"]
+   "shown_handles": ["dropdown_hot:solid.revolve"],
+   "hidden_handles": ["dropdown_hot:solid.extrude"]
   }
  },
  {

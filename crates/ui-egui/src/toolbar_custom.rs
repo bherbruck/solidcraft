@@ -30,10 +30,12 @@ pub struct ToolbarCustom {
 
 impl ToolbarCustom {
     pub fn prefs(&self) -> Value {
-        json!(self.panels)
+        json!({"version": 2, "panels": self.panels})
     }
     pub fn load(&mut self, v: &Value) {
-        self.panels = v
+        let current = v.get("version").and_then(Value::as_u64) == Some(2);
+        let panels = if current { v.get("panels").unwrap_or(&Value::Null) } else { v };
+        self.panels = panels
             .as_object()
             .map(|o| {
                 o.iter()
@@ -45,6 +47,63 @@ impl ToolbarCustom {
                     .collect()
             })
             .unwrap_or_default();
+        if !current {
+            self.migrate();
+        }
+    }
+    fn migrate(&mut self) {
+        use std::collections::BTreeSet;
+        let specs = command_specs();
+        let mut pins: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        let mut removals: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let old = std::mem::take(&mut self.panels);
+        for (k, ids) in old {
+            let parts: Vec<_> = k.split('/').collect();
+            let ["DESIGN", tab, panel] = parts.as_slice() else {
+                self.panels.insert(k, ids);
+                continue;
+            };
+            if crate::workspace::legacy_panel(tab, panel).is_none() {
+                self.panels.insert(k, ids);
+                continue;
+            }
+            if let Some((t, p)) = crate::workspace::legacy_panel(tab, panel) {
+                pins.entry(key(t, p)).or_default();
+            }
+            for id in crate::workspace::legacy_buttons(tab, panel) {
+                if !ids.iter().any(|x| x == id)
+                    && let Some((t, p)) = crate::workspace::legacy_destination(tab, panel, id)
+                {
+                    removals.entry(key(t, p)).or_default().insert(id.into());
+                }
+            }
+            for id in ids {
+                if let Some((t, p)) = crate::workspace::legacy_destination(tab, panel, &id) {
+                    let list = pins.entry(key(t, p)).or_default();
+                    if !list.contains(&id) {
+                        list.push(id);
+                    }
+                }
+            }
+        }
+        let touched: BTreeSet<_> = pins.keys().chain(removals.keys()).cloned().collect();
+        for k in touched {
+            if self.panels.contains_key(&k) {
+                continue;
+            } // An existing new destination wins.
+            let mut ids = pins.remove(&k).unwrap_or_default();
+            let parts: Vec<_> = k.split('/').collect();
+            if let [_, tab, panel] = parts.as_slice()
+                && let Some((cmds, n)) = crate::workspace::layout(tab, panel, &specs)
+            {
+                for c in cmds.iter().take(n) {
+                    if !ids.iter().any(|id| id == c.id) && !removals.get(&k).is_some_and(|r| r.contains(c.id)) {
+                        ids.push(c.id.into());
+                    }
+                }
+            }
+            self.panels.insert(k, ids);
+        }
     }
 }
 
@@ -65,13 +124,9 @@ pub fn panel_lists(tab: &str) -> Vec<(&'static str, Vec<&'static CommandSpec>, u
     let specs = command_specs();
     crate::toolbar::panels(tab)
         .iter()
-        .map(|panel| {
-            let (cmds, promote) = match crate::workspace::layout(tab, panel, &specs) {
-                Some(l) => l,
-                None => (specs.iter().filter(|c| c.tab == tab && c.panel == *panel).copied().collect(), crate::toolbar::promoted(tab, panel)),
-            };
-            let cmds = crate::sketch_tools::also_in(tab, panel, cmds, &specs);
-            (*panel, cmds, promote)
+        .filter_map(|panel| {
+            let (cmds, n) = crate::workspace::layout(tab, panel, &specs)?;
+            (!cmds.is_empty() || *panel == "SELECT").then_some((*panel, cmds, n))
         })
         .collect()
 }
@@ -279,4 +334,45 @@ pub fn window(app: &mut SolveApp, ctx: &egui::Context) {
         reset(app, &tab);
     }
     app.toolbar_custom.customizing = open;
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_pins_split_merge_and_preserve_removals_and_unknown_keys() {
+        let mut custom = ToolbarCustom::default();
+        custom.load(&json!({
+            "DESIGN/SOLID/CREATE":["solid.hole","solid.revolve","solid.move"],
+            "DESIGN/PLASTIC/CREATE":["plastic.boss","plastic.rest","sketch.create"],
+            "DESIGN/SOLID/MODIFY":["solid.chamfer"],
+            "DESIGN/UTILITIES/SELECT":[],
+            "DESIGN/future/panel":["future.command"],
+            "OTHER/SOLID/CREATE":["solid.extrude"]
+        }));
+        let create = &custom.panels["DESIGN/MODEL/CREATE"];
+        assert_eq!(create, &["plastic.boss", "plastic.rest", "solid.hole", "solid.revolve"]);
+        assert!(!create.iter().any(|id| id == "solid.extrude"));
+        assert!(custom.panels["DESIGN/MODEL/ARRANGE"].contains(&"solid.move".into()));
+        assert!(!custom.panels["DESIGN/MODEL/MODIFY"].contains(&"solid.fillet".into()));
+        assert!(custom.panels["DESIGN/MODEL/MODIFY"].contains(&"solid.chamfer".into()));
+        assert_eq!(custom.panels["DESIGN/future/panel"], vec!["future.command"]);
+        assert!(custom.panels.contains_key("OTHER/SOLID/CREATE"));
+        assert!(!custom.panels.contains_key("DESIGN/SOLID/CREATE"));
+        let saved = custom.prefs();
+        let mut reloaded = ToolbarCustom::default();
+        reloaded.load(&saved);
+        assert_eq!(custom, reloaded, "migration runs once, even for unchanged SKETCH/SURFACE keys");
+    }
+
+    #[test]
+    fn empty_old_panels_keep_default_button_removals() {
+        let mut custom = ToolbarCustom::default();
+        custom.load(&json!({"DESIGN/SOLID/CREATE":[],"DESIGN/SKETCH/CONSTRAINTS":[],"DESIGN/PLASTIC/SETUP":[]}));
+        assert!(!custom.panels["DESIGN/MODEL/SKETCH"].contains(&"sketch.create".into()));
+        assert!(!custom.panels["DESIGN/MODEL/CREATE"].contains(&"solid.extrude".into()));
+        assert!(!custom.panels["DESIGN/MANAGE/RULES"].contains(&"plastic.manage_rules".into()));
+        assert_eq!(custom.panels["DESIGN/SKETCH/CONSTRAIN"], vec!["sketch.dimension"]);
+    }
 }

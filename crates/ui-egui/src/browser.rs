@@ -49,6 +49,8 @@ pub fn drawn_occurrences() -> Vec<(Vec<u64>, String, Rect, bool)> {
 /// Browser state kept between frames.
 #[derive(Default)]
 pub struct TreeState {
+    /// The floating browser card is folded to its header.
+    pub panel_collapsed: bool,
     /// Geometry and assembly queries, independent of the camera, selection and row visibility.
     model: Option<model::Model>,
     /// Folders closed by the user (keys like `c0/bodies`).
@@ -264,7 +266,11 @@ pub fn group_action(app: &mut SolveApp, action: &str, p: &Value) {
 // Drawing
 // ---------------------------------------------------------------------------------------------
 
-const ROW_H: f32 = 22.0;
+const ROW_H: f32 = 26.0;
+/// The floating card's inner margin: the header highlight sits this far from the card's top, left
+/// and right edges, so its corners are concentric with the card's.
+const CARD_INSET: f32 = 4.0;
+const HEADER_H: f32 = 26.0;
 const INDENT: f32 = 14.0;
 
 /// One row's look.
@@ -323,7 +329,7 @@ pub(crate) fn draw_row(ui: &mut egui::Ui, id: egui::Id, row: &Row) -> RowResp {
     let dragged_over = egui::DragAndDrop::has_any_payload(ui.ctx()) && ui.input(|i| i.pointer.hover_pos()).is_some_and(|p| r.contains(p));
     let mut out = RowResp { rect: Some(r), hovered: resp.hovered() || dragged_over, ..Default::default() };
     if row.selected {
-        ui.painter().rect_filled(r, 3.0, t.accent_soft);
+        ui.painter().rect_filled(r, 3.0, crate::theme::TabAccent::current(ui.ctx()).soft);
     } else if resp.hovered() {
         ui.painter().rect_filled(r, 3.0, t.hover);
     }
@@ -354,8 +360,8 @@ pub(crate) fn draw_row(ui: &mut egui::Ui, id: egui::Id, row: &Row) -> RowResp {
     // Fold arrow.
     if let Some(open) = row.fold {
         let ar = Rect::from_center_size(pos2(x + 6.0, cy), vec2(12.0, 12.0));
-        let ink = if hover_on == 1 { t.text } else { t.text_dim };
-        crate::icons::glyphs::disclosure(ui.painter(), ar, open, ink);
+        let strength = if hover_on == 1 { 1.0 } else { 0.7 };
+        icons::paint_icon(ui.painter(), ar, if open { "disclosure_open" } else { "disclosure_closed" }, strength);
         out.fold = resp.clicked() && click_on == 1;
         crate::scenario::publish_handle(&format!("fold:{}", row.label), fold_r.center());
     }
@@ -363,10 +369,8 @@ pub(crate) fn draw_row(ui: &mut egui::Ui, id: egui::Id, row: &Row) -> RowResp {
     // Eye.
     if let Some(vis) = row.eye {
         let er = Rect::from_center_size(pos2(x + 8.0, cy), vec2(15.0, 15.0));
-        icons::paint(ui.painter(), er, "eye", if vis { ink } else { t.border }, t.icon_fill, t.accent);
-        if !vis {
-            ui.painter().line_segment([er.left_bottom() + vec2(2.0, -2.0), er.right_top() + vec2(-2.0, 2.0)], Stroke::new(1.4, t.text_dim));
-        }
+        // The same monochrome eye, struck through with a punched-out outline when hidden.
+        icons::paint_icon(ui.painter(), er, if vis { "eye" } else { "suppress" }, if vis { 0.85 } else { 0.55 });
         out.eye = resp.clicked() && click_on == 2;
         crate::scenario::publish_handle(&format!("eye:{}", row.label), er.center());
     }
@@ -386,9 +390,10 @@ pub(crate) fn draw_row(ui: &mut egui::Ui, id: egui::Id, row: &Row) -> RowResp {
         icons::paint(ui.painter(), ir, row.icon, ink, if row.dim { t.panel_header } else { t.icon_fill }, t.accent);
         x += 21.0;
     }
-    let col = row.color.unwrap_or(if row.dim { t.text_dim } else { t.text });
+    let col =
+        if row.selected { crate::theme::TabAccent::current(ui.ctx()).color } else { row.color.unwrap_or(if row.dim { t.text_dim } else { t.text }) };
     let label_display = if row.name { crate::i18n::tr_name(row.label) } else { crate::i18n::tr_dyn(row.label) };
-    let galley = ui.painter().layout_no_wrap(label_display, FontId::proportional(12.5), col);
+    let galley = ui.painter().layout_no_wrap(label_display, FontId::proportional(t.font_label), col);
     let lw = galley.size().x;
     ui.painter().galley(pos2(x, cy - galley.size().y / 2.0), galley, col);
     let mut bx = (x + lw + 6.0).min(r.right() - 16.0);
@@ -496,16 +501,49 @@ pub fn browser_below_timeline(app: &mut SolveApp, ui: &mut egui::Ui) {
     browser_panel(app, ui, true);
 }
 
+/// Maximum card bounds; the scroll area shrinks its height to the tree's content.
+fn floating_bounds(available: Rect, history: Option<Rect>) -> Rect {
+    let gap = crate::shell::SHELL_GAP;
+    let left = available.left() + gap;
+    // The ribbon panel has already reserved its bottom gap.
+    let top = available.top();
+    let right = (available.right() - gap).max(left);
+    let bottom = history.map_or(available.bottom() - gap, |r| r.top() - gap).max(top);
+    Rect::from_min_max(pos2(left, top), pos2((left + 250.0).min(right), bottom))
+}
+
 fn browser_panel(app: &mut SolveApp, ui: &mut egui::Ui, timeline_above: bool) {
     let t = Tokens::get();
     app.tree.order.clear();
     DRAWN.with(|d| d.borrow_mut().clear());
     OCCURRENCES.with(|d| d.borrow_mut().clear());
     let mut acts = Actions::default();
+    if app.ui.layout == crate::shell::LayoutMode::Floating && !timeline_above {
+        let available = floating_bounds(ui.available_rect_before_wrap(), app.shell.history);
+        app.shell.browser = None;
+        // When even the header cannot fit, leave the remaining sliver to the viewport.
+        let min_height = t.font_small + t.space_4 + 2.0 * (CARD_INSET + ui.spacing().item_spacing.y + 1.0);
+        if available.is_positive() && available.height() >= min_height {
+            let mut child = ui.new_child(egui::UiBuilder::new().id_salt("sc_browser_card").max_rect(available));
+            let frame = crate::frame::shell_card(t.panel).inner_margin(CARD_INSET as i8);
+            let inner_width = (available.width() - frame.total_margin().sum().x).max(0.0);
+            let inner_height = (available.height() - frame.total_margin().sum().y).max(0.0);
+            let response = frame.show(&mut child, |ui| {
+                ui.set_width(inner_width);
+                ui.set_max_height(inner_height);
+                browser_contents(app, ui, &mut acts);
+            });
+            let rect = response.response.rect;
+            app.shell.browser = Some(rect);
+            crate::scenario::publish_rect("browser:card", rect);
+        }
+        finish_browser(app, ui, acts);
+        return;
+    }
     egui::Panel::left("sc_browser")
         .exact_size(250.0)
         .resizable(false)
-        .frame(egui::Frame::NONE.fill(t.panel).inner_margin(egui::Margin::symmetric(6, 6)))
+        .frame(egui::Frame::NONE.fill(t.panel).inner_margin(egui::Margin::symmetric(t.space_6 as i8, t.space_6 as i8)))
         .show(ui, |ui| {
             if timeline_above {
                 let available = ui.available_height();
@@ -533,13 +571,13 @@ fn browser_panel(app: &mut SolveApp, ui: &mut egui::Ui, timeline_above: bool) {
                 }
                 let arrow = if browser_collapsed { "▶" } else { "▼" };
                 let response =
-                    ui.add(egui::Button::new(RichText::new(format!("{arrow}  BROWSER")).size(11.0).strong().color(t.text_dim)).frame(false));
+                    ui.add(egui::Button::new(RichText::new(format!("{arrow}  BROWSER")).size(t.font_small).strong().color(t.text_dim)).frame(false));
                 crate::scenario::publish_handle("left-browser-toggle", response.rect.center());
                 if response.clicked() {
                     app.preferences.timeline_left_browser_collapsed = !browser_collapsed;
                 }
                 if !browser_collapsed {
-                    ui.add_space(4.0);
+                    ui.add_space(t.space_4);
                     browser_rows(app, ui, &mut acts);
                 }
             } else {
@@ -551,9 +589,55 @@ fn browser_panel(app: &mut SolveApp, ui: &mut egui::Ui, timeline_above: bool) {
 
 fn browser_contents(app: &mut SolveApp, ui: &mut egui::Ui, acts: &mut Actions) {
     let t = Tokens::get();
-    ui.label(RichText::new(crate::i18n::tr_label("BROWSER")).size(11.0).strong().color(t.text_dim));
-    ui.add_space(4.0);
+    // Only the floating card folds; the docked column keeps its full height.
+    let collapsible = app.ui.layout == crate::shell::LayoutMode::Floating && !app.preferences.timeline_left;
+    browser_header(app, ui, collapsible);
+    if collapsible && app.tree.panel_collapsed {
+        return;
+    }
+    ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top() + 1.0, egui::Stroke::new(1.0, t.toolbar.lerp_to_gamma(t.border, 0.5)));
+    ui.add_space(t.space_3);
     browser_rows(app, ui, acts);
+}
+
+/// The header: the title, the body count and (on the floating card) a chevron that folds the
+/// card to just this row. The whole row is the button.
+fn browser_header(app: &mut SolveApp, ui: &mut egui::Ui, collapsible: bool) {
+    let t = Tokens::get();
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), HEADER_H), Sense::hover());
+    let response = ui.interact(rect, ui.id().with("browser_header"), if collapsible { Sense::click() } else { Sense::hover() });
+    crate::scenario::publish_handle("browser:header", rect.center());
+    crate::scenario::publish_rect("browser:header", rect);
+    let collapsed = collapsible && app.tree.panel_collapsed;
+    if collapsible && (response.hovered() || response.has_focus()) {
+        ui.painter().rect_filled(rect, t.radius_lg.saturating_sub(CARD_INSET as u8), t.hover);
+    }
+    let title = crate::i18n::tr("ui.browser_title").to_string();
+    let kind = if collapsible { egui::WidgetType::Button } else { egui::WidgetType::Label };
+    response.widget_info(|| egui::WidgetInfo::labeled(kind, true, &title));
+    let galley = ui.painter().layout_no_wrap(title, FontId::proportional(t.font_heading), t.text);
+    ui.painter().galley(pos2(rect.left() + t.space_6, rect.center().y - galley.size().y / 2.0), galley, t.text);
+    let mut right = rect.right() - t.space_6;
+    if collapsible {
+        let chevron = Rect::from_center_size(pos2(right - 5.0, rect.center().y), vec2(12.0, 12.0));
+        if collapsed {
+            crate::icons::paint_ink(ui.painter(), chevron, "chevron", t.text_dim);
+        } else {
+            crate::icons::paint_ink_flipped(ui.painter(), chevron, "chevron", t.text_dim);
+        }
+        right -= 18.0;
+    }
+    let bodies = app.session.model.state().bodies.len();
+    let key = if bodies == 1 { "ui.browser_bodies_one" } else { "ui.browser_bodies_other" };
+    let count = crate::i18n::format(key, &[("count", &bodies.to_string())]);
+    let galley = ui.painter().layout_no_wrap(count, FontId::proportional(t.font_body), t.text_dim);
+    ui.painter().galley(pos2(right - galley.size().x, rect.center().y - galley.size().y / 2.0), galley, t.text_dim);
+    if collapsible {
+        let tip = crate::i18n::tr(if collapsed { "ui.browser_expand" } else { "ui.browser_collapse" });
+        if response.on_hover_text(tip).clicked() {
+            app.tree.panel_collapsed = !app.tree.panel_collapsed;
+        }
+    }
 }
 
 fn prepare_model(app: &mut SolveApp) {
@@ -611,7 +695,7 @@ fn model_feature_indices(app: &SolveApp, component: u64, sketches: bool) -> Vec<
 fn browser_rows(app: &mut SolveApp, ui: &mut egui::Ui, acts: &mut Actions) {
     prepare_model(app);
     egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
+        .auto_shrink([false, app.ui.layout == crate::shell::LayoutMode::Floating && !app.preferences.timeline_left])
         .scroll_source(egui::scroll_area::ScrollSource { scroll_bar: true, mouse_wheel: true, ..egui::scroll_area::ScrollSource::NONE })
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
@@ -1925,7 +2009,7 @@ pub fn dims_overlay(app: &SolveApp, ctx: &egui::Context) {
             let col = if c.driven { tk.dimension_driven } else { tk.dimension };
             let galley = painter.layout_no_wrap(
                 crate::dim_view::label(&c.kind, expr, c.driven, &app.session.doc.units, app.preferences.length_decimals),
-                FontId::proportional(11.5),
+                FontId::proportional(tk.font_caption),
                 col,
             );
             let size = galley.size() + vec2(6.0, 2.0);
@@ -2043,3 +2127,7 @@ pub(crate) fn body_rows(app: &SolveApp) -> Vec<String> {
 #[cfg(test)]
 #[path = "section_browser_tests.rs"]
 mod section_browser_tests;
+
+#[cfg(test)]
+#[path = "browser_card_tests.rs"]
+mod card_tests;

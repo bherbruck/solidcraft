@@ -27,10 +27,15 @@ fn it_is_drawn_from_edge_to_edge_of_the_view() {
     let ss = st.sketch(h.app.session.active_sketch.unwrap()).unwrap();
     let i = ss.sketch.curve_index("inf").unwrap();
     let parts = super::curve_parts(&ss.sketch, i, &ss.plane, &proj, 1.0);
-    let xs: Vec<f32> = parts.iter().flatten().filter_map(|p| proj.to_screen(*p)).map(|p| p.x).collect();
-    let (lo, hi) = xs.iter().fold((f32::MAX, f32::MIN), |(lo, hi), x| (lo.min(*x), hi.max(*x)));
-    // Its two points are a few pixels apart; drawn, it spans the view.
-    assert!(lo <= rect.left() + 2.0 && hi >= rect.right() - 2.0, "drawn from {lo} to {hi} in {rect:?}");
+    let screen: Vec<_> = parts.iter().flatten().filter_map(|p| proj.to_screen(*p)).collect();
+    let (first, last) = (screen.first().unwrap(), screen.last().unwrap());
+    // Its two defining points are a few pixels apart; drawn, it spans the view. At the
+    // default isometric angle a wide viewport clips the line at the top and bottom instead
+    // of the left and right, so either pair of edges is valid.
+    for point in [first, last] {
+        assert!(rect.expand(2.0).contains(*point) && !rect.shrink(2.0).contains(*point), "endpoint {point:?} must reach an edge of {rect:?}");
+    }
+    assert!(first.distance(*last) >= rect.width().min(rect.height()) - 4.0, "line must span the view: {screen:?} in {rect:?}");
 }
 
 #[test]

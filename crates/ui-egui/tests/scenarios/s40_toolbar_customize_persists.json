@@ -1,6 +1,6 @@
 [
  {
-  "note": "Toolbar customizing like Fusion survives a restart: Pin to Toolbar, Remove from Toolbar, drag to reorder. Toolbar buttons publish handles `toolbar:<command id>`. The workspace switcher spans the toolbar's height."
+  "note": "Toolbar customization survives a restart: Pin to Toolbar, Remove from Toolbar, drag to reorder. Toolbar buttons publish handles `toolbar:<command id>`. The workspace switcher spans the toolbar's height."
  },
  {
   "expect": {
@@ -19,7 +19,7 @@
     "toolbar:solid.revolve"
    ],
    "hidden_handles": [
-    "toolbar:solid.shell"
+    "toolbar:solid.draft"
    ]
   }
  },
@@ -30,7 +30,7 @@
    "y": 80,
    "target": {
     "type": "toolbar_command",
-    "id": "solid.shell"
+    "id": "solid.draft"
    }
   }
  },
@@ -43,7 +43,7 @@
  {
   "expect": {
    "shown_handles": [
-    "toolbar:solid.shell"
+    "toolbar:solid.draft"
    ]
   }
  },
@@ -74,7 +74,7 @@
  {
   "drag": [
    {
-    "handle": "toolbar:solid.shell"
+    "handle": "toolbar:solid.draft"
    },
    {
     "handle": "toolbar:solid.extrude"
@@ -85,7 +85,7 @@
  {
   "expect": {
    "handle_order": [
-    "toolbar:solid.shell",
+    "toolbar:solid.draft",
     "toolbar:solid.extrude"
    ]
   }
@@ -96,7 +96,7 @@
  {
   "expect": {
    "shown_handles": [
-    "toolbar:solid.shell"
+    "toolbar:solid.draft"
    ],
    "hidden_handles": [
     "toolbar:solid.revolve"
@@ -106,7 +106,7 @@
  {
   "expect": {
    "handle_order": [
-    "toolbar:solid.shell",
+    "toolbar:solid.draft",
     "toolbar:solid.extrude"
    ]
   }

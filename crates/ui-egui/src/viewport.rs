@@ -1624,13 +1624,13 @@ fn analysis_legend(app: &SolveApp, painter: &egui::Painter, rect: Rect) {
     let (pad, row) = (8.0, 18.0);
     let h = pad * 2.0 + 18.0 + along.as_ref().map_or(0.0, |_| row) + row * rows.len() as f32;
     let r = Rect::from_min_size(pos2(rect.left() + 12.0, rect.bottom() - 12.0 - h), vec2(230.0, h));
-    painter.rect(r, 6.0, t.overlay, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    painter.rect(r, t.radius_md, t.overlay, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     crate::scenario::publish_handle("analysis:legend", r.center());
     let mut y = r.top() + pad;
-    painter.text(pos2(r.left() + pad, y), Align2::LEFT_TOP, title, FontId::proportional(13.0), t.text);
+    painter.text(pos2(r.left() + pad, y), Align2::LEFT_TOP, title, FontId::proportional(t.font_button), t.text);
     y += 18.0;
     if let Some(along) = along {
-        painter.text(pos2(r.left() + pad, y), Align2::LEFT_TOP, along, FontId::proportional(11.5), t.text_dim);
+        painter.text(pos2(r.left() + pad, y), Align2::LEFT_TOP, along, FontId::proportional(t.font_caption), t.text_dim);
         y += row;
     }
     for (c, text, hatched) in rows {
@@ -1645,7 +1645,7 @@ fn analysis_legend(app: &SolveApp, painter: &egui::Painter, rect: Rect) {
                 );
             }
         }
-        painter.text(pos2(sw.right() + 8.0, y), Align2::LEFT_TOP, text, FontId::proportional(12.0), t.text);
+        painter.text(pos2(sw.right() + 8.0, y), Align2::LEFT_TOP, text, FontId::proportional(t.font_body), t.text);
         y += row;
     }
 }
@@ -2429,8 +2429,8 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
     // A two-point shape being dragged out (#1630) follows the pointer and ends where it is let go,
     // even over the shape's own dimension box, which rides along beside the pointer.
     if app.viewport.draw_drag {
-        let at = ui.input(|i| i.pointer.latest_pos()).filter(|p| rect.contains(*p));
-        if resp.drag_stopped() {
+        let at = ui.input(|i| i.pointer.latest_pos()).filter(|p| rect.contains(*p) && !crate::shell::covered(app, *p));
+        if resp.drag_stopped() || !primary_down {
             app.viewport.draw_drag = false;
             if let Some(p) = at
                 && app.tool.as_ref().is_some_and(|t| t.pts.len() == 1)
@@ -2717,6 +2717,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
         if resp.drag_started_by(egui::PointerButton::Primary)
             && let Some(a) = ui.input(|i| i.pointer.press_origin())
             && rect.contains(a)
+            && !crate::shell::covered(app, a)
             && !axes.contains(a)
         {
             crate::joint_drag::start(app, &proj, a);
@@ -2746,9 +2747,15 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
         if resp.dragged_by(egui::PointerButton::Primary)
             && let (Some(a), Some(b)) = (origin, hover)
             && rect.contains(a)
+            && !crate::shell::covered(app, a)
             && !axes.contains(a)
         {
             app.viewport.boxsel = Some(BoxSel::from_drag(a, b));
+        }
+        // A shell card disables its underlying widgets. The release still ends a
+        // rubber band even when egui no longer sends drag_stopped to the viewport.
+        if !primary_down && !inside {
+            app.viewport.boxsel = None;
         }
         if resp.drag_stopped()
             && let Some(bx) = app.viewport.boxsel.take()
@@ -2774,7 +2781,13 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
         && let Some((low, high)) = sketch.bounds()
         && let Some(at) = proj.to_screen(plane.to_world(solidcraft_engine::geom::Vec2::new((low.x + high.x) * 0.5, high.y)))
     {
-        painter.text(at - vec2(0.0, 12.0), Align2::CENTER_BOTTOM, "Saved sketch plane — attachment lost", FontId::proportional(12.0), t.warning);
+        painter.text(
+            at - vec2(0.0, 12.0),
+            Align2::CENTER_BOTTOM,
+            "Saved sketch plane — attachment lost",
+            FontId::proportional(t.font_body),
+            t.warning,
+        );
     }
     if let Some(bx) = app.viewport.boxsel {
         let col = if bx.crossing { t.box_crossing } else { t.box_window };
@@ -2802,10 +2815,10 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
     if let Some(since) = app.computing_since() {
         let seconds = ((crate::now_ms() - since) / 1000.0).floor().max(0.0);
         let text = crate::i18n::format("dialog.computing", &[("seconds", &format!("{seconds:.0}"))]);
-        let pos = pos2(rect.left() + 12.0, rect.bottom() - 76.0);
-        let galley = painter.layout_no_wrap(text, FontId::proportional(12.5), t.text);
+        let pos = pos2(crate::shell::content_rect(app, rect).left() + 12.0, crate::shell::content_rect(app, rect).bottom() - 76.0);
+        let galley = painter.layout_no_wrap(text, FontId::proportional(t.font_label), t.text);
         let r = Rect::from_min_size(pos, galley.size() + vec2(34.0, 8.0));
-        painter.rect_filled(r, 4.0, t.overlay);
+        painter.rect_filled(r, t.radius_sm, t.overlay);
         egui::Spinner::new().size(12.0).paint_at(ui, Rect::from_center_size(pos2(r.left() + 13.0, r.center().y), vec2(12.0, 12.0)));
         painter.galley(pos + vec2(26.0, 4.0), galley, t.text);
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
@@ -2813,10 +2826,10 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
     // Status chip.
     if let Some((msg, at, err)) = app.status.clone() {
         if crate::now_ms() - at < 6000.0 {
-            let pos = pos2(rect.left() + 12.0, rect.bottom() - 46.0);
-            let galley = painter.layout_no_wrap(msg, FontId::proportional(12.5), if err { t.error } else { t.text });
+            let pos = pos2(crate::shell::content_rect(app, rect).left() + 12.0, crate::shell::content_rect(app, rect).bottom() - 46.0);
+            let galley = painter.layout_no_wrap(msg, FontId::proportional(t.font_label), if err { t.error } else { t.text });
             let r = Rect::from_min_size(pos, galley.size() + vec2(16.0, 8.0));
-            painter.rect_filled(r, 4.0, t.overlay);
+            painter.rect_filled(r, t.radius_sm, t.overlay);
             painter.galley(pos + vec2(8.0, 4.0), galley, t.text);
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
         } else {
@@ -3179,7 +3192,7 @@ fn overlays(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
     }
     loose_end_markers(sk, &ss.ends, &ss.plane, painter, proj, &t);
     // Sketch status.
-    if let Some(r) = app.viewport.rect {
+    if let Some(r) = app.viewport.layout.as_ref().map(|l| l.content) {
         let msg = if !ss.report.ok() {
             format!("{} — constraints conflict", ss.name)
         } else if ss.report.dof == 0 {
@@ -3188,7 +3201,7 @@ fn overlays(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
             format!("{} — {} degrees of freedom", ss.name, ss.report.dof)
         };
         let c = if ss.report.ok() { t.sketch_accent } else { t.error };
-        painter.text(pos2(r.left() + 12.0, r.top() + 12.0), Align2::LEFT_TOP, msg, FontId::proportional(13.0), c);
+        painter.text(pos2(r.left() + 12.0, r.top() + 12.0), Align2::LEFT_TOP, msg, FontId::proportional(t.font_button), c);
     }
 }
 
@@ -3244,12 +3257,13 @@ pub(crate) fn scene_palette(dark: bool, mode: crate::theme::ColorVision) -> soli
 
 pub(crate) fn refresh_layout(app: &mut SolveApp, scale: f32) {
     if let Some(rect) = app.viewport.rect {
-        let docks: Vec<_> =
-            [app.viewport.palette_rect.filter(|_| app.session.active_sketch.is_some()), app.viewport.dialog_rect.filter(|_| app.dialog.is_some())]
-                .into_iter()
-                .flatten()
-                .collect();
-        app.viewport.layout = Some(crate::viewport_layout::Layout::new(rect, &docks, scale, app.preferences.navigator_style));
+        let docks = crate::shell::covered_rects(app);
+        let content = crate::shell::content_rect(app, rect);
+        app.viewport.layout = Some(if app.ui.layout == crate::shell::LayoutMode::Docked {
+            crate::viewport_layout::Layout::new(rect, &docks, scale, app.preferences.navigator_style)
+        } else {
+            crate::viewport_layout::Layout::with_content(rect, content, &docks, scale, app.preferences.navigator_style)
+        });
     }
 }
 
@@ -3290,7 +3304,7 @@ fn axis_view_orbit(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect) -> bool {
         let p = &i.pointer;
         (p.primary_pressed(), p.primary_down(), p.is_decidedly_dragging(), p.press_origin(), p.interact_pos(), i.modifiers.shift)
     });
-    if pressed && ui.rect_contains_pointer(rect) {
+    if pressed && ui.is_enabled() && ui.rect_contains_pointer(rect) && !pos.is_some_and(|p| crate::shell::covered(app, p)) {
         app.viewport.axis_drag = origin.filter(|p| match app.preferences.navigator_style {
             crate::prefs::NavigatorStyle::Axes => axis_rect(app, rect).contains(*p),
             crate::prefs::NavigatorStyle::Cube => {
@@ -3333,7 +3347,7 @@ fn signed_axis_view(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect) {
     let c = axis_center(app, rect);
     let orbiting = axis_view_orbit(app, ui, rect);
     let tips = axis_tips(&app.cam, c);
-    let hover = ui.input(|i| i.pointer.hover_pos()).filter(|_| ui.rect_contains_pointer(rect));
+    let hover = ui.input(|i| i.pointer.hover_pos()).filter(|p| ui.is_enabled() && ui.rect_contains_pointer(rect) && !crate::shell::covered(app, *p));
     let hovered = if orbiting { None } else { hover.and_then(|p| axis_hit(&tips, p)) };
     let painter = ui.painter_at(rect);
     if orbiting || hover.is_some_and(|p| axis_rect(app, rect).contains(p)) {
@@ -3461,7 +3475,7 @@ fn nav_bar(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect) {
         || menu_open;
     let mut painter = ui.painter_at(rect);
     painter.set_opacity(if active || app.preferences.navigator_style == crate::prefs::NavigatorStyle::Axes { 1.0 } else { 0.45 });
-    painter.rect(bar, 6.0, t.overlay, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    painter.rect(bar, t.radius_md, t.overlay, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     let columns = ((bar.width() - 10.0) / 30.0).round().clamp(1.0, 10.0) as usize;
     for (i, (icon, tip)) in items.iter().enumerate() {
         let br = Rect::from_min_size(
@@ -3479,7 +3493,7 @@ fn nav_bar(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect) {
             _ => false,
         };
         if active || resp.hovered() {
-            painter.rect_filled(br, 4.0, if active { t.accent_soft } else { t.hover });
+            painter.rect_filled(br, t.radius_sm, if active { t.accent_soft } else { t.hover });
         }
         icons::paint(&painter, br.shrink(4.0), icon, t.icon, t.icon_fill, t.accent);
         if resp.on_hover_text(*tip).clicked() {
@@ -3513,6 +3527,7 @@ fn nav_bar(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect) {
 /// The View settings above the navigation bar's last button: grid, ground shadow and the agent
 /// cursor (#35). False once it should close (a click outside it).
 fn view_menu(app: &mut SolveApp, ui: &mut egui::Ui, button: Rect) -> bool {
+    let t = crate::theme::Tokens::get();
     let area = crate::frame::area(egui::Id::new("sc_view_menu"))
         .order(egui::Order::Foreground)
         .pivot(Align2::RIGHT_BOTTOM)
@@ -3520,7 +3535,7 @@ fn view_menu(app: &mut SolveApp, ui: &mut egui::Ui, button: Rect) -> bool {
     let r = area.show(ui.ctx(), |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.set_width(220.0);
-            ui.label(egui::RichText::new(crate::i18n::tr_label("VIEW")).strong().size(11.5));
+            ui.label(egui::RichText::new(crate::i18n::tr_label("VIEW")).strong().size(t.font_caption));
             ui.checkbox(&mut app.ui.show_grid, crate::i18n::tr_label("Grid"));
             ui.checkbox(&mut app.ui.ground_shadow, crate::i18n::tr_label("Ground shadow"));
             ui.separator();
@@ -5535,8 +5550,14 @@ mod tests {
             h.frames(20);
             h.app.cam != before
         };
-        for smooth in [true, false] {
+        for (layout, smooth) in [
+            (crate::shell::LayoutMode::Floating, true),
+            (crate::shell::LayoutMode::Floating, false),
+            (crate::shell::LayoutMode::Docked, true),
+            (crate::shell::LayoutMode::Docked, false),
+        ] {
             let mut h = Harness::new();
+            h.call("ui.set", json!({"layout":layout}));
             h.app.preferences.smooth_wheel_zoom = smooth;
             h.app.preferences.zoom_to_cursor = false;
             h.call("engine.execute", json!({"command": "solid.box", "params": {"length": 40, "width": 30, "height": 20}}));
@@ -5574,18 +5595,28 @@ mod tests {
             h.call("ui.move", field.clone());
             h.call("ui.click", field);
             assert!(handle_at(item).is_none(), "the list must close");
-            let (mid, x) = (vp.center().y, vp.left() + vp.width() * 0.25);
+            // Floating cards sit inside the full viewport. Probe their actual edges; the
+            // content anchor also reserves gaps and space below the short browser card.
+            // Docked panels end at the viewport boundary instead.
+            let (browser_edge, mid, history_edge) = if layout == crate::shell::LayoutMode::Floating {
+                let browser = h.app.shell.browser.expect("the floating browser card");
+                let history = h.app.shell.history.expect("the floating history card");
+                (browser.right(), browser.center().y, history.top())
+            } else {
+                (vp.left(), vp.center().y, vp.bottom())
+            };
+            let x = vp.center().x;
             for p in [
                 pos2(dialog.left() + 2.0, dialog.center().y),
                 pos2(dialog.center().x, dialog.bottom() - 2.0),
-                pos2(vp.left() - 2.0, mid),
-                pos2(x, vp.bottom() + 2.0),
+                pos2(browser_edge - 2.0, mid),
+                pos2(x, history_edge + 2.0),
             ] {
                 assert!(!wheel(&mut h, p, 60.0), "smooth {smooth}: the wheel at {p:?} off the model ({vp:?}, dialog {dialog:?}) zoomed it");
                 assert!(h.app.viewport.mouse.is_none(), "the model must not see the pointer at {p:?}");
             }
             // The model itself still zooms right next to them.
-            for p in [pos2(dialog.left() - 2.0, dialog.center().y), pos2(vp.left() + 2.0, mid), pos2(x, vp.bottom() - 2.0)] {
+            for p in [pos2(dialog.left() - 2.0, dialog.center().y), pos2(browser_edge + 2.0, mid), pos2(x, history_edge - 2.0)] {
                 assert!(wheel(&mut h, p, 60.0), "smooth {smooth}: the wheel at {p:?} on the model ({vp:?}) must zoom it");
                 assert_eq!(h.app.viewport.mouse, Some(p));
                 assert!(gestures(&mut h, p), "a pinch and a two-finger scroll at {p:?} on the model must move it");

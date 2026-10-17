@@ -665,6 +665,7 @@ fn edit_box(app: &mut SolveApp, ctx: &egui::Context) {
             ui.label(egui::RichText::new(format!("Dimension: {}", e.param)).strong())
                 .on_hover_text("Double-click another driving dimension to insert its name");
             let r = ui.add(egui::TextEdit::singleline(&mut e.expr).id(id).desired_width(popup_width));
+            crate::theme::TabAccent::number_focus(ui, &r);
             if r.has_focus() {
                 e.selection = egui::TextEdit::load_state(ctx, id).and_then(|s| s.cursor.char_range());
             }

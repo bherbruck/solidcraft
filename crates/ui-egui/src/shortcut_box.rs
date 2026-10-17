@@ -105,8 +105,9 @@ pub fn search(app: &SolveApp, q: &str) -> Vec<(&'static str, &'static str, &'sta
     let mut v: Vec<(u32, &'static str, &'static str, &'static str, String)> = command_specs()
         .into_iter()
         .filter_map(|c| {
-            let place = if c.tab.is_empty() { String::new() } else { format!("{} › {}", c.tab, c.panel) };
-            let s = score(&q, c.label).max(score(&q, c.id) * 9 / 10).max(score(&q, c.tab) / 3).max(score(&q, c.panel) / 3);
+            let (tab, panel) = crate::workspace::destination(c).unwrap_or(("", ""));
+            let place = if tab.is_empty() { String::new() } else { format!("{} › {}", app.tr_label(tab), app.tr_label(panel)) };
+            let s = score(&q, c.label).max(score(&q, c.id) * 9 / 10).max(score(&q, tab) / 3).max(score(&q, panel) / 3);
             let recent = app.sbox.recent.iter().position(|r| r == c.id).map_or(0, |i| 2000 - i as u32);
             // Commands that can run now come before those that can't.
             let usable = if c.info(&app.session).enabled { 150 } else { 0 };
@@ -124,6 +125,28 @@ pub fn open(app: &mut SolveApp, at: Option<Pos2>) {
     app.sbox.index = 0;
     app.sbox.text.clear();
     app.sbox.focus = true;
+}
+
+/// A line typed as `command.id {"param": value}`: the command runs at once with those parameters
+/// (the same entry the bottom command line used to take).
+fn run_typed(app: &mut SolveApp, line: &str) {
+    let line = line.trim();
+    app.ui.palette_open = false;
+    app.sbox.at = None;
+    app.sbox.text.clear();
+    let split = line.find(|c: char| c.is_whitespace() || c == '{').unwrap_or(line.len());
+    let (id, rest) = (line.get(..split).unwrap_or_default(), line.get(split..).unwrap_or_default().trim());
+    let Some(command) = solidcraft_engine::find_command(id) else {
+        app.set_status(format!("no command `{id}`; the text before the JSON must be a command id"), true);
+        return;
+    };
+    match serde_json::from_str::<Value>(rest) {
+        Ok(params) => {
+            app.sbox.used(command.id);
+            let _ = app.run(command.id, params);
+        }
+        Err(e) => app.set_status(format!("parameters must be JSON: {e}"), true),
+    }
 }
 
 fn run(app: &mut SolveApp, id: &str) {
@@ -160,14 +183,15 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     let mut picked: Option<&'static str> = None;
     let mut pin: Option<&'static str> = None;
     let mut menu: Option<(Pos2, &'static str)> = None;
-    let h = 380.0;
+    let w = W.min((screen.width() - 8.0).max(32.0));
+    let h = 380.0_f32.min((screen.height() - 8.0).max(120.0));
     let pos = pos2(
-        at.x.clamp(screen.left() + 4.0, (screen.right() - W - 4.0).max(screen.left())),
-        at.y.clamp(screen.top() + 4.0, (screen.bottom() - h).max(screen.top())),
+        at.x.clamp(screen.left() + 4.0, (screen.right() - w - 4.0).max(screen.left() + 4.0)),
+        at.y.clamp(screen.top() + 4.0, (screen.bottom() - h).max(screen.top() + 4.0)),
     );
     let resp = crate::frame::area(egui::Id::new("sc_sbox")).fixed_pos(pos).order(egui::Order::Foreground).show(ctx, |ui| {
         crate::context_menu::menu_frame(ui, |ui| {
-            ui.set_width(W - 10.0);
+            ui.set_width(w - 10.0);
             // Pinned commands: a mini toolbar.
             if !app.sbox.pinned.is_empty() {
                 ui.horizontal_wrapped(|ui| {
@@ -188,7 +212,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
             let te = ui.add(
                 egui::TextEdit::singleline(&mut app.sbox.text)
                     .hint_text(crate::i18n::tr_label("Search commands"))
-                    .desired_width(W - 20.0)
+                    .desired_width(w - 20.0)
                     .id(egui::Id::new("sc_sbox_text")),
             );
             if std::mem::take(&mut app.sbox.focus) {
@@ -205,7 +229,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
                 ui.spacing_mut().item_spacing.y = 0.0;
                 for (i, (id, label, icon, place)) in list.iter().enumerate().take(80) {
                     let enabled = solidcraft_engine::find_command(id).is_some_and(|c| c.info(&app.session).enabled);
-                    let (r, resp) = ui.allocate_exact_size(vec2(W - 20.0, 26.0), Sense::click());
+                    let (r, resp) = ui.allocate_exact_size(vec2(w - 20.0, 26.0), Sense::click());
                     let lit = i == app.sbox.index || resp.hovered();
                     if lit {
                         ui.painter().rect_filled(r, 4.0, t.hover);
@@ -257,12 +281,18 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
             });
         });
     });
+    crate::scenario::publish_rect("ribbon:search_popup", resp.response.rect);
     if let Some(id) = pin {
         app.sbox.toggle_pin(id);
     }
     // A row's menu: pin to the toolbar or the shortcuts.
     if let Some((at, id)) = menu {
         crate::context_menu::open_for(app, at, crate::context_menu::Target::ToolbarCommand { id: id.to_string() });
+        return;
+    }
+    if enter && picked.is_none() && app.sbox.text.contains('{') {
+        let line = app.sbox.text.clone();
+        run_typed(app, &line);
         return;
     }
     if enter
@@ -327,7 +357,7 @@ mod tests {
         let mut app = SolveApp::new(solidcraft_engine::Session::default(), Default::default());
         assert_eq!(search(&app, "extr").first().map(|x| x.0), Some("solid.extrude"));
         assert_eq!(search(&app, "solid.fil").first().map(|x| x.0), Some("solid.fillet"));
-        assert!(search(&app, "constraints").iter().any(|x| x.0 == "sketch.constraint.parallel"), "by panel");
+        assert!(search(&app, "constrain").iter().any(|x| x.0 == "sketch.constraint.parallel"), "by panel");
         app.sbox.used("solid.shell");
         app.sbox.used("solid.revolve");
         let all = search(&app, "");
@@ -336,5 +366,38 @@ mod tests {
         let mut other = SolveApp::new(solidcraft_engine::Session::default(), Default::default());
         other.sbox.load(&app.sbox.prefs());
         assert_eq!((other.sbox.pinned.clone(), other.sbox.recent.len()), (vec!["solid.extrude".to_string()], 2));
+    }
+
+    #[test]
+    fn a_line_typed_with_json_parameters_runs_the_command() {
+        let mut app = SolveApp::new(solidcraft_engine::Session::default(), Default::default());
+        let before = app.session.doc.features.len();
+        app.ui.palette_open = true;
+        app.sbox.text = r#"solid.box {"length": 10, "width": 10, "height": 10}"#.into();
+        let line = app.sbox.text.clone();
+        run_typed(&mut app, &line);
+        assert_eq!(app.session.doc.features.len(), before + 1, "{:?}", app.status);
+        assert!(!app.ui.palette_open && app.sbox.text.is_empty(), "the box closes");
+        assert_eq!(app.sbox.recent.first().map(String::as_str), Some("solid.box"));
+        // Bad JSON and an unknown id report instead of running anything.
+        run_typed(&mut app, r#"solid.box {"length": "#);
+        assert!(app.status.as_ref().is_some_and(|(m, _, err)| *err && m.contains("JSON")), "{:?}", app.status);
+        run_typed(&mut app, r#"not.a.command {}"#);
+        assert!(app.status.as_ref().is_some_and(|(m, _, err)| *err && m.contains("no command")), "{:?}", app.status);
+        assert_eq!(app.session.doc.features.len(), before + 1);
+    }
+
+    #[test]
+    fn typing_json_in_the_open_box_and_pressing_enter_runs_it() {
+        let mut h = crate::scenario::Harness::new();
+        h.app.home.open = false;
+        h.frames(2);
+        let before = h.app.session.doc.features.len();
+        h.step(&json!({"key": "S"})).unwrap();
+        h.step(&json!({"text": r#"solid.box {"length": 10, "width": 10, "height": 10}"#})).unwrap();
+        h.step(&json!({"key": "Enter"})).unwrap();
+        h.frames(2);
+        assert_eq!(h.app.session.doc.features.len(), before + 1, "{:?}", h.app.status);
+        assert!(!h.app.ui.palette_open);
     }
 }

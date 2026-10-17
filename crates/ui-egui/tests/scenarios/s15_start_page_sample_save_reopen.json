@@ -1,5 +1,5 @@
 [
-  {"click": [248, 17]},
+  {"click": {"handle": "titlebar:home"}},
   {"expect": {"home": true}},
   {"call": "ui.home", "params": {"sample": 0}},
   {"until": {"home": false}},
@@ -12,7 +12,7 @@
   {"key": "Enter"},
   {"widget": "Close window"},
   {"expect": {"param": {"width": 100}, "errors": 0}},
-  {"key": "S", "cmd": true},
+  {"click": {"handle": "titlebar:save"}},
   {"expect": {"file": "Sample Plate.solidcraft"}},
   {"key": "N", "cmd": true},
   {"expect": {"bodies": 0}},

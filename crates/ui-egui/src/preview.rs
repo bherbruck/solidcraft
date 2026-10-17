@@ -37,6 +37,17 @@ impl Colors {
         let c = |c: egui::Color32| c.to_srgba_unmultiplied();
         Colors { body: c(t.body), added: c(t.preview_add), new_body: c(t.preview_new), removed: c(t.preview_cut), edge: c(t.body_edge) }
     }
+
+    fn for_tool(t: &Tokens, tab: &str, active: bool) -> Colors {
+        let mut colors = Self::from_tokens(t);
+        let accent = crate::theme::TabAccent::for_tab(t, tab);
+        if active && accent.color != t.accent {
+            colors.added = accent.color.to_srgba_unmultiplied();
+            colors.new_body = t.body.lerp_to_gamma(accent.color, 0.45).to_srgba_unmultiplied();
+        }
+        // Removed material retains its warning colour and opacity.
+        colors
+    }
 }
 
 pub struct SketchPreview {
@@ -286,7 +297,7 @@ pub fn update(app: &mut SolveApp, ctx: &egui::Context) {
             return;
         }
     };
-    let colors = Colors::from_tokens(&Tokens::get());
+    let colors = Colors::for_tool(&Tokens::get(), &app.ui.tab, app.tool.is_some() || app.dialog.is_some());
     let key = job_key(&cmds, app.session.revision, colors);
     let stream_key = stream_key(&cmds, app.session.revision, colors);
     let tool = as_new_body(&cmds).is_some();
@@ -776,6 +787,32 @@ pub fn paint_sketches(app: &SolveApp, painter: &egui::Painter, proj: &crate::vie
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn tool_preview_follows_tab_without_recolouring_removal_or_idle_previews() {
+        for dark in [false, true] {
+            for vision in crate::theme::ColorVision::ALL {
+                let t = Tokens::themed(dark, vision);
+                let base = Colors::from_tokens(&t);
+                for tab in ["MODEL", "SKETCH", "SURFACE", "ASSEMBLE", "INSERT", "INSPECT", "MANAGE", "VIEW", "SHEET METAL", "RENDER"] {
+                    for active in [false, true] {
+                        let colors = Colors::for_tool(&t, tab, active);
+                        assert_eq!(colors.removed, base.removed);
+                        assert_eq!(colors.body, base.body);
+                        assert_eq!(colors.edge, base.edge);
+                        if !active || crate::theme::TabAccent::for_tab(&t, tab).color == t.accent {
+                            assert_eq!(colors.added, base.added);
+                            assert_eq!(colors.new_body, base.new_body);
+                        } else {
+                            let accent = crate::theme::TabAccent::for_tab(&t, tab);
+                            assert_eq!(colors.added, accent.color.to_srgba_unmultiplied());
+                            assert_ne!(colors.new_body, colors.added);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     fn colors() -> Colors {
         Colors { body: [1, 1, 1, 255], added: [2, 2, 2, 255], new_body: [4, 4, 4, 255], removed: [3, 3, 3, 100], edge: [0, 0, 0, 255] }

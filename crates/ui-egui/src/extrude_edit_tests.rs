@@ -303,6 +303,8 @@ fn symmetric_total_distance_preview_handle_drag_apply_and_reopen_agree() {
         let mut h = make(json!({"direction":"symmetric","distance":"100 mm","convention":convention}));
         h.call("ui.view", json!({"view":"fit"}));
         h.frames(4);
+        // Leave room above the fitted solid to grow the arrow without entering the ribbon.
+        h.app.cam.distance *= 1.5;
         open(&mut h);
         let expected_tip = h.at(&json!({"world":[5,5,cap]})).unwrap();
         let handle = h.at(&json!({"handle":"arrow"})).unwrap();

@@ -239,7 +239,7 @@ fn width(vp: egui::Rect) -> f32 {
 
 /// The viewport the palette docks into.
 fn viewport(app: &SolveApp, ctx: &egui::Context) -> egui::Rect {
-    app.viewport.rect.unwrap_or_else(|| ctx.content_rect())
+    crate::shell::content_rect(app, app.viewport.rect.unwrap_or_else(|| ctx.content_rect()))
 }
 
 /// Is a sketch being edited? That is the palette's own condition.
@@ -355,7 +355,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     let vp = viewport(app, ctx);
     let bottom = vp.bottom().min(ctx.content_rect().bottom()) - 8.0;
     // Prefer the space below Axis View, but reclaim it on short/HiDPI views.
-    let top = (vp.top() + crate::viewport::AXIS_VIEW_CLEARANCE).min((bottom - 360.0).max(vp.top()));
+    let top = crate::shell::panel_top(app, vp, bottom, crate::frame::Side::Right);
     let anchor = egui::pos2(vp.right(), top);
     let frame = crate::frame::dock_frame(ctx, crate::frame::Side::Right);
     let shown = |k: &str| match k {
@@ -565,7 +565,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
         ui.add_space((line - gap).max(0.0));
         // A row as tall as the button, so the gap below it is just the line.
         ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), egui::Layout::right_to_left(egui::Align::Min), |ui| {
-            let button = ui.add(egui::Button::new(RichText::new(app.tr("ui.finish_sketch")).color(Color32::WHITE)).fill(t.accent));
+            let button = ui.add(egui::Button::new(RichText::new(app.tr("ui.finish_sketch")).color(t.on_accent)).fill(t.accent));
             crate::scenario::publish_rect("sketch_palette:finish", button.rect);
             crate::scenario::publish_handle("sketch_palette:finish", button.rect.center());
             if button.clicked() {

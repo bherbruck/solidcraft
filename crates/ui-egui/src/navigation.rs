@@ -271,6 +271,7 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
             i.pointer.delta(),
         )
     });
+    let hover = hover.filter(|p| !crate::shell::covered(app, *p));
     // The right button belongs to the marking menu while it is open.
     let secondary_down = secondary_down && app.viewport.context_menu.is_none();
     // The axis view handles its own clicks; the model underneath must not see them.
@@ -279,7 +280,7 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
     // hit test also counts the model as under the pointer a few points past its own edge and
     // inside a window's or a list's edge (#678), so the pointer must be in the viewport too,
     // with no window or menu above it.
-    let inside = resp.contains_pointer() && ui.rect_contains_pointer(rect) && hover.is_some_and(|p| !axes.contains(p));
+    let inside = ui.is_enabled() && resp.contains_pointer() && ui.rect_contains_pointer(rect) && hover.is_some_and(|p| !axes.contains(p));
     app.viewport.mouse = hover.filter(|_| inside);
     // Ctrl or Alt held: drawing and dragging don't snap.
     crate::drag_snap::set_suppressed(mods.ctrl || mods.alt || mods.command);

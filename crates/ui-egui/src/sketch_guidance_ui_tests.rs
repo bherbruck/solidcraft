@@ -32,6 +32,8 @@ fn preview(h: &mut Harness, curves: usize) {
 #[test]
 fn sketch_dialog_mirror_toggles_clears_references_previews_and_cancels() {
     let mut h = fixture();
+    // Keep the source curves and reference between the floating dialog and Sketch Palette.
+    step(&mut h, json!({"call":"ui.camera","params":{"target":[-40,0,0],"distance":150}}));
     let original = h.app.session.doc.to_json();
     let undo = h.app.session.undo.len();
     let revision = h.app.session.revision;
@@ -93,6 +95,8 @@ fn sketch_dialog_patterns_update_counts_and_place_an_unsnapped_centre() {
 #[test]
 fn sketch_dialog_offset_precise_distance_flip_and_editable_dimension() {
     let mut h = fixture();
+    // The floating browser shifts the dialog over the source curve at the default camera.
+    step(&mut h, json!({"call":"ui.camera","params":{"target":[-40,0,0],"distance":150}}));
     step(&mut h, json!({"start":"sketch.offset"}));
     pick(&mut h, [-22.5, 10.0], false);
     if let crate::dialogs::Kind::SketchModify(Mod::Offset { distance, flip, chain, .. }) = &mut h.app.dialog.as_mut().unwrap().kind {
@@ -124,6 +128,8 @@ fn sketch_dialog_mirror_refuses_external_and_curved_references() {
 #[test]
 fn sketch_dialog_box_selection_adds_replaces_and_preserves_reference() {
     let mut h = fixture();
+    // Put every selection box between the left dialog and the right Sketch Palette.
+    step(&mut h, json!({"call":"ui.camera","params":{"target":[-40,0,0],"distance":150}}));
     step(&mut h, json!({"call":"engine.execute","params":{"command":"sketch.line","params":{"points":[[-50,-20],[-40,-20]]}}}));
     step(&mut h, json!({"start":"sketch.mirror"}));
     step(&mut h, json!({"call":"ui.dialogInput","params":{"index":1}}));

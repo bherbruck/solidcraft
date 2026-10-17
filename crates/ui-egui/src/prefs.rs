@@ -348,7 +348,7 @@ pub struct Prefs {
     /// AI features (docs/agent-chat.md): the master switch. Off: no AI button, shortcut, menu
     /// entry or panel, and nothing is looked for or started.
     pub ai_features: bool,
-    /// The AI button at the toolbar row's right end (the shortcut and View menu entry stay).
+    /// The Assistant button in the application bar (the shortcut and View menu entry stay).
     pub ai_toolbar_button: bool,
     /// Agents the user added (the installed ones are found by themselves). API keys are never
     /// here: they live in the system keychain.

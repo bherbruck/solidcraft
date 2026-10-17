@@ -4,7 +4,7 @@
 //! Closing a design with unsaved changes asks first, and so does quitting: one "save changes?"
 //! per design with unsaved changes ([`request_quit`]).
 
-use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, pos2, vec2};
+use egui::{Align2, FontId, Rect, Sense, pos2, vec2};
 use serde_json::{Value, json};
 use solidcraft_engine::Session;
 use solidcraft_engine::render::Camera;
@@ -116,7 +116,9 @@ fn swap_in(app: &mut SolveApp, slot: DocSlot) -> DocSlot {
     app.session.auto_project = out.session.auto_project;
     // Views cache by revision: the incoming design must not look unchanged.
     app.session.invalidate_view(out_rev);
-    app.ui.tab = if app.session.active_sketch.is_some() { "SKETCH".into() } else { "SOLID".into() };
+    app.ui.ribbon_context = None;
+    app.ui.tab = "MODEL".into();
+    crate::workspace::sync_context(app);
     out
 }
 
@@ -364,33 +366,31 @@ pub fn control(app: &mut SolveApp, p: &Value) -> Value {
 /// + for a new design.
 pub fn tabs(app: &mut SolveApp, ui: &mut egui::Ui, r: Rect, x0: f32, x1: f32) {
     let t = Tokens::get();
-    let home = Rect::from_min_size(pos2(x0, r.top() + 5.0), vec2(66.0, r.height() - 5.0));
-    let response = ui.interact(home, ui.id().with("home_tab"), Sense::click());
-    tab_shape(ui.painter(), &t, home, app.home.open, response.hovered());
-    let home_text = app.tr("ui.home");
-    ui.painter().text(
-        home.center(),
-        Align2::CENTER_CENTER,
-        home_text,
-        FontId::proportional(13.0),
-        if app.home.open { t.text } else { t.app_bar_text },
-    );
-    crate::scenario::publish_handle("tab:home", home.center());
-    if response.clicked() && !app.file_load.busy() {
-        app.home.show(app.session.revision);
-    }
-    let x0 = x0 + 70.0;
     let info = tabs_info(app);
     let n = info.len();
     let (first, shown, w) = layout(n, app.docs.active, x1 - x0);
     let mut x = x0;
     let mut pick: Option<usize> = None;
     let mut shut: Option<usize> = None;
+    // Each tab fits its name (up to MAX_FIT) while all of them fit; otherwise they share the room.
+    const MAX_FIT: f32 = 200.0;
+    let natural: Vec<f32> = info
+        .iter()
+        .map(|(name, dirty)| {
+            let shown_name = if name == "Untitled" { app.tr("ui.untitled") } else { name.as_str() };
+            let label = format!("{shown_name}{}", if *dirty { " •" } else { "" });
+            let text = ui.painter().layout_no_wrap(label, FontId::proportional(13.0), t.app_bar_text).size().x;
+            (text + 40.0).clamp(72.0, MAX_FIT)
+        })
+        .collect();
+    let fit_all = shown == n && natural.iter().sum::<f32>() <= x1 - x0 - 34.0;
     for (i, (name, dirty)) in info.iter().enumerate().skip(first).take(shown) {
-        let tr = Rect::from_min_size(pos2(x, r.top() + 5.0), vec2(w - 2.0, r.height() - 5.0));
+        let w = if fit_all { natural.get(i).copied().unwrap_or(w) } else { w };
+        let tr = Rect::from_min_size(pos2(x, r.top() + 4.0), vec2(w - 2.0, r.height() - 8.0));
         let active = !app.home.open && (i == app.docs.active || app.docs.slots.is_empty());
         let resp = ui.interact(tr, ui.id().with(("doc_tab", i)), Sense::click_and_drag());
         crate::scenario::publish_handle(&format!("tab:design:{i}"), tr.center());
+        crate::scenario::publish_rect(&format!("tab:design:{i}"), tr);
         // The tabs are part of the title bar: dragging one moves the window, a double click
         // maximizes it.
         if app.custom_titlebar || app.integrated_titlebar {
@@ -400,8 +400,8 @@ pub fn tabs(app: &mut SolveApp, ui: &mut egui::Ui, r: Rect, x0: f32, x1: f32) {
                 crate::titlebar::toggle_maximize(ui.ctx());
             }
         }
-        tab_shape(ui.painter(), &t, tr, active, resp.hovered());
-        let ink = if active { t.text } else { t.app_bar_text };
+        tab_shape(ui.painter(), &t, tr, active, resp.hovered() || resp.has_focus());
+        let ink = if active || resp.hovered() { t.app_bar_text } else { t.app_bar_text.gamma_multiply(0.7) };
         let name_display = if name == "Untitled" { app.tr("ui.untitled") } else { name };
         let label = format!("{name_display}{}", if *dirty { " •" } else { "" });
         let g = ui.painter().layout_no_wrap(label, FontId::proportional(13.0), ink);
@@ -410,14 +410,21 @@ pub fn tabs(app: &mut SolveApp, ui: &mut egui::Ui, r: Rect, x0: f32, x1: f32) {
         ui.painter().with_clip_rect(clip).galley(pos2(tr.left() + 10.0, tr.center().y - g.size().y / 2.0), g, ink);
         // ×
         let xr = Rect::from_center_size(pos2(tr.right() - 13.0, tr.center().y), vec2(16.0, 16.0));
-        let xresp = ui.interact(xr, ui.id().with(("doc_close", i)), Sense::click());
-        if xresp.hovered() {
-            ui.painter().rect_filled(xr, 3.0, Color32::from_white_alpha(40));
+        let show_close = active || resp.hovered() || ui.rect_contains_pointer(tr);
+        let xresp = ui.interact(xr, ui.id().with(("doc_close", i)), if show_close { Sense::click() } else { Sense::hover() });
+        crate::scenario::publish_handle(&format!("tab:close:{i}"), xr.center());
+        crate::scenario::publish_rect(&format!("tab:close:{i}"), xr);
+        if show_close && (xresp.hovered() || xresp.has_focus()) {
+            ui.painter().rect_filled(xr, 3.0, t.app_bar_hover_strong);
         }
-        let c = xr.center();
-        let s = Stroke::new(1.3, if active { t.text_dim } else { t.app_bar_text });
-        ui.painter().line_segment([c - vec2(3.5, 3.5), c + vec2(3.5, 3.5)], s);
-        ui.painter().line_segment([c - vec2(3.5, -3.5), c + vec2(3.5, -3.5)], s);
+        if show_close {
+            crate::icons::paint_app_bar(
+                ui.painter(),
+                Rect::from_center_size(xr.center(), vec2(14.0, 14.0)),
+                "close",
+                if xresp.hovered() || xresp.has_focus() { 1.0 } else { 0.55 },
+            );
+        }
         if xresp.on_hover_text("Close").clicked() {
             shut = Some(i);
         } else if resp.on_hover_text(name.as_str()).clicked() {
@@ -427,10 +434,10 @@ pub fn tabs(app: &mut SolveApp, ui: &mut egui::Ui, r: Rect, x0: f32, x1: f32) {
     }
     // More tabs than fit: a chevron lists them all.
     if shown < n {
-        let mr = Rect::from_center_size(pos2(x + 12.0, r.center().y + 2.0), vec2(20.0, 22.0));
+        let mr = Rect::from_center_size(pos2(x + 12.0, r.center().y), vec2(20.0, 22.0));
         let mresp = ui.interact(mr, ui.id().with("doc_more"), Sense::click());
         if mresp.hovered() {
-            ui.painter().rect_filled(mr, 4.0, Color32::from_white_alpha(30));
+            ui.painter().rect_filled(mr, 4.0, t.app_bar_hover_button);
         }
         ui.painter().text(mr.center(), egui::Align2::CENTER_CENTER, format!("»{}", n - shown), FontId::proportional(12.0), t.app_bar_text);
         let id = egui::Id::new("sc_doc_more");
@@ -461,15 +468,17 @@ pub fn tabs(app: &mut SolveApp, ui: &mut egui::Ui, r: Rect, x0: f32, x1: f32) {
         x += 26.0;
     }
     // New design: a new tab showing the start page.
-    let pr = Rect::from_center_size(pos2(x + 14.0, r.center().y + 2.0), vec2(22.0, 22.0));
+    let pr = Rect::from_center_size(pos2(x + 14.0, r.center().y), vec2(22.0, 22.0));
     let presp = ui.interact(pr, ui.id().with("doc_new"), Sense::click());
     if presp.hovered() {
-        ui.painter().rect_filled(pr, 4.0, Color32::from_white_alpha(30));
+        ui.painter().rect_filled(pr, 4.0, t.app_bar_hover_button);
     }
-    let c = pr.center();
-    let s = Stroke::new(1.6, t.app_bar_text);
-    ui.painter().line_segment([c - vec2(6.0, 0.0), c + vec2(6.0, 0.0)], s);
-    ui.painter().line_segment([c - vec2(0.0, 6.0), c + vec2(0.0, 6.0)], s);
+    crate::icons::paint_app_bar(
+        ui.painter(),
+        Rect::from_center_size(pr.center(), vec2(16.0, 16.0)),
+        "plus",
+        if presp.hovered() { 1.0 } else { 0.55 },
+    );
     // A file loading into the window keeps the tabs as they are (dragging still moves it).
     let idle = !app.file_load.busy();
     if presp.on_hover_text("New Design (Ctrl+N)").clicked() && idle {
@@ -483,18 +492,16 @@ pub fn tabs(app: &mut SolveApp, ui: &mut egui::Ui, r: Rect, x0: f32, x1: f32) {
     }
 }
 
-/// One tab of the strip: the active tab takes the toolbar's colour and runs into it; the others
-/// sit on the application bar, lighter while hovered.
+/// Tabs are rounded chips on the bar; the active design has the stronger fill.
 fn tab_shape(painter: &egui::Painter, t: &Tokens, r: Rect, active: bool, hovered: bool) {
-    let corners = egui::CornerRadius { nw: 5, ne: 5, sw: 0, se: 0 };
     let fill = if active {
-        t.toolbar
+        t.app_bar_tab_active
     } else if hovered {
         t.app_bar_hover
     } else {
-        t.app_bar
+        egui::Color32::TRANSPARENT
     };
-    painter.rect_filled(r, corners, fill);
+    painter.rect_filled(r, t.radius_md, fill);
 }
 
 /// Which tabs the strip shows in `room` points: (first, how many, tab width). Tabs shrink to
@@ -635,6 +642,7 @@ pub(crate) fn saved_for_close(app: &mut SolveApp) {
 mod tests {
     use super::*;
     use crate::Services;
+    use egui::Color32;
 
     fn app() -> SolveApp {
         SolveApp::new(Session::default(), Services::default())
@@ -652,8 +660,7 @@ mod tests {
         assert_eq!(layout(12, 0, 600.0).0, 0);
     }
 
-    /// The tabs sit on the dark application bar in both themes: a hovered tab (the Home tab
-    /// included) keeps the bar's light text readable, and no tab is outlined.
+    /// Active and hovered document tabs keep the bar's light text readable in both themes.
     #[test]
     fn title_bar_tabs_keep_their_text_readable_on_hover() {
         fn luminance(c: Color32) -> f32 {
@@ -680,11 +687,9 @@ mod tests {
                     })
                     .collect();
                 let fill = rects.iter().find(|(rect, _)| rect.fill.a() > 0).map(|(rect, _)| rect.fill).unwrap_or_default();
-                if !active {
-                    let bg = over(fill, t.app_bar);
-                    let (hi, lo) = (luminance(t.app_bar_text).max(luminance(bg)), luminance(t.app_bar_text).min(luminance(bg)));
-                    assert!((hi + 0.05) / (lo + 0.05) >= 4.5, "text on a tab (hovered: {hovered}) must stay readable: {bg:?} {t:?}");
-                }
+                let bg = over(fill, t.app_bar);
+                let (hi, lo) = (luminance(t.app_bar_text).max(luminance(bg)), luminance(t.app_bar_text).min(luminance(bg)));
+                assert!((hi + 0.05) / (lo + 0.05) >= 4.5, "text on a tab (hovered: {hovered}) must stay readable: {bg:?} {t:?}");
                 assert!(rects.iter().all(|(rect, _)| rect.stroke.width == 0.0), "tabs have no outline (active: {active})");
             }
         }

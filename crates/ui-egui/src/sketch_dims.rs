@@ -431,6 +431,7 @@ fn boxes(app: &SolveApp, ui: &mut egui::Ui, proj: &Proj, t: &mut Tool) -> Option
                         ..Default::default()
                     }))
                     .on_hover_text(b.label);
+                crate::theme::TabAccent::number_focus(ui, &r);
                 // A completion gets first use of forward Tab. Shift+Tab always moves back;
                 // the box reached by egui's generic traversal must not complete its text.
                 let changed = (source.is_none() || (source == Some(i) && tab != Some(true))) && crate::params_dialog::complete(ui, &r, &mut b.value);

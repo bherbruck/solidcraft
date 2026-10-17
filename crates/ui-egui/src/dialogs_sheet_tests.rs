@@ -11,7 +11,9 @@ fn plate() -> SolveApp {
     s.execute("sketch.create", &json!({"plane": "XY", "name": "Base"})).unwrap();
     s.execute("sketch.rectangle.two_point", &json!({"p0": [0, 0], "p1": [100, 60]})).unwrap();
     s.execute("sketch.finish", &json!({})).unwrap();
-    SolveApp::new(s, Services::default())
+    let mut app = SolveApp::new(s, Services::default());
+    app.ui.layout = crate::shell::LayoutMode::Docked;
+    app
 }
 
 fn run_all(app: &mut SolveApp, c: Vec<(String, Value)>) {
@@ -191,33 +193,56 @@ fn flat_pattern_islands_fit_before_the_actual_command_panel() {
     let mut dialog = app.dialog.clone().unwrap();
     let Kind::Sheet(Sm::FlatPattern { data, .. }) = &mut dialog.kind else { panic!("flat dialog") };
     *data = Some(Ok(flat));
-    let ctx = egui::Context::default();
-    let id = egui::Id::new(("sc_dialog", "FLAT PATTERN"));
-    let mut output = egui::FullOutput::default();
-    for _ in 0..3 {
-        output = ctx.run_ui(egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 900.0))), ..Default::default() }, |ui| {
-            crate::frame::docked("FLAT PATTERN", id, pos2(1400.0, 294.0), 540.0, crate::frame::Width::Normal).min_width(360.0).show(ui.ctx(), |ui| {
-                ui.label("Flat size: 50 × 10 × 2.5 mm");
-            });
-            let painter = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Background, egui::Id::new("island-fit")));
-            assert!(overlay(&mut app, &painter, Rect::from_min_max(pos2(250.0, 126.0), pos2(1400.0, 832.0)), &dialog));
-        });
-        output.textures_delta.clear();
+    for mode in [crate::shell::LayoutMode::Docked, crate::shell::LayoutMode::Floating] {
+        app.ui.layout = mode;
+        app.flat_view.fitted = false;
+        let viewport = Rect::from_min_max(pos2(250.0, crate::toolbar::APP_BAR_HEIGHT + crate::toolbar::RIBBON_HEIGHT), pos2(1400.0, 832.0));
+        let browser = Rect::from_min_max(viewport.min, viewport.min + vec2(250.0, 450.0));
+        let history = Rect::from_min_max(pos2(viewport.left(), viewport.bottom() - 40.0), viewport.max);
+        app.shell.content = Some(Rect::from_min_max(pos2(browser.right(), viewport.top()), pos2(viewport.right(), history.top())));
+        let ctx = egui::Context::default();
+        let id = egui::Id::new(("sc_dialog", "FLAT PATTERN"));
+        let mut output = egui::FullOutput::default();
+        for _ in 0..3 {
+            output =
+                ctx.run_ui(egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 900.0))), ..Default::default() }, |ui| {
+                    crate::frame::docked("FLAT PATTERN", id, pos2(1400.0, 294.0), 540.0, crate::frame::Width::Normal).min_width(360.0).show(
+                        ui.ctx(),
+                        |ui| {
+                            ui.label("Flat size: 50 × 10 × 2.5 mm");
+                        },
+                    );
+                    let painter = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Background, egui::Id::new("island-fit")));
+                    assert!(overlay(
+                        &mut app,
+                        &painter,
+                        Rect::from_min_max(pos2(250.0, crate::toolbar::APP_BAR_HEIGHT + crate::toolbar::RIBBON_HEIGHT), pos2(1400.0, 832.0)),
+                        &dialog
+                    ));
+                });
+            output.textures_delta.clear();
+        }
+        let panel = ctx.memory(|m| m.area_rect(id)).unwrap();
+        let outlines: Vec<_> = output
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Path(p) if p.closed && p.fill == Color32::TRANSPARENT => Some(p),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(outlines.len(), 2, "both retained islands are drawn");
+        assert!(
+            outlines.iter().flat_map(|p| &p.points).all(|p| p.x <= panel.left() - 19.0),
+            "both complete islands must remain exposed before the command panel: {panel:?}"
+        );
+        if mode == crate::shell::LayoutMode::Floating {
+            assert!(
+                outlines.iter().flat_map(|p| &p.points).all(|p| !browser.contains(*p) && !history.contains(*p)),
+                "flat pattern fits clear of the shell cards"
+            );
+        }
     }
-    let panel = ctx.memory(|m| m.area_rect(id)).unwrap();
-    let outlines: Vec<_> = output
-        .shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Path(p) if p.closed && p.fill == Color32::TRANSPARENT => Some(p),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(outlines.len(), 2, "both retained islands are drawn");
-    assert!(
-        outlines.iter().flat_map(|p| &p.points).all(|p| p.x <= panel.left() - 19.0),
-        "both complete islands must remain exposed before the command panel: {panel:?}"
-    );
 }
 
 #[test]
@@ -260,6 +285,7 @@ fn coincident_top_and_bottom_pocket_depths_share_a_readable_annotation() {
 #[test]
 fn pocket_export_button_uses_the_picker_and_preserves_depth_layers() {
     let mut h = crate::scenario::Harness::new();
+    h.call("ui.set", json!({"layout":"docked"}));
     for (command, params) in [
         ("sketch.create", json!({"plane":"XY","name":"Base"})),
         ("sketch.rectangle.two_point", json!({"p0":[0,0],"p1":[100,60]})),
@@ -320,6 +346,7 @@ fn bend_table_picker_writes_the_current_body() {
 #[test]
 fn rules_dialog_picks_the_corner_relief_shape() {
     let mut h = crate::scenario::Harness::new();
+    h.call("ui.set", json!({"layout":"docked"}));
     h.app
         .run(
             "sheet.manage_rules",
@@ -370,6 +397,7 @@ fn rules_dialog_picks_the_corner_relief_shape() {
 #[test]
 fn flange_dialog_picks_a_corner_relief_of_its_own() {
     let mut h = crate::scenario::Harness::new();
+    h.call("ui.set", json!({"layout":"docked"}));
     h.app
         .run(
             "sheet.manage_rules",

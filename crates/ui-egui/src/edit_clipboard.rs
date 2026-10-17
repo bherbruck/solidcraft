@@ -100,7 +100,8 @@ pub fn cut(app: &mut SolveApp) -> bool {
 fn sketch_point(app: &SolveApp, at: Option<Pos2>) -> Option<[f64; 2]> {
     let at = at?;
     let rect = app.viewport.rect?;
-    if !rect.contains(at) {
+    // Under a card or panel floating over the viewport is not over the sketch.
+    if !rect.contains(at) || crate::shell::covered(app, at) {
         return None;
     }
     let proj = crate::viewport::projection(app, rect);

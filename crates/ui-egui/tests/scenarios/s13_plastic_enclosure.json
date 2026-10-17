@@ -2,7 +2,7 @@
  {
   "call": "ui.set",
   "params": {
-   "tab": "PLASTIC"
+   "tab": "MODEL"
   }
  },
  {

@@ -873,7 +873,8 @@ pub fn overlay(app: &mut SolveApp, painter: &egui::Painter, rect: Rect, d: &Dial
         .memory(|m| m.area_rect(egui::Id::new(("sc_dialog", "FLAT PATTERN"))))
         .map(|panel| panel.left())
         .unwrap_or(rect.right() - crate::frame::DIALOG_MAX_W);
-    let area = Rect::from_min_max(rect.min + vec2(40.0, 60.0), pos2(panel_left.min(rect.right()) - 20.0, rect.bottom() - 60.0));
+    let content = crate::shell::content_rect(app, rect);
+    let area = Rect::from_min_max(content.min + vec2(40.0, 60.0), pos2(panel_left.min(content.right()) - 20.0, content.bottom() - 60.0));
     if area.width() <= 0.0 || area.height() <= 0.0 {
         return true;
     }

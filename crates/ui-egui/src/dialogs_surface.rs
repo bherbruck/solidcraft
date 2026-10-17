@@ -179,6 +179,7 @@ pub fn rows(ui: &mut egui::Ui, k: &mut Surf) -> bool {
         Surf::Stitch { tolerance } => {
             row_label(ui, "Tolerance");
             let r = ui.add(egui::TextEdit::singleline(tolerance).hint_text("tight"));
+            crate::theme::TabAccent::number_focus(ui, &r);
             crate::params_dialog::complete(ui, &r, tolerance);
             enter |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             ui.end_row();
