@@ -1,8 +1,6 @@
 //! Incremental product rasterization. Every phase yields between bounded work units.
 
 use std::collections::BTreeMap;
-use std::io::Write;
-use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use solidcraft_geom::Vec3;
@@ -50,6 +48,31 @@ fn add_bytes(sum: &mut u64, count: usize, size: usize) -> Result<()> {
 /// Conservative admission before allocating pixels or projected-work lists. Source Arcs are
 /// counted even when another owner already holds them. Allocator and codec internals are estimates.
 pub fn admit(scene: &ProductScene, request: &ImageRequest) -> Result<Admission> {
+    match request.integrator {
+        super::Integrator::Raster => {
+            if request.raytrace.is_some() {
+                return Err(JobError::new(ErrorCode::InvalidRequest, "raytrace options require integrator: raytrace"));
+            }
+            admit_base(scene, request)
+        }
+        super::Integrator::Raytrace => {
+            #[cfg(feature = "raytrace-cpu")]
+            {
+                let defaults = super::RaytraceOptions::default();
+                let options = request.raytrace.as_ref().unwrap_or(&defaults);
+                options.validate()?;
+                crate::raytrace::image::admit(scene, request, options)
+            }
+            #[cfg(not(feature = "raytrace-cpu"))]
+            {
+                Err(JobError::new(ErrorCode::HostUnavailable, "CPU raytracing is not compiled in; enable raytrace-cpu"))
+            }
+        }
+    }
+}
+
+/// Shared dimension/source admission; integrators add their own complete work budgets.
+pub(crate) fn admit_base(scene: &ProductScene, request: &ImageRequest) -> Result<Admission> {
     if !request.camera.is_valid() {
         return Err(JobError::new(ErrorCode::InvalidRequest, "invalid image camera"));
     }
@@ -176,30 +199,6 @@ enum Stage {
     Done,
 }
 
-struct BufferWriter {
-    bytes: Arc<Mutex<Vec<u8>>>,
-    limit: usize,
-    cancel: CancelToken,
-}
-
-impl Write for BufferWriter {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if self.cancel.is_cancelled() {
-            return Err(std::io::Error::other("render cancelled"));
-        }
-        let mut out = self.bytes.lock().map_err(|_| std::io::Error::other("PNG output lock poisoned"))?;
-        if out.len().checked_add(bytes.len()).is_none_or(|n| n > self.limit) {
-            return Err(std::io::Error::other("PNG output exceeds its byte budget"));
-        }
-        out.try_reserve_exact(bytes.len()).map_err(|_| std::io::Error::other("PNG allocation failed"))?;
-        out.extend_from_slice(bytes);
-        Ok(bytes.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        if self.cancel.is_cancelled() { Err(std::io::Error::other("render cancelled")) } else { Ok(()) }
-    }
-}
-
 pub enum TaskPoll {
     Pending(Progress),
     Complete(Vec<u8>),
@@ -238,14 +237,15 @@ pub struct ImageTask {
     draw: usize,
     triangle: Option<Triangle>,
     output: Vec<u8>,
-    encoded: Arc<Mutex<Vec<u8>>>,
-    encoder: Option<png::StreamWriter<'static, BufferWriter>>,
-    row: usize,
+    encoder: Option<super::encoding::PngEncoding>,
 }
 
 impl ImageTask {
     pub fn new(scene: ProductScene, request: ImageRequest, cancel: CancelToken) -> Result<Self> {
         cancel.check()?;
+        if request.integrator != super::Integrator::Raster {
+            return Err(JobError::new(ErrorCode::InvalidRequest, "raster task cannot execute a raytrace request"));
+        }
         let admission = admit(&scene, &request)?;
         let (sw, sh) = (request.width as usize * SS, request.height as usize * SS);
         let radius = scene.bounds.diagonal().max(10.0) + scene.bounds.center().dist(request.camera.target);
@@ -289,9 +289,7 @@ impl ImageTask {
             draw: 0,
             triangle: None,
             output,
-            encoded: Arc::new(Mutex::new(Vec::new())),
             encoder: None,
-            row: 0,
         })
     }
 
@@ -307,7 +305,11 @@ impl ImageTask {
                 done: self.pixel_done,
                 total: self.pixel_tests + (self.sw * self.sh) as u64 + u64::from(self.request.width) * u64::from(self.request.height),
             },
-            Stage::Encode => Progress { phase: Phase::Encoding, done: self.row as u64, total: u64::from(self.request.height) },
+            Stage::Encode => Progress {
+                phase: Phase::Encoding,
+                done: self.encoder.as_ref().map_or(0, |encoder| encoder.row() as u64),
+                total: u64::from(self.request.height),
+            },
             Stage::Done => Progress { phase: Phase::Completed, done: 1, total: 1 },
         }
     }
@@ -562,14 +564,8 @@ impl ImageTask {
         let width = self.request.width as usize;
         let index = self.output.len() / 4;
         if index >= width * self.request.height as usize {
-            let writer = BufferWriter { bytes: self.encoded.clone(), limit: self.admission.encoded_limit as usize, cancel: self.cancel.clone() };
-            let mut encoder = png::Encoder::new(writer, self.request.width, self.request.height);
-            encoder.set_color(png::ColorType::Rgba);
-            encoder.set_depth(png::BitDepth::Eight);
-            encoder.set_source_srgb(png::SrgbRenderingIntent::Perceptual);
-            self.encoder = Some(
-                encoder.write_header().and_then(|w| w.into_stream_writer()).map_err(|e| JobError::new(ErrorCode::EncodingFailed, e.to_string()))?,
-            );
+            self.encoder =
+                Some(super::encoding::PngEncoding::new(self.request.width, self.request.height, self.admission.encoded_limit, self.cancel.clone())?);
             self.stage = Stage::Encode;
             // Pixels and prepared geometry are no longer needed during PNG compression.
             self.pixels = Vec::new();
@@ -600,32 +596,12 @@ impl ImageTask {
     }
 
     fn encode_step(&mut self) -> Result<Option<Vec<u8>>> {
-        if self.row < self.request.height as usize {
-            let length = self.request.width as usize * 4;
-            let start = self.row * length;
-            let row = self.output.get(start..start + length).ok_or_else(|| invalid("missing PNG row"))?;
-            self.encoder
-                .as_mut()
-                .ok_or_else(|| invalid("missing PNG writer"))?
-                .write_all(row)
-                .map_err(|e| JobError::new(ErrorCode::EncodingFailed, e.to_string()))?;
-            self.row += 1;
-            return Ok(None);
+        let result = self.encoder.as_mut().ok_or_else(|| invalid("missing PNG writer"))?.step(&self.output)?;
+        if result.is_some() {
+            self.output = Vec::new();
+            self.stage = Stage::Done;
         }
-        self.encoder
-            .take()
-            .ok_or_else(|| invalid("missing PNG writer"))?
-            .finish()
-            .map_err(|e| JobError::new(ErrorCode::EncodingFailed, e.to_string()))?;
-        self.cancel.check()?;
-        let mut bytes = self.encoded.lock().map_err(|_| JobError::new(ErrorCode::Internal, "PNG output lock poisoned"))?;
-        let png = std::mem::take(&mut *bytes);
-        if !png.starts_with(b"\x89PNG\r\n\x1a\n") {
-            return Err(JobError::new(ErrorCode::EncodingFailed, "invalid PNG output"));
-        }
-        self.output = Vec::new();
-        self.stage = Stage::Done;
-        Ok(Some(png))
+        Ok(result)
     }
 }
 

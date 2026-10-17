@@ -1,11 +1,20 @@
 use super::*;
 use crate::{Camera, ProductMesh, StandardView};
 use solidcraft_geom::{Aabb3, Mesh};
+use std::sync::Arc;
 
 fn request() -> ImageRequest {
     let mut camera = Camera { distance: 50.0, ..Default::default() };
     camera.set_view(StandardView::Front);
-    ImageRequest { camera, width: 64, height: 64, background: [20, 40, 60], transparent_background: true }
+    ImageRequest {
+        integrator: Default::default(),
+        raytrace: None,
+        camera,
+        width: 64,
+        height: 64,
+        background: [20, 40, 60],
+        transparent_background: true,
+    }
 }
 
 fn square(name: &str, colour: [u8; 3], opacity: f64, offset: Vec3) -> ProductMesh {
@@ -93,9 +102,9 @@ fn encoding_yields_between_rows_and_completed_result_is_consumed_once() {
     while task.stage != Stage::Encode {
         assert!(matches!(task.step(64).unwrap(), TaskPoll::Pending(_)));
     }
-    let before = task.row;
+    let before = task.encoder.as_ref().unwrap().row();
     assert!(matches!(task.step(usize::MAX).unwrap(), TaskPoll::Pending(_)));
-    assert!(task.row - before <= 4);
+    assert!(task.encoder.as_ref().unwrap().row() - before <= 4);
     loop {
         if let TaskPoll::Complete(bytes) = task.step(4096).unwrap() {
             assert_eq!(image::load_from_memory(&bytes).unwrap().width(), 64);
@@ -130,18 +139,4 @@ fn invalid_sizes_indices_opacity_and_large_work_lists_fail_without_a_frame() {
     Arc::make_mut(&mut body.mesh).triangles.resize(MAX_TRIANGLES as usize + 1, [0, 1, 2]);
     assert_eq!(ImageTask::new(scene(vec![body]), request(), CancelToken::default()).err().unwrap().code, ErrorCode::LimitExceeded);
     assert_eq!(std::mem::size_of::<Draw>(), 16, "admission accounts for each of the three lists");
-}
-
-#[test]
-fn png_output_budget_and_cancellation_fail_without_partial_publication() {
-    let bytes = Arc::new(Mutex::new(Vec::new()));
-    let cancel = CancelToken::default();
-    let mut writer = BufferWriter { bytes: bytes.clone(), limit: 4, cancel: cancel.clone() };
-    writer.write_all(b"PNG").unwrap();
-    assert!(writer.write_all(b"too large").is_err());
-    assert_eq!(*bytes.lock().unwrap(), b"PNG");
-    cancel.cancel();
-    assert!(writer.write_all(b"x").is_err());
-    assert!(writer.flush().is_err());
-    assert_eq!(*bytes.lock().unwrap(), b"PNG");
 }

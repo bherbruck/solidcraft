@@ -77,12 +77,13 @@ impl Jobs {
         Ok(())
     }
 
-    pub(crate) fn start(
+    pub(crate) fn start_with_environment(
         &mut self,
         revision: u64,
         scene: solidcraft_render::ProductScene,
         request: solidcraft_render::job::ImageRequest,
         replace: bool,
+        environment: Option<solidcraft_render::lighting::environment_input::EnvironmentInput>,
     ) -> Result<JobStatus, JobError> {
         self.collect()?;
         let host = self.host.as_ref().ok_or_else(|| JobError::new(ErrorCode::HostUnavailable, "no image host is installed"))?.clone();
@@ -109,7 +110,7 @@ impl Jobs {
         }
         let serial = self.serial.checked_add(1).ok_or_else(|| JobError::new(ErrorCode::LimitExceeded, "render job identity exhausted"))?;
         let generation = self.generation.checked_add(1).ok_or_else(|| JobError::new(ErrorCode::LimitExceeded, "render generation exhausted"))?;
-        let handle = host.submit(JobId { session: self.owner, serial, generation }, revision, scene, request)?;
+        let handle = host.submit_with_environment(JobId { session: self.owner, serial, generation }, revision, scene, request, environment)?;
         let status = handle.status()?;
         self.serial = serial;
         self.generation = generation;

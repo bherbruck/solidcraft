@@ -11,10 +11,12 @@ use crate::params::bad;
 use crate::{Result, Session};
 
 mod jobs;
+#[cfg(test)]
+mod light_union_tests;
 
 pub static COMMANDS: &[CommandSpec] = &[
 CommandSpec::new("render.preflight", "Check Render Request", jobs::preflight).icon("inspect").noundo().doc_only()
-    .params("setup?: saved name OR settings?: full RenderSetup; transparent_background?: false; replace?: false. Validates the installed image host and bounded captured product scene without starting work. Stale geometry is rejected. See docs/render-jobs.md"),
+    .params("setup?: saved name OR settings?: full RenderSetup; integrator?: raster (default) or raytrace; raytrace?: bounded runtime primary_samples/lights/punctual_lights/area_lights/area_samples/seed/exposure_ev/shadows/reflections/anisotropic_faces options, only with raytrace; environment?: {path: scoped HDR, rotation_radians: 0, intensity: 1, samples: 16}; explicit sRGB/D65 HDR primaries required. Opaque CPU preview with selected mirror/rough-specular reflections and certified planar anisotropy. HDR with rough reflections or anisotropy requires fully metallic selected bodies and all effective faces; unsupported combinations refuse. No MIS, GI or glass/refraction. led_strip?: continuous world-mm LED rectangle recipe; led_samples?: 1/4/16/64 for the whole strip, default16. At most8directional+8punctual+4rectangle/LED sources; shared area N. See docs/render-light-union.md. transparent_background?: false; replace?: false. Optional CPU raytracing requires a raytrace-cpu build and native host, checked before scene capture. Stale geometry is rejected. See docs/render-jobs.md"),
 CommandSpec::new("render.start", "Render Image", jobs::start).noundo().doc_only().at("RENDER", "IMAGE").icon("render_image")
     .params("Same request as render.preflight. Captures an immutable product scene and queues a bounded image job. Returns its session-scoped job identity, captured scene_generation and progress. Does not change the design. See docs/render-jobs.md"),
 CommandSpec::new("render.status", "Render Progress", jobs::status).icon("list").noundo().doc_only()

@@ -1,5 +1,9 @@
 use super::{HdrError, HdrErrorCode, HdrInfo, HdrSource, MAX_HDR_PIXELS, Result, check_cancelled, hdr::Rows};
 
+#[cfg(test)]
+#[path = "environment_input_tests.rs"]
+mod environment_input_tests;
+
 /// Linear RGB in the source's colour space, without gamut conversion or tone mapping.
 pub struct DecodedHdr {
     info: HdrInfo,
@@ -11,6 +15,10 @@ impl DecodedHdr {
     }
     pub fn pixels(&self) -> &[[f32; 3]] {
         &self.pixels
+    }
+    /// Original allocation capacity, including spare retained slots, for caller admission.
+    pub fn retained_pixel_bytes(&self) -> Result<u64> {
+        (self.pixels.capacity() as u64).checked_mul(12).ok_or_else(|| HdrError::new(HdrErrorCode::LimitExceeded, "decoded HDR capacity overflow"))
     }
 }
 
@@ -37,6 +45,9 @@ impl HdrDecodeTask {
         let count = usize::try_from(count).map_err(|_| HdrError::new(HdrErrorCode::LimitExceeded, "HDR pixel count overflow"))?;
         let mut pixels = Vec::new();
         pixels.try_reserve_exact(count).map_err(|_| HdrError::new(HdrErrorCode::AllocationFailed, "could not reserve HDR pixels"))?;
+        if pixels.capacity() != count {
+            return Err(HdrError::new(HdrErrorCode::LimitExceeded, "HDR decoded capacity exceeds admission"));
+        }
         Ok(Self { rows: Some(Rows::new(source)?), pixels, x: 0, work: 0 })
     }
 

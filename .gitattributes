@@ -1,0 +1,2 @@
+# Icon review hashes include exact SVG bytes; keep accepted masters LF on every platform.
+assets/icons/ui/design/svg/**/*.svg text eol=lf

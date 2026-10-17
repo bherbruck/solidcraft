@@ -24,6 +24,31 @@ fn finish(host: &CpuHost) {
 }
 
 #[test]
+fn missing_image_host_is_rejected_before_stale_scene_capture() {
+    let mut s = Session::default();
+    for (command, params) in [
+        ("sketch.create", json!({"plane":"XY"})),
+        ("sketch.rectangle.two_point", json!({"p0":[5,5],"p1":[25,20]})),
+        ("sketch.finish", json!({})),
+        ("solid.extrude", json!({"distance":5})),
+        ("sketch.edit", json!({"sketch":"Sketch1"})),
+        ("sketch.drag", json!({"entity":"l1.start","from":[5,5],"to":[4,5],"live":true})),
+    ] {
+        s.execute(command, &params).unwrap();
+    }
+    assert!(s.model.is_stale());
+    let doc = s.doc.clone();
+    let before = (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len());
+    for command in ["render.preflight", "render.start"] {
+        let error = s.execute(command, &request()).unwrap_err().to_string();
+        assert!(error.contains("no image host is installed"), "{error}");
+        assert!(s.model.is_stale());
+        assert!(Arc::ptr_eq(&doc, &s.doc));
+        assert_eq!(before, (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len()));
+    }
+}
+
+#[test]
 fn runtime_commands_preserve_document_history_and_evaluation() {
     let (mut s, host) = session();
     let doc = s.doc.clone();
@@ -39,6 +64,46 @@ fn runtime_commands_preserve_document_history_and_evaluation() {
     assert!(Arc::ptr_eq(&doc, &s.doc));
     assert_eq!(before, (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len()));
     assert_eq!(s.execute("render.cancel", &json!({"job":id})).unwrap()["progress"]["phase"], "completed");
+}
+
+#[test]
+fn omitted_integrator_remains_raster_and_options_do_not_change_viewport_quality() {
+    let (mut s, host) = session();
+    let implicit = s.execute("render.preflight", &request()).unwrap();
+    let explicit = s.execute("render.preflight", &json!({"integrator":"raster","settings":{"width":16,"height":16}})).unwrap();
+    assert_eq!(implicit, explicit);
+    assert_eq!(implicit["request"]["integrator"], "raster");
+    assert_eq!(implicit["resolved"]["executor"], "cpu-product");
+    assert!(s.execute("render.preflight", &json!({"raytrace":{"shadows":true}})).is_err());
+    assert!(s.execute("render.preflight", &json!({"integrator":"quality"})).is_err());
+    assert_eq!(host.admitted_bytes(), 0);
+}
+
+#[cfg(not(feature = "raytrace-cpu"))]
+#[test]
+fn compiled_out_raytrace_is_rejected_before_scene_capture() {
+    let (mut s, host) = session();
+    for (command, params) in [
+        ("sketch.create", json!({"plane":"XY"})),
+        ("sketch.rectangle.two_point", json!({"p0":[5,5],"p1":[25,20]})),
+        ("sketch.finish", json!({})),
+        ("solid.extrude", json!({"distance":5})),
+        ("sketch.edit", json!({"sketch":"Sketch1"})),
+        ("sketch.drag", json!({"entity":"l1.start","from":[5,5],"to":[4,5],"live":true})),
+    ] {
+        s.execute(command, &params).unwrap();
+    }
+    assert!(s.model.is_stale());
+    let doc = s.doc.clone();
+    let before = (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len());
+    for command in ["render.preflight", "render.start"] {
+        let error = s.execute(command, &json!({"integrator":"raytrace","replace":true})).unwrap_err().to_string();
+        assert!(error.contains("not compiled in"), "{error}");
+        assert!(s.model.is_stale());
+        assert!(Arc::ptr_eq(&doc, &s.doc));
+        assert_eq!(before, (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len()));
+        assert_eq!(host.admitted_bytes(), 0);
+    }
 }
 
 #[test]
@@ -216,4 +281,181 @@ fn native_start_and_cancel_measure_cached_capture_without_timing_assertions() {
         status.progress.phase
     );
     assert!(status.progress.phase.terminal());
+}
+#[cfg(all(feature = "raytrace-cpu", not(target_arch = "wasm32")))]
+#[test]
+fn native_raytrace_preflight_start_and_frame_preserve_document_and_roundtrip_request() {
+    let mut s = Session::default();
+    s.set_render_job_host(Some(CpuHost::for_platform().unwrap())).unwrap();
+    s.execute("solid.box", &json!({"length":20,"width":15,"height":10})).unwrap();
+    s.execute("render.scene", &json!({})).unwrap();
+    let doc = s.doc.clone();
+    let before = (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len());
+    let params = json!({"integrator":"raytrace","settings":{"width":32,"height":32},"raytrace":{"preset":"neutral","shadows":true}});
+    let preflight = s.execute("render.preflight", &params).unwrap();
+    let request: solidcraft_render::job::ImageRequest = serde_json::from_value(preflight["request"].clone()).unwrap();
+    assert_eq!(request.integrator, solidcraft_render::job::Integrator::Raytrace);
+    assert_eq!(preflight["resolved"]["executor"], "cpu-raytrace");
+    let started = s.execute("render.start", &params).unwrap();
+    let id: JobId = serde_json::from_value(started["job"].clone()).unwrap();
+    let handle = s.render_job_handle(id).unwrap();
+    let status = handle.wait_timeout(std::time::Duration::from_secs(60)).unwrap();
+    assert_eq!(status.progress.phase, solidcraft_render::job::Phase::Completed);
+    let frame = handle.frame().unwrap().unwrap();
+    assert_eq!(frame.info.job, id);
+    assert_eq!(frame.info.executor.as_str(), "cpu-raytrace");
+    assert_eq!((frame.info.width, frame.info.height), (32, 32));
+    assert!(frame.png().starts_with(b"\x89PNG\r\n\x1a\n"));
+    assert!(Arc::ptr_eq(&doc, &s.doc));
+    assert_eq!(before, (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len()));
+}
+
+#[cfg(all(feature = "raytrace-cpu", not(target_arch = "wasm32")))]
+#[test]
+fn captured_hdr_input_lights_geometry_after_source_removal_and_preserves_history() {
+    let host = CpuHost::for_platform().unwrap();
+    let mut s = Session::default();
+    s.set_render_job_host(Some(host.clone())).unwrap();
+    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let dir = std::env::temp_dir().join(format!("solidcraft-hdri-{}-{nonce}", std::process::id()));
+    std::fs::create_dir(&dir).unwrap();
+    let source = dir.join("original.hdr");
+    s.execute("solid.box", &json!({"length":20,"width":20,"height":20})).unwrap();
+    s.execute("render.scene", &json!({})).unwrap();
+    let bytes = |primaries: &str| {
+        let mut b = format!("#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n{primaries}\n-Y 2 +X 4\n").into_bytes();
+        for _ in 0..8 {
+            b.extend_from_slice(&[128, 64, 32, 129]);
+        }
+        b
+    };
+    std::fs::write(&source, bytes("")).unwrap();
+    let params = json!({"integrator":"raytrace","raytrace":{"lights":[]},"settings":{"width":9,"height":9,"background":[13,27,41]},"environment":{"path":source.to_str().unwrap(),"samples":64}});
+    let doc = s.doc.clone();
+    let before = (s.revision, s.undo.len(), s.redo.len(), s.is_dirty());
+    assert!(s.execute("render.preflight", &params).unwrap_err().to_string().contains("primaries"));
+    assert_eq!(host.admitted_bytes(), 0);
+    std::fs::write(&source, bytes("PRIMARIES=0.64 0.33 0.30 0.60 0.15 0.06 0.3127 0.3290\n")).unwrap();
+    let preflight = s.execute("render.preflight", &params).unwrap();
+    assert_eq!(preflight["environment"]["color_policy"], "explicit_linear_srgb_d65");
+    assert_eq!(preflight["environment"]["header"]["width"], 4);
+    assert!(preflight["resolved"]["profile"]["features"].as_array().unwrap().contains(&json!("hdri")));
+    assert_eq!(preflight["environment"]["source_sha256"].as_array().unwrap().len(), 32);
+    assert!(!preflight["environment"].to_string().contains(dir.to_str().unwrap()));
+    assert_eq!(host.admitted_bytes(), 0);
+    let mut unlit = params.clone();
+    unlit.as_object_mut().unwrap().remove("environment");
+    let base = s.execute("render.start", &unlit).unwrap();
+    let base_id: JobId = serde_json::from_value(base["job"].clone()).unwrap();
+    let base_handle = s.render_jobs.handle(base_id).unwrap();
+    base_handle.wait_timeout(std::time::Duration::from_secs(60)).unwrap();
+    let baseline = base_handle.frame().unwrap().unwrap().png().to_vec();
+    let reply = s.execute("render.start", &params).unwrap();
+    assert_eq!(reply["environment"], preflight["environment"]);
+    let id: JobId = serde_json::from_value(reply["job"].clone()).unwrap();
+    // Captured bytes remain sufficient after the source disappears.
+    std::fs::remove_file(source).unwrap();
+    let handle = s.render_jobs.handle(id).unwrap();
+    assert_eq!(handle.wait_timeout(std::time::Duration::from_secs(60)).unwrap().progress.phase, solidcraft_render::job::Phase::Completed);
+    assert_ne!(handle.frame().unwrap().unwrap().png(), baseline.as_slice(), "captured HDR must illuminate actual geometry");
+    assert_eq!(serde_json::to_value(handle.status().unwrap()).unwrap()["environment"], preflight["environment"]);
+    let output = dir.join("background.png");
+    s.execute("render.export", &json!({"job":id,"path":output.to_str().unwrap()})).unwrap();
+    assert!(std::fs::metadata(output).unwrap().len() > 0);
+    assert!(Arc::ptr_eq(&doc, &s.doc));
+    assert_eq!(before, (s.revision, s.undo.len(), s.redo.len(), s.is_dirty()));
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+// Spatial-AA transport regressions: WRITTEN NOT RUN in this source epoch.
+#[cfg(all(feature = "raytrace-cpu", not(target_arch = "wasm32")))]
+#[test]
+fn native_spatial_aa_preflight_and_host_forwarding_change_actual_edge_png() {
+    let mut s = Session::default();
+    let host = CpuHost::for_platform().unwrap();
+    s.set_render_job_host(Some(host.clone())).unwrap();
+    s.execute("solid.box", &json!({"length":20,"width":15,"height":10})).unwrap();
+    s.execute("render.scene", &json!({})).unwrap();
+    let scene = crate::product_scene::extract(&s).unwrap();
+    let center = scene.bounds.center();
+    let mut camera = solidcraft_render::Camera { distance: 2.0, fov: 0.0, ..Default::default() };
+    camera.set_view(solidcraft_render::StandardView::Top);
+    camera.target = solidcraft_geom::Vec3::new(scene.bounds.min.x, center.y, center.z);
+    let doc = s.doc.clone();
+    let before = (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len());
+    let mut legacy: Option<Vec<u8>> = None;
+    let mut spatial: Option<Vec<u8>> = None;
+    for samples in [1, 4, 16] {
+        // Darkness makes covered geometry black; the tiny orthographic pixel
+        // straddles the box's left edge against an exact white background.
+        let params = json!({"integrator":"raytrace", "settings":{"width":1,"height":1,"camera":camera,"background":[255,255,255]},
+            "raytrace":{"primary_samples":samples,"lights":[],"shadows":false}});
+        let admitted = host.admitted_bytes();
+        let checked = s.execute("render.preflight", &params).unwrap();
+        let request: solidcraft_render::job::ImageRequest = serde_json::from_value(checked["request"].clone()).unwrap();
+        assert_eq!(request.raytrace.as_ref().unwrap().primary_samples, samples);
+        assert_eq!(checked["resolved"]["executor"], "cpu-raytrace");
+        assert_eq!(host.admitted_bytes(), admitted, "preflight reserved host memory");
+        let started = s.execute("render.start", &params).unwrap();
+        let id: JobId = serde_json::from_value(started["job"].clone()).unwrap();
+        let handle = s.render_job_handle(id).unwrap();
+        let status = handle.wait_timeout(std::time::Duration::from_secs(60)).unwrap();
+        assert_eq!(status.progress.phase, solidcraft_render::job::Phase::Completed);
+        assert_eq!(status.request.raytrace.as_ref().unwrap().primary_samples, samples);
+        let frame = handle.frame().unwrap().unwrap();
+        assert_eq!(frame.info.executor.as_str(), "cpu-raytrace");
+        assert_eq!((frame.info.width, frame.info.height), (1, 1));
+        let png = frame.png().to_vec();
+        assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+        if samples == 1 {
+            legacy = Some(png);
+        } else {
+            assert_ne!(png.as_slice(), legacy.as_ref().unwrap().as_slice(), "AA was not forwarded into actual work");
+            if let Some(previous) = &spatial {
+                assert_eq!(&png, previous, "half coverage differs between4 and16");
+            }
+            spatial = Some(png);
+        }
+        assert!(Arc::ptr_eq(&doc, &s.doc));
+        assert_eq!(before, (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len()));
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn spatial_aa_invalid_or_compiled_out_requests_refuse_before_stale_capture_and_reservation() {
+    let mut s = Session::default();
+    let host = CpuHost::for_platform().unwrap();
+    s.set_render_job_host(Some(host.clone())).unwrap();
+    for (command, params) in [
+        ("sketch.create", json!({"plane":"XY"})),
+        ("sketch.rectangle.two_point", json!({"p0":[5,5],"p1":[25,20]})),
+        ("sketch.finish", json!({})),
+        ("solid.extrude", json!({"distance":5})),
+        ("sketch.edit", json!({"sketch":"Sketch1"})),
+        ("sketch.drag", json!({"entity":"l1.start","from":[5,5],"to":[4,5],"live":true})),
+    ] {
+        s.execute(command, &params).unwrap();
+    }
+    assert!(s.model.is_stale());
+    let doc = s.doc.clone();
+    let before = (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len());
+    #[cfg(feature = "raytrace-cpu")]
+    let counts: &[u8] = &[0, 2, 8, 17, 255];
+    #[cfg(not(feature = "raytrace-cpu"))]
+    let counts: &[u8] = &[0, 2, 4, 8, 16, 17, 255];
+    for samples in counts {
+        for command in ["render.preflight", "render.start"] {
+            let params = json!({"integrator":"raytrace","replace":true,"settings":{"width":1,"height":1},"raytrace":{"primary_samples":samples}});
+            let error = s.execute(command, &params).unwrap_err().to_string();
+            #[cfg(feature = "raytrace-cpu")]
+            assert!(error.contains("primary samples"), "{error}");
+            #[cfg(not(feature = "raytrace-cpu"))]
+            assert!(error.contains("not compiled in"), "{error}");
+            assert!(s.model.is_stale());
+            assert!(Arc::ptr_eq(&doc, &s.doc));
+            assert_eq!(before, (s.revision, s.evaluations, s.is_dirty(), s.undo.len(), s.redo.len()));
+            assert_eq!(host.admitted_bytes(), 0);
+        }
+    }
 }

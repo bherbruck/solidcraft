@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod analysis;
+pub mod anisotropic_surface;
 mod backend;
 mod camera;
 mod curve_display;
@@ -13,6 +14,8 @@ pub mod job;
 pub mod lighting;
 mod product;
 mod raster;
+#[cfg(feature = "raytrace-cpu")]
+pub mod raytrace;
 mod scene;
 pub mod studio;
 pub mod surface;

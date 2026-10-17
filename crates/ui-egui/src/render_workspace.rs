@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use egui::{Color32, Sense};
 use serde_json::json;
 use solidcraft_engine::doc::render_settings::RenderSetup;
+use solidcraft_engine::render::job::{CpuHost, Integrator, LightingPreset, RaytraceOptions};
 use solidcraft_engine::render::{
     Availability, Camera, ExecutorDescriptor, ExecutorId, ProductScene, RenderLimits, RenderMode, RenderOperation, RenderProfile, RenderRequest,
     ScratchLayout,
@@ -35,6 +36,9 @@ pub struct State {
 /// Small per-document editor state; GPU uploads and host capabilities stay outside tabs.
 #[derive(Clone, Debug)]
 pub struct ViewState {
+    integrator: Integrator,
+    raytrace: RaytraceOptions,
+    checked_image: Option<CheckedImage>,
     pub name: String,
     draft: RenderSetup,
     dirty: bool,
@@ -46,7 +50,34 @@ pub struct ViewState {
 
 impl Default for ViewState {
     fn default() -> Self {
-        Self { name: "Studio".into(), draft: RenderSetup::default(), dirty: false, job: None, completed: None, transparent: false, overwrite: false }
+        Self {
+            integrator: Integrator::Raster,
+            raytrace: RaytraceOptions::default(),
+            checked_image: None,
+            name: "Studio".into(),
+            draft: RenderSetup::default(),
+            dirty: false,
+            job: None,
+            completed: None,
+            transparent: false,
+            overwrite: false,
+        }
+    }
+}
+
+/// Advisory preflight identity only; no mesh, resource or extra host is created.
+#[derive(Clone)]
+struct CheckedImage {
+    document: std::sync::Weak<solidcraft_engine::doc::Document>,
+    revision: u64,
+    visibility: u64,
+    params: serde_json::Value,
+    host: CpuHost,
+}
+
+impl std::fmt::Debug for CheckedImage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CheckedImage").field("revision", &self.revision).field("visibility", &self.visibility).finish_non_exhaustive()
     }
 }
 
@@ -256,6 +287,7 @@ pub fn panel(app: &mut SolveApp, ui: &mut egui::Ui) {
 fn image_controls(app: &mut SolveApp, ui: &mut egui::Ui) {
     ui.heading(app.tr("render.image_title"));
     ui.small(app.tr("render.opaque_image_summary"));
+    image_method_controls(app, ui);
     ui.horizontal(|ui| {
         ui.label(app.tr("render.image_width"));
         if ui.add(egui::DragValue::new(&mut app.render_workspace.view.draft.width).range(1..=4096)).changed() {
@@ -279,10 +311,24 @@ fn image_controls(app: &mut SolveApp, ui: &mut egui::Ui) {
         }
     }
     let transparent_label = app.tr("render.image_transparent").to_string();
-    ui.checkbox(&mut app.render_workspace.view.transparent, transparent_label);
-    if ui.button(app.tr("render.image_check")).clicked() {
-        let settings = RenderSetup { camera: app.cam, ..app.render_workspace.view.draft.clone() };
-        if app.run("render.preflight", json!({"settings":settings,"transparent_background":app.render_workspace.view.transparent})).is_ok() {
+    ui.add_enabled(
+        app.render_workspace.view.integrator == Integrator::Raster,
+        egui::Checkbox::new(&mut app.render_workspace.view.transparent, transparent_label),
+    );
+    let params = image_params(app);
+    invalidate_image_check(app, params.as_ref().ok());
+    if let Err(error) = &params {
+        ui.small(error);
+    }
+    if app.render_workspace.view.checked_image.is_some() {
+        ui.small(app.tr("render.image_supported"));
+    }
+    if ui.add_enabled(params.is_ok(), egui::Button::new(app.tr("render.image_check"))).clicked()
+        && let Ok(params) = &params
+    {
+        app.render_workspace.view.checked_image = None;
+        if app.run("render.preflight", params.clone()).is_ok() {
+            remember_image_check(app, params.clone());
             app.set_status(app.tr("render.image_supported").to_string(), false);
         }
     }
@@ -332,12 +378,13 @@ fn image_controls(app: &mut SolveApp, ui: &mut egui::Ui) {
             }
         }
     }
-    if ui.add_enabled(!busy, egui::Button::new(app.tr("render.image_start"))).clicked() {
-        let settings = RenderSetup { camera: app.cam, ..app.render_workspace.view.draft.clone() };
-        if let Ok(reply) = app.run("render.start", json!({"settings":settings,"transparent_background":app.render_workspace.view.transparent})) {
-            app.render_workspace.view.job = serde_json::from_value(reply["job"].clone()).ok();
-            ui.ctx().request_repaint();
-        }
+    // Rebuild from the current draft; a successful Check reserves nothing.
+    if ui.add_enabled(!busy && params.is_ok(), egui::Button::new(app.tr("render.image_start"))).clicked()
+        && let Ok(params) = image_params(app)
+        && let Ok(reply) = app.run("render.start", params)
+    {
+        app.render_workspace.view.job = serde_json::from_value(reply["job"].clone()).ok();
+        ui.ctx().request_repaint();
     }
     let overwrite_label = app.tr("render.image_overwrite").to_string();
     ui.checkbox(&mut app.render_workspace.view.overwrite, overwrite_label);
@@ -346,6 +393,148 @@ fn image_controls(app: &mut SolveApp, ui: &mut egui::Ui) {
     {
         export_image(app, job, app.render_workspace.view.overwrite);
     }
+}
+
+fn image_host(app: &SolveApp, integrator: Integrator) -> Result<&CpuHost, String> {
+    let host = app.session.render_job_host().ok_or_else(|| app.tr("render.image_host_missing").to_string())?;
+    host.validate_integrator(integrator).map_err(|e| e.to_string())?;
+    Ok(host)
+}
+
+/// The one UI request path for Check and Start. Runtime options never enter RenderSetup.
+fn image_params(app: &SolveApp) -> Result<serde_json::Value, String> {
+    let view = &app.render_workspace.view;
+    image_host(app, view.integrator)?;
+    if app.session.model.is_stale() {
+        return Err(app.tr("render.image_scene_stale").to_string());
+    }
+    let settings = RenderSetup { camera: app.cam, ..view.draft.clone() };
+    let mut params = json!({"settings": settings, "transparent_background": view.transparent});
+    if view.integrator == Integrator::Raytrace {
+        if view.transparent {
+            return Err(app.tr("render.cpu_opaque_required").to_string());
+        }
+        // This UI exposes primary AA, direct-light presets, shadows and exposure.
+        if view.raytrace.lights.is_some()
+            || view.raytrace.punctual_lights.is_some()
+            || view.raytrace.area_lights.is_some()
+            || view.raytrace.area_samples.is_some()
+            || view.raytrace.seed.is_some()
+            || view.raytrace.reflections.is_some()
+            || view.raytrace.anisotropic_faces.iter().any(Option::is_some)
+        {
+            return Err(app.tr("render.cpu_options_pending").to_string());
+        }
+        view.raytrace.validate().map_err(|e| e.to_string())?;
+        params["integrator"] = json!("raytrace");
+        params["raytrace"] = json!(view.raytrace);
+    }
+    Ok(params)
+}
+
+fn image_visibility(app: &SolveApp) -> u64 {
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    app.session.visibility.hidden_bodies.hash(&mut hash);
+    app.session.visibility.hidden_occurrences.hash(&mut hash);
+    hash.finish()
+}
+
+fn remember_image_check(app: &mut SolveApp, params: serde_json::Value) {
+    app.render_workspace.view.checked_image = app.session.render_job_host().map(|host| CheckedImage {
+        document: Arc::downgrade(&app.session.doc),
+        revision: app.session.revision,
+        visibility: image_visibility(app),
+        params,
+        host: host.clone(),
+    });
+}
+
+fn invalidate_image_check(app: &mut SolveApp, params: Option<&serde_json::Value>) {
+    let valid = app.render_workspace.view.checked_image.as_ref().is_some_and(|checked| {
+        checked.document.ptr_eq(&Arc::downgrade(&app.session.doc))
+            && checked.revision == app.session.revision
+            && checked.visibility == image_visibility(app)
+            && params == Some(&checked.params)
+            && app.session.render_job_host().is_some_and(|host| host.same_host(&checked.host) && host.is_available())
+    });
+    if !valid {
+        app.render_workspace.view.checked_image = None;
+    }
+}
+
+fn image_method_controls(app: &mut SolveApp, ui: &mut egui::Ui) {
+    let cpu = image_host(app, Integrator::Raytrace).map(|_| ());
+    let mut selected = app.render_workspace.view.integrator;
+    let label =
+        app.tr(if app.render_workspace.view.integrator == Integrator::Raster { "render.method_raster" } else { "render.method_cpu" }).to_string();
+    let method = egui::ComboBox::from_id_salt("render-image-method").selected_text(label).show_ui(ui, |ui| {
+        let raster_label = app.tr("render.method_raster").to_string();
+        let raster = ui.selectable_value(&mut selected, Integrator::Raster, raster_label);
+        crate::scenario::publish_handle("render:method-raster", raster.rect.center());
+        let cpu_label = app.tr("render.method_cpu").to_string();
+        let response = ui.add_enabled_ui(cpu.is_ok(), |ui| ui.selectable_value(&mut selected, Integrator::Raytrace, cpu_label));
+        crate::scenario::publish_handle("render:method-cpu", response.inner.rect.center());
+        if let Err(reason) = &cpu {
+            response.response.on_hover_text(reason);
+        }
+    });
+    crate::scenario::publish_handle("render:method", method.response.rect.center());
+    if selected != app.render_workspace.view.integrator
+        && let Err(error) = select_image_method(app, selected)
+    {
+        app.set_status(error, true);
+    }
+    if let Err(reason) = cpu {
+        ui.small(reason);
+    }
+    if app.render_workspace.view.integrator != Integrator::Raytrace {
+        return;
+    }
+    ui.small(app.tr("render.cpu_summary"));
+    ui.label(app.tr("render.cpu_primary_samples"));
+    let primary_samples = app.render_workspace.view.raytrace.primary_samples;
+    let aa = egui::ComboBox::from_id_salt("render-cpu-primary-samples").selected_text(format!("{primary_samples}×")).show_ui(ui, |ui| {
+        for samples in [1, 4, 16] {
+            let response = ui.selectable_value(&mut app.render_workspace.view.raytrace.primary_samples, samples, format!("{samples}×"));
+            crate::scenario::publish_handle(&format!("render:aa-{samples}"), response.rect.center());
+        }
+    });
+    crate::scenario::publish_handle("render:aa", aa.response.rect.center());
+    ui.small(app.tr("render.cpu_aa_help"));
+    let preset = app.render_workspace.view.raytrace.preset.unwrap_or(LightingPreset::Neutral);
+    let key = match preset {
+        LightingPreset::Neutral => "render.cpu_neutral",
+        LightingPreset::WarmCool => "render.cpu_warm_cool",
+        LightingPreset::KeyRim => "render.cpu_key_rim",
+    };
+    egui::ComboBox::from_id_salt("render-cpu-preset").selected_text(app.tr(key)).show_ui(ui, |ui| {
+        for (value, key) in [
+            (LightingPreset::Neutral, "render.cpu_neutral"),
+            (LightingPreset::WarmCool, "render.cpu_warm_cool"),
+            (LightingPreset::KeyRim, "render.cpu_key_rim"),
+        ] {
+            let label = app.tr(key).to_string();
+            ui.selectable_value(&mut app.render_workspace.view.raytrace.preset, Some(value), label);
+        }
+    });
+    let shadows = app.tr("render.cpu_shadows").to_string();
+    ui.checkbox(&mut app.render_workspace.view.raytrace.shadows, shadows);
+    let exposure = app.tr("render.cpu_exposure").to_string();
+    ui.add(egui::DragValue::new(&mut app.render_workspace.view.raytrace.exposure_ev).range(-16.0..=16.0).speed(0.1).prefix(exposure));
+}
+
+/// Select only the installed image route. Raster discards all transient CPU options.
+fn select_image_method(app: &mut SolveApp, integrator: Integrator) -> Result<(), String> {
+    if integrator == Integrator::Raytrace {
+        image_host(app, integrator)?;
+    }
+    let view = &mut app.render_workspace.view;
+    view.integrator = integrator;
+    view.checked_image = None;
+    if integrator == Integrator::Raster {
+        view.raytrace = RaytraceOptions::default();
+    }
+    Ok(())
 }
 
 /// Keep the selected image and overwrite consent fixed while the upstream picker holds model input.

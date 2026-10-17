@@ -2,7 +2,48 @@ use super::*;
 use solidcraft_geom::{Aabb3, Mesh};
 
 fn request() -> ImageRequest {
-    ImageRequest { camera: Default::default(), width: 16, height: 16, background: [40, 80, 120], transparent_background: false }
+    ImageRequest {
+        integrator: Default::default(),
+        raytrace: None,
+        camera: Default::default(),
+        width: 16,
+        height: 16,
+        background: [40, 80, 120],
+        transparent_background: false,
+    }
+}
+
+#[test]
+fn legacy_image_requests_default_to_raster_and_reject_unknown_integrators() {
+    let mut value = serde_json::to_value(request()).unwrap();
+    value.as_object_mut().unwrap().remove("integrator");
+    let decoded: ImageRequest = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(decoded.integrator, Integrator::Raster);
+    value["integrator"] = serde_json::json!("gpu_pathtrace");
+    assert!(serde_json::from_value::<ImageRequest>(value).is_err());
+}
+
+#[cfg(feature = "raytrace-cpu")]
+#[test]
+fn cooperative_raytrace_descriptor_matches_native_only_validation() {
+    let host = CpuHost::cooperative();
+    assert!(host.validate_integrator(Integrator::Raytrace).is_err());
+    assert!(matches!(host.descriptor_for(Integrator::Raytrace).unwrap().availability, Availability::Unavailable { .. }));
+    assert!(host.validate_integrator(Integrator::Raster).is_ok());
+}
+
+#[cfg(not(feature = "raytrace-cpu"))]
+#[test]
+fn compiled_out_raytracing_never_enters_the_host_queue() {
+    let host = CpuHost::cooperative();
+    let mut request = request();
+    request.integrator = Integrator::Raytrace;
+    assert!(host.validate_integrator(Integrator::Raytrace).unwrap_err().message.contains("not compiled in"));
+    assert!(host.descriptor_for(Integrator::Raytrace).is_err());
+    let error = host.submit(JobId { session: 1, serial: 1, generation: 1 }, 0, empty(), request).err().unwrap();
+    assert_eq!(error.code, ErrorCode::HostUnavailable);
+    assert_eq!(host.admitted_bytes(), 0);
+    assert!(!host.pump(1).unwrap());
 }
 fn empty() -> ProductScene {
     ProductScene { meshes: Vec::new(), bounds: Aabb3::EMPTY }

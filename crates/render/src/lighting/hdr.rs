@@ -122,6 +122,9 @@ impl HdrSource {
     pub fn encoded_bytes(&self) -> &[u8] {
         &self.bytes
     }
+    pub fn retained_encoded_bytes(&self) -> u64 {
+        self.bytes.capacity() as u64
+    }
     pub fn validate(&self, cancelled: impl Fn() -> bool) -> Result<()> {
         check_cancelled(&cancelled)?;
         let mut rows = Rows::new(self.clone())?;
@@ -173,6 +176,9 @@ impl Rows {
         pixels
             .try_reserve_exact(source.info.width as usize)
             .map_err(|_| HdrError::new(ErrorCode::AllocationFailed, "could not reserve HDR scanline"))?;
+        if pixels.capacity() != source.info.width as usize {
+            return Err(limit("HDR scanline capacity exceeds admission"));
+        }
         pixels.resize(source.info.width as usize, [0; 4]);
         Ok(Self {
             offset: source.info.offset,
