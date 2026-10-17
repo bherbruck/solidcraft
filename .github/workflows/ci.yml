@@ -72,7 +72,7 @@ jobs:
   changes:
     name: Select checks
     # Trusted runs (see the top of this file) use the self-hosted runners.
-    runs-on: ${{ (github.event_name == 'merge_group' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'self-hosted-light' || 'ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name == 'merge_group' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'self-hosted-light' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'self-hosted-untrusted' || 'ubuntu-24.04') }}
     permissions:
       contents: read
       # To ask whether the merge queue already tested a commit pushed to main.
@@ -85,7 +85,9 @@ jobs:
       packages: ${{ steps.paths.outputs.packages }}
       oracle: ${{ steps.paths.outputs.oracle }}
       # Whether the other Linux jobs use the self-hosted runners too.
-      local: ${{ runner.environment == 'self-hosted' }}
+      # Trusted self-hosted runs only: a fork PR's checks run on the untrusted pool and must never
+      # route the jobs after them to the trusted runners.
+      local: ${{ runner.environment == 'self-hosted' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -582,7 +584,7 @@ jobs:
   ci:
     needs: [changes, checks, clippy, build-tests, tests, doc-tests, oracle, windows-fxc, windows-startup]
     if: always()
-    runs-on: ${{ needs.changes.outputs.local == 'true' && 'self-hosted-light' || 'ubuntu-24.04' }}
+    runs-on: ${{ needs.changes.outputs.local == 'true' && 'self-hosted-light' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'self-hosted-untrusted' || 'ubuntu-24.04') }}
     steps:
       - name: Verify required checks
         env:
