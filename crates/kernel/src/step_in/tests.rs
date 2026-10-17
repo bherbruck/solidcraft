@@ -1483,3 +1483,120 @@ fn periodic_knot_tube_faces_import_and_mesh() {
     assert!(rel(m.area, area) < 0.02, "area {} (expected {area})", m.area);
     assert!(t0.elapsed().as_secs_f64() < 60.0, "took {:?}", t0.elapsed());
 }
+
+/// An original analytic STEP patch: a 7 mm high, 0.002 radian strip on a 3 m
+/// cylinder. Its explicit outer bound encloses the strip even when the surface's
+/// supplied sense disagrees with the loop (#1974).
+fn shallow_cylinder_patch(sense: bool, outer: bool) -> String {
+    shallow_cylinder_patch_at_radius(sense, outer, 3000.0)
+}
+
+fn shallow_cylinder_patch_at_radius(sense: bool, outer: bool, r: f64) -> String {
+    let (angle, h) = (6.0 / r, 7.0);
+    let (x, y) = (10.0 + r * (angle.cos() - 1.0), r * angle.sin());
+    let origin = 10.0 - r;
+    let bound = if outer { "FACE_OUTER_BOUND" } else { "FACE_BOUND" };
+    let sense = if sense { "T" } else { "F" };
+    format!(
+        "{HEAD}
+#1=CARTESIAN_POINT('',({origin},0.,0.));
+#2=DIRECTION('',(0.,0.,1.));
+#3=DIRECTION('',(1.,0.,0.));
+#4=AXIS2_PLACEMENT_3D('',#1,#2,#3);
+#5=CYLINDRICAL_SURFACE('',#4,{r});
+#6=CARTESIAN_POINT('',(10.,0.,0.));
+#7=CARTESIAN_POINT('',({x},{y},0.));
+#8=CARTESIAN_POINT('',({x},{y},{h}));
+#9=CARTESIAN_POINT('',(10.,0.,{h}));
+#10=VERTEX_POINT('',#6);
+#11=VERTEX_POINT('',#7);
+#12=VERTEX_POINT('',#8);
+#13=VERTEX_POINT('',#9);
+#14=CIRCLE('',#4,{r});
+#15=CARTESIAN_POINT('',({origin},0.,{h}));
+#16=AXIS2_PLACEMENT_3D('',#15,#2,#3);
+#17=CIRCLE('',#16,{r});
+#18=VECTOR('',#2,1.);
+#19=LINE('',#7,#18);
+#20=LINE('',#6,#18);
+#21=EDGE_CURVE('',#10,#11,#14,.T.);
+#22=EDGE_CURVE('',#11,#12,#19,.T.);
+#23=EDGE_CURVE('',#12,#13,#17,.F.);
+#24=EDGE_CURVE('',#13,#10,#20,.F.);
+#25=ORIENTED_EDGE('',*,*,#21,.T.);
+#26=ORIENTED_EDGE('',*,*,#22,.T.);
+#27=ORIENTED_EDGE('',*,*,#23,.T.);
+#28=ORIENTED_EDGE('',*,*,#24,.T.);
+#29=EDGE_LOOP('',(#25,#26,#27,#28));
+#30={bound}('',#29,.T.);
+#31=ADVANCED_FACE('',(#30),#5,.{sense}.);
+#32=OPEN_SHELL('',(#31));
+#33=SHELL_BASED_SURFACE_MODEL('Strip',(#32));
+#34=SHAPE_REPRESENTATION('',(#33),$);
+{TAIL}"
+    )
+}
+
+#[test]
+fn explicit_outer_bound_keeps_shallow_cylinder_patch_trimmed() {
+    for (sense, radius) in [(true, 3000.), (false, 3000.), (true, 188_980.), (false, 188_980.)] {
+        let imp = step_import(&shallow_cylinder_patch_at_radius(sense, true, radius)).unwrap();
+        assert_eq!(imp.bodies.len(), 1, "{:?}", imp.warnings);
+        let b = &imp.bodies[0];
+        assert_eq!(b.file_faces, 1);
+        assert!(!b.closed);
+        for mesh in [
+            b.body.tessellate(0.01).unwrap(),
+            b.body.reference_display_mesh_angular(0.01, crate::DISPLAY_ANGLE).unwrap(),
+            b.body.display_mesh_angular(0.01, crate::DISPLAY_ANGLE).unwrap(),
+        ] {
+            assert!(!mesh.triangles.is_empty());
+            assert!(mesh.bounds().diagonal() < 10.0, "sense={sense}: {:?}", mesh.bounds());
+            assert!((mesh.measure().area - 42.0).abs() < 0.01, "sense={sense}: area {}", mesh.measure().area);
+            assert!(mesh.normals.iter().all(|n| n.x > 0.99), "the outer loop determines the face normal");
+        }
+    }
+}
+
+#[test]
+fn implicit_bound_can_still_describe_the_complement_of_a_patch() {
+    let imp = step_import(&shallow_cylinder_patch(false, false)).unwrap();
+    let mesh = imp.bodies[0].body.tessellate(0.1).unwrap();
+    assert!(mesh.bounds().diagonal() > 5000.0, "without an explicit outer bound the loop is a hole");
+}
+
+#[test]
+fn explicit_outer_bound_crossing_a_closed_nurbs_seam_stays_trimmed() {
+    // The same analytic strip, with its cylinder expressed as a rational B-spline.
+    // Put the parameter seam halfway through the strip, independently of its edges.
+    let mut points = String::new();
+    let mut rows = Vec::new();
+    let mut weights = Vec::new();
+    let w = std::f64::consts::FRAC_1_SQRT_2;
+    let circle = [(1., 0., 1.), (1., 1., w), (0., 1., 1.), (-1., 1., w), (-1., 0., 1.), (-1., -1., w), (0., -1., 1.), (1., -1., w), (1., 0., 1.)];
+    let (sin, cos) = 0.001_f64.sin_cos();
+    for (i, (x, y, weight)) in circle.into_iter().enumerate() {
+        let id = 1000 + i * 2;
+        let (x, y) = (10.0 - 3000.0 + 3000.0 * (x * cos - y * sin), 3000.0 * (x * sin + y * cos));
+        points += &format!("#{id}=CARTESIAN_POINT('',({x:.16},{y:.16},0.));\n#{}=CARTESIAN_POINT('',({x:.16},{y:.16},7.));\n", id + 1);
+        rows.push(format!("(#{id},#{})", id + 1));
+        weights.push(format!("({weight:.16},{weight:.16})"));
+    }
+    let surface = format!(
+        "#5=(BOUNDED_SURFACE() B_SPLINE_SURFACE(2,1,({}),.UNSPECIFIED.,.T.,.F.,.F.) B_SPLINE_SURFACE_WITH_KNOTS((3,2,2,2,3),(2,2),(0.,1.,2.,3.,4.),(0.,1.),.UNSPECIFIED.) GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_SURFACE(({})) REPRESENTATION_ITEM('') SURFACE());",
+        rows.join(","),
+        weights.join(",")
+    );
+    for sense in [true, false] {
+        let text = shallow_cylinder_patch(sense, true);
+        let old = "#5=CYLINDRICAL_SURFACE('',#4,3000);";
+        assert!(text.contains(old));
+        let text = text.replacen(old, &surface, 1).replace(TAIL, &format!("{points}{TAIL}"));
+        let imp = step_import(&text).unwrap();
+        let body = &imp.bodies[0].body;
+        let mesh = body.reference_display_mesh_angular(0.01, crate::DISPLAY_ANGLE).unwrap();
+        assert!(!mesh.triangles.is_empty(), "{:?}", imp.warnings);
+        assert!(mesh.bounds().diagonal() < 10.0, "sense={sense}: {:?}", mesh.bounds());
+        assert!((mesh.measure().area - 42.0).abs() < 0.01, "sense={sense}: area {}", mesh.measure().area);
+    }
+}

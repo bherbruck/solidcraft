@@ -78,6 +78,28 @@ fn rib_with_a_depth_and_web() {
 }
 
 #[test]
+fn rib_along_the_sketch_normal_reaches_the_body() {
+    // A 20 x 20 x 10 box; a line along X on a sketch 10 in front of it (y = -10), whose plane
+    // the box does not cross, so only a rib along the sketch normal can reach it.
+    let mut s = Session::default();
+    run(&mut s, "solid.box", json!({"length": 20, "width": 20, "height": 10, "corner": [0, 0, 0]}));
+    run(&mut s, "sketch.create", json!({"plane": {"origin": [0, -10, 0], "x_dir": [1, 0, 0], "y_dir": [0, 0, 1]}, "name": "Front"}));
+    run(&mut s, "sketch.line", json!({"points": [[2, 5], [18, 5]], "ids": ["l1"]}));
+    run(&mut s, "sketch.finish", json!({}));
+    let e = s.execute("solid.rib", &json!({"sketch": "Front", "curves": ["l1"], "thickness": 2}));
+    assert!(e.is_err_and(|e| e.to_string().contains("do not face a body")));
+    run(&mut s, "solid.rib", json!({"sketch": "Front", "curves": ["l1"], "thickness": 2, "direction": "normal"}));
+    // 16 long, 2 thick, 10 from the sketch to the box.
+    assert!(rel(volume(&mut s), 4000.0 + 320.0) < 1e-6, "{}", volume(&mut s));
+    assert_eq!(measure(&mut s)["body_count"], 1);
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "solid.rib", json!({"sketch": "Front", "curves": ["l1"], "thickness": 2, "direction": "normal", "depth": 4}));
+    assert!(rel(volume(&mut s), 4000.0 + 128.0) < 1e-6, "{}", volume(&mut s));
+    let e = s.execute("solid.rib", &json!({"sketch": "Front", "curves": ["l1"], "thickness": 2, "direction": "sideways"}));
+    assert!(e.is_err_and(|e| e.to_string().contains("unknown direction")));
+}
+
+#[test]
 fn emboss_and_deboss_on_a_face() {
     let mut s = Session::default();
     run(&mut s, "solid.box", json!({"length": 40, "width": 30, "height": 10}));

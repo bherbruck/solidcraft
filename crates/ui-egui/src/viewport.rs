@@ -7,7 +7,7 @@ use solidcraft_engine::Sel;
 use solidcraft_engine::geom::{Vec2, Vec3};
 use solidcraft_engine::render::{Camera, Mat4, Rgb};
 use solidcraft_engine::sketch::CurveKind;
-use solidcraft_engine::view::{colors, grid_plane, grid_step, sketch_lines_with_sampler};
+use solidcraft_engine::view::{GridPlane, colors, grid_plane, grid_step, sketch_lines_with_sampler};
 use std::hash::{Hash, Hasher};
 
 use crate::gpu::{Frame, GpuScene, GpuTarget, SceneSlot, ViewportCallback};
@@ -130,6 +130,9 @@ pub struct ViewportState {
     pub(crate) text_drag: Option<(u64, String)>,
     /// A part that joints place, being dragged.
     pub(crate) joint_drag: Option<crate::joint_drag::Drag>,
+    /// The plane the grid was last drawn on while Preferences ▸ Grid follows the view is on
+    /// (#1470), kept so the choice is hysteretic near the thresholds (#1993).
+    pub(crate) grid_plane: std::sync::Mutex<GridPlane>,
 }
 
 /// Something under the cursor.
@@ -316,6 +319,9 @@ fn scene_key(app: &SolveApp) -> u64 {
 fn sketch_scene_key(app: &SolveApp, proj: &Proj) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     scene_key(app).hash(&mut h);
+    // The grid this scene draws follows the view when the preference says so (#1470): turning it
+    // on or off redraws even while the camera holds still.
+    app.preferences.grid_follows_view.hash(&mut h);
     (std::sync::Arc::as_ptr(&app.session.world_state()) as usize).hash(&mut h);
     crate::sketch_display::projection_key(proj, app.viewport.pixels_per_point()).hash(&mut h);
     h.finish()
@@ -733,8 +739,16 @@ fn build_sketch_scene(app: &SolveApp, proj: &Proj) -> GpuScene {
         // The ground plane: XY with Z up, XZ with Y up (laid out in the camera's Z-up frame), or
         // the upright origin plane facing the view when the ground is seen edge-on.
         let tf = app.cam.to_frame(app.cam.target);
-        // On the ground (XY) unless the Grid follows the view preference is on (#1470).
-        let (u, v) = if app.preferences.grid_follows_view { grid_plane(app.cam.to_frame(app.cam.back())) } else { (Vec3::X, Vec3::Y) };
+        // On the ground (XY) unless the Grid follows the view preference is on (#1470); then on
+        // the plane the last frame drew, so the choice is hysteretic near the thresholds (#1993).
+        let (u, v) = if app.preferences.grid_follows_view {
+            app.viewport.grid_plane.lock().map_or((Vec3::X, Vec3::Y), |mut last| {
+                *last = grid_plane(app.cam.to_frame(app.cam.back()), *last);
+                last.axes()
+            })
+        } else {
+            (Vec3::X, Vec3::Y)
+        };
         let snap = |a: Vec3| a * ((tf.dot(a) / major).round() * major);
         let c = snap(u) + snap(v);
         let w3 = |p: Vec3| app.cam.from_frame(p).to_f32();
@@ -6056,8 +6070,14 @@ mod grid_plane_tests {
     fn plane(view: StandardView, up: UpAxis) -> (Vec3, Vec3) {
         let (yaw, pitch) = view.angles();
         let cam = Camera { yaw, pitch, up, ..Camera::default() };
-        let (u, v) = grid_plane(cam.to_frame(cam.back()));
+        let (u, v) = grid_plane(cam.to_frame(cam.back()), GridPlane::default()).axes();
         (cam.from_frame(u), cam.from_frame(v))
+    }
+
+    /// The camera frame's direction toward the eye for a view at `yaw` and `pitch` degrees.
+    fn back_at(yaw_deg: f64, pitch_deg: f64) -> Vec3 {
+        let cam = Camera { yaw: yaw_deg.to_radians(), pitch: pitch_deg.to_radians(), ..Camera::default() };
+        cam.to_frame(cam.back())
     }
 
     /// #1470: the grid lies on the ground unless the view sees the ground edge-on; then it lies on
@@ -6077,6 +6097,67 @@ mod grid_plane_tests {
                 assert!((n.dot(back).abs() - 1.0).abs() < 1e-9, "{view:?} {up:?}: facing the view");
             }
         }
+    }
+
+    /// #1993: the view has to turn clearly off the ground before the grid leaves it, and clearly
+    /// away from a wall before it goes back, so a view wobbling at the threshold does not flicker.
+    #[test]
+    fn the_grid_plane_thresholds_have_hysteresis() {
+        // 9°: edge-on enough to enter the wall.
+        assert_eq!(grid_plane(back_at(0.0, 9.0), GridPlane::Ground), GridPlane::Xz);
+        // 12°: past the entering limit, but not enough to leave a wall the grid is already on.
+        assert_eq!(grid_plane(back_at(0.0, 12.0), GridPlane::Ground), GridPlane::Ground);
+        assert_eq!(grid_plane(back_at(0.0, 12.0), GridPlane::Xz), GridPlane::Xz);
+        // 16°: clearly off the ground, so even a wall goes back.
+        assert_eq!(grid_plane(back_at(0.0, 16.0), GridPlane::Xz), GridPlane::Ground);
+        // Below the ground the same, and a view straight down stays on the ground.
+        assert_eq!(grid_plane(back_at(30.0, -12.0), GridPlane::Yz), GridPlane::Yz);
+        assert_eq!(grid_plane(Vec3::new(0.0, 0.0, 1.0), GridPlane::Xz), GridPlane::Ground);
+        assert_eq!(grid_plane(Vec3::new(0.0, 0.0, -1.0), GridPlane::Xz), GridPlane::Ground);
+    }
+
+    /// #1993: orbiting at a low elevation keeps the wall until a side view is near; the other
+    /// wall takes over only there, never at the 45° crossing.
+    #[test]
+    fn a_low_orbit_switches_walls_only_near_a_side_view() {
+        let low = |yaw_deg: f64| back_at(yaw_deg, 3.0);
+        // Entering from the ground still picks the wall facing the view.
+        assert_eq!(grid_plane(low(44.0), GridPlane::Ground), GridPlane::Xz);
+        assert_eq!(grid_plane(low(50.0), GridPlane::Ground), GridPlane::Yz);
+        // A wall is kept across the crossing and only changes near the side view it faces.
+        assert_eq!(grid_plane(low(44.0), GridPlane::Xz), GridPlane::Xz);
+        assert_eq!(grid_plane(low(50.0), GridPlane::Xz), GridPlane::Xz, "no swap at the 45° crossing");
+        assert_eq!(grid_plane(low(70.0), GridPlane::Xz), GridPlane::Xz);
+        assert_eq!(grid_plane(low(80.0), GridPlane::Xz), GridPlane::Yz, "the Left view's wall takes over near it");
+        assert_eq!(grid_plane(low(10.0), GridPlane::Yz), GridPlane::Xz, "the Front view's wall takes over near it");
+    }
+
+    /// #1993: a hostile view direction (a design file, a control request) never panics and never
+    /// leaves the grid off the ground's axes.
+    #[test]
+    fn a_hostile_view_direction_stays_on_the_ground() {
+        for back in [Vec3::new(f64::NAN, 0.0, 0.0), Vec3::new(0.0, f64::NEG_INFINITY, 0.0), Vec3::new(0.0, 0.0, f64::INFINITY), Vec3::ZERO] {
+            assert_eq!(grid_plane(back, GridPlane::Xz), GridPlane::Ground, "{back:?}");
+        }
+    }
+
+    /// #1993: the viewport keeps the plane it drew, so the next frame's choice is hysteretic.
+    #[test]
+    fn the_viewport_keeps_the_grid_plane_between_frames() {
+        let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(800.0, 600.0));
+        let mut app = SolveApp::new(solidcraft_engine::Session::default(), crate::Services::default());
+        app.preferences.grid_follows_view = true;
+        app.cam.yaw = 0.0;
+        app.cam.pitch = 0.0;
+        let _ = build_sketch_scene(&app, &projection(&app, rect));
+        assert_eq!(*app.viewport.grid_plane.lock().unwrap(), GridPlane::Xz, "the Front view takes the wall");
+        // Wobble past the entering limit: the wall stays (before #1993 it flipped to the ground).
+        app.cam.pitch = 0.23;
+        let _ = build_sketch_scene(&app, &projection(&app, rect));
+        assert_eq!(*app.viewport.grid_plane.lock().unwrap(), GridPlane::Xz, "a wobble does not flicker");
+        app.cam.pitch = 0.3;
+        let _ = build_sketch_scene(&app, &projection(&app, rect));
+        assert_eq!(*app.viewport.grid_plane.lock().unwrap(), GridPlane::Ground, "a clear turn off the ground returns");
     }
 
     /// A sketch is drawn in a parallel view even when the preference asks for perspective; the

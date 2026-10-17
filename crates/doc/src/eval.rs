@@ -2141,6 +2141,46 @@ fn extend_for_coplanar(sur: &Surroundings, plane: &Plane, r: &Region2, lo: f64, 
     (lo2, hi2)
 }
 
+/// Remove ends of a join tool already wholly inside its targets. A tab extending
+/// a rib otherwise shares the rib's side faces through its buried portion; on a
+/// chamfered base those coincident faces can defeat every boolean retry (#2059).
+/// Only straight profiles are trimmed, after checking the entire swept material
+/// against the targets' faces, with the same clearance used when extending ends.
+fn trim_embedded_join_ends(sur: &Surroundings, plane: &Plane, r: &Region2, lo: f64, hi: f64) -> (f64, f64) {
+    if sur.op != Operation::Join
+        || !std::iter::once(&r.outer).chain(&r.holes).flat_map(|l| &l.segs).all(|s| matches!(s, solidcraft_geom::Seg2::Line { .. }))
+    {
+        return (lo, hi);
+    }
+    let pieces = r.triangulate(1e-6);
+    let covered: f64 = pieces.iter().map(|[a, b, c]| (*b - *a).cross(*c - *a).abs() * 0.5).sum();
+    if pieces.is_empty() || (covered - r.area()).abs() > 1e-7 * r.area() {
+        return (lo, hi);
+    }
+    let n = plane.normal();
+    let mut levels: Vec<f64> = sur
+        .bodies
+        .iter()
+        .flat_map(|(_, mesh, _)| {
+            mesh.triangles.iter().filter_map(|t| {
+                let [a, b, c] = mesh.tri(t)?;
+                let normal = (b - a).cross(c - a).normalized()?;
+                (normal.dot(n).abs() > 1.0 - 1e-9).then(|| (a - plane.origin).dot(n))
+            })
+        })
+        .filter(|h| *h > lo + sur.skin && *h < hi - sur.skin)
+        .collect();
+    levels.sort_by(f64::total_cmp);
+    levels.dedup_by(|a, b| (*a - *b).abs() < sur.skin);
+    if levels.len() > 256 {
+        return (lo, hi);
+    }
+    let start = levels.iter().rev().copied().find(|h| sur.harmless(plane, &pieces, -sur.skin, lo + sur.skin, h - sur.skin)).unwrap_or(lo);
+    let end =
+        levels.iter().copied().find(|h| *h > start + sur.skin && sur.harmless(plane, &pieces, -sur.skin, h + sur.skin, hi - sur.skin)).unwrap_or(hi);
+    (start, end)
+}
+
 /// Whether a tapered tool, run on by `depth` behind the plane it starts in (`dir` the way it
 /// extrudes), stays where running on changes nothing: in the targets for a join, out of them for
 /// a cut. Its sides keep their slope, so the section there is the profile grown by up to `widen`
@@ -3180,6 +3220,23 @@ fn feature_tools_with_constructor(
             let mut extents: Vec<(f64, f64)> = Vec::with_capacity(regions.len());
             let plain_targets: Vec<String> = crate::plain(targets);
             let surroundings = Surroundings::of(st, *operation, &plain_targets);
+            // Trimming may discard a tool's material, so only bodies this feature
+            // actually joins can establish that the discarded end is already filled.
+            let participants = if plain_targets.is_empty() { &f.participants } else { &plain_targets };
+            let trim_targets: Vec<String> = st
+                .bodies
+                .iter()
+                .filter(|b| {
+                    if participants.is_empty() {
+                        b.component == f.component || b.feature == f.id
+                    } else {
+                        participants.iter().any(|t| t == "*" || t == &b.name)
+                    }
+                })
+                .map(|b| b.name.clone())
+                .collect();
+            let join_surroundings =
+                if *operation == Operation::Join && !trim_targets.is_empty() { Surroundings::of(st, *operation, &trim_targets) } else { None };
             for r in &regions {
                 if *operation == Operation::Join {
                     let exact = centered_extrude(&ss.plane, r, lo + off, hi + off, Some(&ss))?;
@@ -3198,6 +3255,12 @@ fn feature_tools_with_constructor(
                     }
                 }
                 let (l2, h2) = surroundings.as_ref().map_or((lo + off, hi + off), |sur| extend_for_coplanar(sur, &ss.plane, r, lo + off, hi + off));
+                let (l2, h2) = join_surroundings.as_ref().map_or((l2, h2), |sur| {
+                    // Trim only material in the requested extent. A run-on added
+                    // above to resolve a touching cap must keep doing its job.
+                    let (l, h) = trim_embedded_join_ends(sur, &ss.plane, r, lo + off, hi + off);
+                    (if l > lo + off { l } else { l2 }, if h < hi + off { h } else { h2 })
+                });
                 let probe = |p: Vec2| (1..4).map(|k| ss.plane.to_world(p) + n * (lo + off + (hi - lo) * k as f64 / 4.0)).collect::<Vec<_>>();
                 let original = r;
                 let grown = |gains: &dyn Fn(&[[Vec2; 3]]) -> bool| match &surroundings {
@@ -5733,6 +5796,27 @@ mod body_name_tests {
 #[cfg(test)]
 mod coplanar_growth_tests {
     use super::*;
+
+    #[test]
+    fn buried_join_ends_stop_at_material_boundaries() {
+        let block = kernel::box_solid(Vec3::ZERO, Vec3::new(10.0, 10.0, 8.0)).unwrap();
+        let profile = rect(2.0, 2.0, 4.0, 4.0);
+        let st = state(vec![block.clone()]);
+        let sur = Surroundings::of(&st, Operation::Join, &[]).unwrap();
+        assert_eq!(trim_embedded_join_ends(&sur, &Plane::XY, &profile, 0.0, 16.0), (8.0, 16.0));
+        assert_eq!(trim_embedded_join_ends(&sur, &Plane::XY, &profile, -8.0, 8.0), (-8.0, 0.0));
+        // A thin sealed void between the old start and the rib's top must still
+        // be filled by the join. The remaining tool must start before that void.
+        let void = kernel::box_solid(Vec3::new(1.0, 1.0, 3.01), Vec3::new(5.0, 5.0, 3.02)).unwrap();
+        let hollow = kernel::boolean(&block, &void, BoolOp::Cut).unwrap().unwrap();
+        let st = state(vec![hollow]);
+        let sur = Surroundings::of(&st, Operation::Join, &[]).unwrap();
+        let (lo, hi) = trim_embedded_join_ends(&sur, &Plane::XY, &profile, 0.0, 16.0);
+        assert!(lo <= 3.01, "trimming past {lo} would discard material the join adds in the void");
+        assert_eq!(hi, 16.0);
+        let cut = Surroundings::of(&st, Operation::Cut, &[]).unwrap();
+        assert_eq!(trim_embedded_join_ends(&cut, &Plane::XY, &profile, 0.0, 16.0), (0.0, 16.0));
+    }
 
     fn state(bodies: Vec<Body>) -> ModelState {
         ModelState { bodies: bodies.into_iter().enumerate().map(|(i, b)| ModelBody::new(format!("Body{i}"), b, 0)).collect(), ..Default::default() }

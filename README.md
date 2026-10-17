@@ -63,6 +63,10 @@
 The downloads aren't signed yet. On Windows, if SmartScreen warns you, choose **More info**, then
 **Run anyway**. On macOS, the first time, right-click SolidCraft in Applications and choose **Open**.
 
+**On SolidCraft 0.11 to 0.14?** Its **Update now** can't install 0.15.0 or later, because the
+releases moved to a new address. Download the new version once from the links above; after that,
+updating from inside SolidCraft works again ([details](https://docs.solidcraft.io/guide/updates.html#updating-from-011-to-014)).
+
 Older versions, checksums and other formats are on the [releases page](https://github.com/tangency-labs/solidcraft/releases).
 Install details, upgrading from earlier builds and building from source are in
 [Getting started](https://docs.solidcraft.io/guide/getting-started.html).
