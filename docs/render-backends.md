@@ -1,5 +1,7 @@
 # Render backend capabilities (R1)
 
+Native progressive opaque PNG rendering is described in [Progressive product images](render-path.md). It registers alongside the CPU executor.
+
 This page describes the R1 metadata contract. The installed GPU viewport and CPU
 product-job hosts extend it through complete profiles; HDR input preparation adds
 no lighting capability. See [the integrated phase boundaries](render-integration.md).

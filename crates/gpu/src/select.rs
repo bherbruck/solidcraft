@@ -91,7 +91,7 @@ impl Policy {
         }
     }
 
-    fn admits(self, tier: Tier) -> bool {
+    pub(crate) fn admits(self, tier: Tier) -> bool {
         match self {
             Policy::Auto => true,
             Policy::Hardware => tier == Tier::Hardware,
@@ -139,7 +139,7 @@ pub fn native_backends() -> wgpu::Backends {
     }
 }
 
-fn tier_of(t: wgpu::DeviceType) -> Tier {
+pub(crate) fn tier_of(t: wgpu::DeviceType) -> Tier {
     match t {
         wgpu::DeviceType::Cpu => Tier::Software,
         wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu | wgpu::DeviceType::VirtualGpu | wgpu::DeviceType::Other => Tier::Hardware,

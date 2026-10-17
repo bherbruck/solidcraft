@@ -1,4 +1,4 @@
-//! CPU product-image work and its device-independent, session-scoped protocol.
+//! Product-image work and its device-independent, session-scoped protocol.
 //! Hosts own execution; documents and history never contain these values.
 
 use std::fmt;
@@ -13,8 +13,57 @@ use crate::{BackendId, Camera, ExecutorId};
 
 mod host;
 mod image;
-pub use host::{CpuHost, HostKind, JobHandle, JobStatus, RenderFrame};
-pub use image::{Admission, ImageTask, TaskPoll, admit};
+mod png;
+pub use host::{CpuHost, HostKind, ImageHost, JobHandle, JobStatus, RenderFrame};
+pub use image::{Admission, ImageTask, TaskPoll, admit, admit_geometry};
+pub use png::PngTask;
+
+/// Runtime sampling intent, separate from saved documents and device resources.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct JobOptions {
+    pub samples: u32,
+    pub max_depth: u32,
+    pub seed: u32,
+    pub exposure_ev: f64,
+}
+
+impl Default for JobOptions {
+    fn default() -> Self {
+        Self { samples: 64, max_depth: 8, seed: 0, exposure_ev: 0.0 }
+    }
+}
+
+impl JobOptions {
+    pub fn validate(&self) -> Result<()> {
+        if !(1..=4096).contains(&self.samples)
+            || !(1..=16).contains(&self.max_depth)
+            || !self.exposure_ev.is_finite()
+            || !(-32.0..=32.0).contains(&self.exposure_ev)
+        {
+            return Err(JobError::new(ErrorCode::InvalidRequest, "samples must be 1..4096, depth 1..16 and exposure -32..32 EV"));
+        }
+        Ok(())
+    }
+}
+
+/// One bounded quantum of image work. Implementations check cancellation between quanta.
+pub trait ImageWork: Send {
+    fn step(&mut self, units: usize) -> Result<TaskPoll>;
+}
+impl ImageWork for ImageTask {
+    fn step(&mut self, units: usize) -> Result<TaskPoll> {
+        self.step(units)
+    }
+}
+
+/// Device-independent executor boundary. The host owns admission leases and publication;
+/// an executor owns computation only. GPU implementations live above the render crate.
+pub trait ImageExecutor: Send + Sync {
+    fn descriptor(&self) -> Result<crate::ExecutorDescriptor>;
+    fn admit(&self, scene: &crate::ProductScene, request: &ImageRequest, options: JobOptions) -> Result<Admission>;
+    fn begin(&self, scene: crate::ProductScene, request: ImageRequest, options: JobOptions, cancel: CancelToken) -> Result<Box<dyn ImageWork>>;
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

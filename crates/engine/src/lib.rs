@@ -421,6 +421,13 @@ impl Session {
             }
             backend.executors.push(executor);
         }
+        for (host, descriptor) in &self.render_jobs.additional {
+            let mut descriptor = descriptor.clone();
+            if !host.is_available() {
+                descriptor.availability = render::Availability::Unavailable { reason: "image host is unavailable".into() };
+            }
+            backend.executors.push(descriptor);
+        }
         backend
     }
 
@@ -441,6 +448,7 @@ impl Session {
             if let Some(executor) = &self.render_jobs.descriptor {
                 backend.executors.push(executor.clone());
             }
+            backend.executors.extend(self.render_jobs.additional.iter().map(|(_, d)| d.clone()));
             backend.executors.push(executor.clone());
             // Resolution validates the whole registry, including duplicate executor IDs.
             let request = render::RenderRequest {
@@ -663,6 +671,7 @@ impl Session {
         let spec = find_command(id).ok_or_else(|| EngineError::UnknownCommand(id.to_string()))?;
         let host_viewport = self.render_viewport.clone();
         let host_jobs = self.render_jobs.host.clone();
+        let additional_jobs = self.render_jobs.additional.clone();
         let live = spec.live.filter(|_| params.get("live").and_then(Value::as_bool) == Some(true));
         if live.is_none() && spec.reads_model && self.model.is_stale() {
             self.refresh();
@@ -703,6 +712,9 @@ impl Session {
         self.render_viewport = host_viewport;
         if self.render_jobs.host.is_none() && host_jobs.is_some() {
             self.set_render_job_host(host_jobs)?;
+        }
+        for (host, _) in additional_jobs {
+            self.register_render_job_host(host)?;
         }
         if outermost && crash::enabled() {
             // A failed command leaves the design as it was (restored below).

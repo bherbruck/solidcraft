@@ -1,5 +1,7 @@
 # Product-image jobs (R4a)
 
+Native progressive opaque PNG rendering is described in [Progressive product images](render-path.md). It registers alongside the CPU executor.
+
 R4a adds bounded CPU preview images to the Render workspace. The installed `builtin` /
 `cpu-product` executor supports Preview, Image and PNG. It does not promise refraction,
 HDRI, exposure, final mode or EXR; those requests fail explicitly. The subsequent

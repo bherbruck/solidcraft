@@ -30,6 +30,7 @@ pub(crate) struct Jobs {
     generation: u64,
     pub(crate) host: Option<CpuHost>,
     pub(crate) descriptor: Option<ExecutorDescriptor>,
+    pub(crate) additional: Vec<(CpuHost, ExecutorDescriptor)>,
     live: Vec<JobHandle>,
     history: VecDeque<JobStatus>,
     last_good: Option<JobHandle>,
@@ -37,7 +38,17 @@ pub(crate) struct Jobs {
 
 impl Default for Jobs {
     fn default() -> Self {
-        Self { owner: owner(), serial: 0, generation: 0, host: None, descriptor: None, live: Vec::new(), history: VecDeque::new(), last_good: None }
+        Self {
+            owner: owner(),
+            serial: 0,
+            generation: 0,
+            host: None,
+            descriptor: None,
+            additional: Vec::new(),
+            live: Vec::new(),
+            history: VecDeque::new(),
+            last_good: None,
+        }
     }
 }
 
@@ -50,10 +61,18 @@ impl Drop for Jobs {
 }
 
 impl Jobs {
+    pub(crate) fn host_for(&self, executor: &solidcraft_render::ExecutorId) -> Option<&CpuHost> {
+        if self.descriptor.as_ref().is_some_and(|d| &d.id == executor) {
+            return self.host.as_ref();
+        }
+        self.additional.iter().find(|(_, d)| &d.id == executor).map(|(host, _)| host)
+    }
+
     pub(crate) fn scratch(&self) -> Self {
         let mut jobs = Self::default();
         jobs.host = self.host.clone();
         jobs.descriptor = self.descriptor.clone();
+        jobs.additional = self.additional.clone();
         jobs
     }
 
@@ -83,9 +102,11 @@ impl Jobs {
         scene: solidcraft_render::ProductScene,
         request: solidcraft_render::job::ImageRequest,
         replace: bool,
+        executor: &solidcraft_render::ExecutorId,
+        options: solidcraft_render::job::JobOptions,
     ) -> Result<JobStatus, JobError> {
         self.collect()?;
-        let host = self.host.as_ref().ok_or_else(|| JobError::new(ErrorCode::HostUnavailable, "no image host is installed"))?.clone();
+        let host = self.host_for(executor).ok_or_else(|| JobError::new(ErrorCode::HostUnavailable, "resolved image host is not installed"))?.clone();
         if replace {
             for job in self.live.drain(..) {
                 let mut status = job.cancel()?;
@@ -109,7 +130,7 @@ impl Jobs {
         }
         let serial = self.serial.checked_add(1).ok_or_else(|| JobError::new(ErrorCode::LimitExceeded, "render job identity exhausted"))?;
         let generation = self.generation.checked_add(1).ok_or_else(|| JobError::new(ErrorCode::LimitExceeded, "render generation exhausted"))?;
-        let handle = host.submit(JobId { session: self.owner, serial, generation }, revision, scene, request)?;
+        let handle = host.submit_with_options(JobId { session: self.owner, serial, generation }, revision, scene, request, options)?;
         let status = handle.status()?;
         self.serial = serial;
         self.generation = generation;
@@ -176,9 +197,40 @@ impl crate::Session {
         )
         .map_err(|e| crate::EngineError::Other(e.to_string()))?;
         let mut jobs = Jobs::default();
+        jobs.additional = self.render_jobs.additional.clone();
         jobs.host = host;
         jobs.descriptor = descriptor;
         self.render_jobs = jobs;
+        Ok(())
+    }
+
+    /// Add an executor without replacing CPU jobs or their ownership. Applications share
+    /// this host across document sessions; descriptor IDs must be unique in the registry.
+    pub fn register_render_job_host(&mut self, host: solidcraft_render::job::ImageHost) -> crate::Result<()> {
+        let descriptor = host.descriptor().map_err(job_error)?;
+        if self.render_jobs.additional.iter().any(|(old, _)| old.same_host(&host)) {
+            return Ok(());
+        }
+        if descriptor.profiles.iter().any(|p| p.operation != solidcraft_render::RenderOperation::Image) {
+            return Err(crate::EngineError::Other("image host must only register image profiles".into()));
+        }
+        let mut registry = self.render_backend();
+        registry.executors.push(descriptor.clone());
+        solidcraft_render::resolve_request(
+            &[registry],
+            &solidcraft_render::RenderRequest {
+                backend: None,
+                mode: solidcraft_render::RenderMode::Preview,
+                operation: solidcraft_render::RenderOperation::Image,
+                width: 1,
+                height: 1,
+                format: Some(solidcraft_render::RenderFormat::Png),
+                features: Vec::new(),
+                policy: Default::default(),
+            },
+        )
+        .map_err(|e| crate::EngineError::Other(e.to_string()))?;
+        self.render_jobs.additional.push((host, descriptor));
         Ok(())
     }
 

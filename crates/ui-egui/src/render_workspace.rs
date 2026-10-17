@@ -22,6 +22,7 @@ mod tests;
 
 pub struct State {
     pub host: Option<ExecutorDescriptor>,
+    pub path_host: Option<solidcraft_engine::render::job::ImageHost>,
     pub image_host: Option<solidcraft_engine::render::job::CpuHost>,
     pub view: ViewState,
     revision: u64,
@@ -41,12 +42,24 @@ pub struct ViewState {
     job: Option<solidcraft_engine::render::job::JobId>,
     completed: Option<solidcraft_engine::render::job::JobId>,
     transparent: bool,
+    progressive: bool,
+    samples: u32,
     overwrite: bool,
 }
 
 impl Default for ViewState {
     fn default() -> Self {
-        Self { name: "Studio".into(), draft: RenderSetup::default(), dirty: false, job: None, completed: None, transparent: false, overwrite: false }
+        Self {
+            name: "Studio".into(),
+            draft: RenderSetup::default(),
+            dirty: false,
+            job: None,
+            completed: None,
+            transparent: false,
+            progressive: false,
+            samples: 64,
+            overwrite: false,
+        }
     }
 }
 
@@ -54,6 +67,7 @@ impl Default for State {
     fn default() -> Self {
         Self {
             host: None,
+            path_host: None,
             image_host: None,
             view: Default::default(),
             revision: u64::MAX,
@@ -98,6 +112,12 @@ pub fn host_executor(max_dimension: u32, depth: bool, samples: u32) -> Result<Ex
 }
 
 pub fn sync_backend(app: &mut SolveApp) {
+    if let Some(host) = app.render_workspace.path_host.clone()
+        && let Err(e) = app.session.register_render_job_host(host)
+    {
+        app.set_status(e.to_string(), true);
+    }
+
     if app.session.render_job_host().is_none()
         && let Some(host) = &app.render_workspace.image_host
         && let Err(e) = app.session.set_render_job_host(Some(host.clone()))
@@ -127,7 +147,8 @@ pub fn tick(app: &mut SolveApp, ctx: &egui::Context) {
 pub fn reset_document(app: &mut SolveApp) {
     let host = app.render_workspace.host.clone();
     let image_host = app.render_workspace.image_host.clone();
-    app.render_workspace = State { host, image_host, ..Default::default() };
+    let path_host = app.render_workspace.path_host.clone();
+    app.render_workspace = State { host, image_host, path_host, ..Default::default() };
     if active(app) {
         app.ui.tab = "SOLID".into();
     }
@@ -255,7 +276,7 @@ pub fn panel(app: &mut SolveApp, ui: &mut egui::Ui) {
 
 fn image_controls(app: &mut SolveApp, ui: &mut egui::Ui) {
     ui.heading(app.tr("render.image_title"));
-    ui.small(app.tr("render.opaque_image_summary"));
+    ui.small(app.tr(if app.render_workspace.view.progressive { "render.progressive_image_summary" } else { "render.opaque_image_summary" }));
     ui.horizontal(|ui| {
         ui.label(app.tr("render.image_width"));
         if ui.add(egui::DragValue::new(&mut app.render_workspace.view.draft.width).range(1..=4096)).changed() {
@@ -278,11 +299,19 @@ fn image_controls(app: &mut SolveApp, ui: &mut egui::Ui) {
             app.render_workspace.view.dirty = true;
         }
     }
+    if app.render_workspace.path_host.is_some() {
+        let label = app.tr("render.image_progressive").to_string();
+        ui.checkbox(&mut app.render_workspace.view.progressive, label);
+        if app.render_workspace.view.progressive {
+            let label = app.tr("render.image_samples").to_string();
+            ui.add(egui::Slider::new(&mut app.render_workspace.view.samples, 1..=4096).logarithmic(true).text(label));
+        }
+    }
     let transparent_label = app.tr("render.image_transparent").to_string();
     ui.checkbox(&mut app.render_workspace.view.transparent, transparent_label);
     if ui.button(app.tr("render.image_check")).clicked() {
         let settings = RenderSetup { camera: app.cam, ..app.render_workspace.view.draft.clone() };
-        if app.run("render.preflight", json!({"settings":settings,"transparent_background":app.render_workspace.view.transparent})).is_ok() {
+        if app.run("render.preflight", json!({"settings":settings,"transparent_background":app.render_workspace.view.transparent,"progressive":app.render_workspace.view.progressive,"samples":app.render_workspace.view.progressive.then_some(app.render_workspace.view.samples)})).is_ok() {
             app.set_status(app.tr("render.image_supported").to_string(), false);
         }
     }
@@ -334,7 +363,7 @@ fn image_controls(app: &mut SolveApp, ui: &mut egui::Ui) {
     }
     if ui.add_enabled(!busy, egui::Button::new(app.tr("render.image_start"))).clicked() {
         let settings = RenderSetup { camera: app.cam, ..app.render_workspace.view.draft.clone() };
-        if let Ok(reply) = app.run("render.start", json!({"settings":settings,"transparent_background":app.render_workspace.view.transparent})) {
+        if let Ok(reply) = app.run("render.start", json!({"settings":settings,"transparent_background":app.render_workspace.view.transparent,"progressive":app.render_workspace.view.progressive,"samples":app.render_workspace.view.progressive.then_some(app.render_workspace.view.samples)})) {
             app.render_workspace.view.job = serde_json::from_value(reply["job"].clone()).ok();
             ui.ctx().request_repaint();
         }

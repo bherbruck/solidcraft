@@ -1,5 +1,7 @@
 # Integrated Render workspace (R3)
 
+The native image panel also offers [progressive opaque rendering](render-path.md) when its compute executor is available.
+
 R4a builds on this viewport contract with a separately advertised CPU product-image
 executor and Check/Start/Cancel/Export controls. See [render jobs](render-jobs.md) for
 the asynchronous protocol, image limits, captured revisions and PNG export. The legacy

@@ -129,3 +129,91 @@ fn native_job_finishes_without_any_poll_or_ui_pump() {
     assert_eq!(status.progress.phase, Phase::Completed);
     assert_eq!(job.frame().unwrap().unwrap().info.scene_generation, 12);
 }
+
+/// An executor whose task reports, as it is dropped, how much of the pool is admitted, and
+/// completes after `steps` steps (or never, cancelled on its last one with `cancel_last`).
+struct DropProbe {
+    admitted_at_drop: Arc<AtomicU64>,
+    budget: Arc<std::sync::OnceLock<Arc<Budget>>>,
+    estimated: u64,
+}
+struct ProbeTask {
+    admitted_at_drop: Arc<AtomicU64>,
+    budget: Arc<std::sync::OnceLock<Arc<Budget>>>,
+    steps: u32,
+}
+impl Drop for ProbeTask {
+    fn drop(&mut self) {
+        let used = self.budget.get().map_or(u64::MAX, |b| b.used.load(Ordering::Acquire));
+        self.admitted_at_drop.store(used, Ordering::Release);
+    }
+}
+impl ImageWork for ProbeTask {
+    fn step(&mut self, _units: usize) -> Result<TaskPoll> {
+        self.steps += 1;
+        if self.steps < 3 {
+            return Ok(TaskPoll::Pending(Progress { phase: Phase::Running, done: u64::from(self.steps), total: 3 }));
+        }
+        Ok(TaskPoll::Complete(vec![0u8; 100]))
+    }
+}
+impl ImageExecutor for DropProbe {
+    fn descriptor(&self) -> Result<ExecutorDescriptor> {
+        CpuExecutor.descriptor()
+    }
+    fn admit(&self, _: &ProductScene, _: &ImageRequest, _: JobOptions) -> Result<Admission> {
+        Ok(Admission {
+            triangles: 0,
+            face_appearances: 0,
+            geometry_bytes: 0,
+            pixel_scratch_bytes: self.estimated,
+            preparation_bytes: 0,
+            estimated_total_bytes: self.estimated,
+            encoded_limit: 4096,
+        })
+    }
+    fn begin(&self, _: ProductScene, _: ImageRequest, _: JobOptions, _: CancelToken) -> Result<Box<dyn ImageWork>> {
+        Ok(Box::new(ProbeTask { admitted_at_drop: self.admitted_at_drop.clone(), budget: self.budget.clone(), steps: 0 }))
+    }
+}
+
+fn probe_host(estimated: u64) -> (CpuHost, Arc<AtomicU64>) {
+    let admitted_at_drop = Arc::new(AtomicU64::new(0));
+    let budget = Arc::new(std::sync::OnceLock::new());
+    let host = CpuHost::cooperative_with(Arc::new(DropProbe { admitted_at_drop: admitted_at_drop.clone(), budget: budget.clone(), estimated }));
+    let _ = budget.set(host.0.shared.budget.clone());
+    (host, admitted_at_drop)
+}
+
+#[test]
+fn a_completed_task_is_dropped_while_its_full_reservation_still_pays_for_it() {
+    let estimated = 1 << 20;
+    let (host, admitted_at_drop) = probe_host(estimated);
+    let job = host.submit(id(1, 1), 1, empty(), request()).unwrap();
+    drain(&host);
+    assert_eq!(job.status().unwrap().progress.phase, Phase::Completed);
+    // While the task (and its scratch) was being dropped, its whole charge was still held.
+    assert_eq!(admitted_at_drop.load(Ordering::Acquire), estimated);
+    // Afterwards only the PNG's lease remains, and the frame keeps it.
+    let frame = job.frame().unwrap().unwrap();
+    assert!(host.admitted_bytes() > 0 && host.admitted_bytes() < estimated, "{}", host.admitted_bytes());
+    drop(job);
+    drop(frame);
+    assert_eq!(host.admitted_bytes(), 0);
+}
+
+#[test]
+fn a_cancel_on_the_final_step_publishes_no_frame_and_drops_the_task() {
+    let estimated = 1 << 20;
+    let (host, admitted_at_drop) = probe_host(estimated);
+    let job = host.submit(id(1, 1), 1, empty(), request()).unwrap();
+    // Two pending steps, then cancel before the step that would complete.
+    host.pump(1).unwrap();
+    host.pump(1).unwrap();
+    job.cancel().unwrap();
+    drain(&host);
+    assert_eq!(job.status().unwrap().progress.phase, Phase::Cancelled);
+    assert!(job.frame().unwrap().is_none());
+    assert_eq!(admitted_at_drop.load(Ordering::Acquire), estimated, "the task went before its charge");
+    assert_eq!(host.admitted_bytes(), 0);
+}

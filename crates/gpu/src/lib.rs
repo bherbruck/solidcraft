@@ -20,6 +20,8 @@ use solidcraft_geom::tess::{EvalCurve, EvalSurface, TessPlan};
 use wgpu::util::DeviceExt;
 
 pub mod capture;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod path;
 mod pbr;
 pub mod pick;
 #[cfg(not(target_arch = "wasm32"))]
@@ -66,14 +68,19 @@ fn popped(f: impl std::future::Future<Output = Option<wgpu::Error>>) -> Option<w
 fn open_headless() -> Result<(wgpu::Adapter, wgpu::Device, wgpu::Queue)> {
     let policy = select::Policy::from_env().map_err(GpuError::Policy)?;
     let (adapter, _) = select::pick(policy).ok_or(GpuError::NoAdapter(policy.name()))?;
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+    let (device, queue) = open_device(&adapter)?;
+    Ok((adapter, device, queue))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn open_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)> {
+    pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
         label: Some("solidcraft headless"),
-        required_features: depth_features(&adapter),
+        required_features: depth_features(adapter),
         required_limits: wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
         ..Default::default()
     }))
-    .map_err(|e| GpuError::Device(e.to_string()))?;
-    Ok((adapter, device, queue))
+    .map_err(|e| GpuError::Device(e.to_string()))
 }
 
 /// Most vertices evaluated in one dispatch (bounds the buffers; larger plans go in batches).

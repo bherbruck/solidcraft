@@ -145,3 +145,25 @@ fn png_output_budget_and_cancellation_fail_without_partial_publication() {
     assert!(writer.flush().is_err());
     assert_eq!(*bytes.lock().unwrap(), b"PNG");
 }
+
+#[test]
+fn registered_executor_geometry_admission_excludes_the_cpu_raster_estimate() {
+    // A library-bounded source: about 100 MiB of face appearances on a small mesh at the
+    // largest image. Its CPU raster estimate is above 384 MiB at a registered executor's cap.
+    let count = (100 * 1024 * 1024 / std::mem::size_of::<FaceAppearance>()).min(1_000_000);
+    let mut body = square("appearances", [200; 3], 1.0, Vec3::ZERO);
+    body.faces = vec![FaceAppearance { face: 0, color: [200; 3], opacity: 1.0, surface: None }; count];
+    let source = scene(vec![body]);
+    let mut r = request();
+    r.width = 2048;
+    r.height = 2048;
+    let cpu = admit_raster(admit_source(&source, &r, 1_048_576).unwrap()).unwrap_err();
+    assert_eq!(cpu.code, ErrorCode::LimitExceeded);
+    assert!(cpu.message.contains("384 MiB"), "{}", cpu.message);
+    let geometry = admit_geometry(&source, &r, 1_048_576).unwrap();
+    assert_eq!((geometry.pixel_scratch_bytes, geometry.preparation_bytes), (0, 0));
+    assert_eq!(geometry.estimated_total_bytes, geometry.geometry_bytes);
+    assert_eq!(geometry.face_appearances, count as u64);
+    // The CPU host itself keeps rejecting the source.
+    assert_eq!(admit(&source, &r).unwrap_err().code, ErrorCode::LimitExceeded);
+}

@@ -56,6 +56,7 @@ const USAGE: &str = "usage:
        --camera: {target: [x,y,z], yaw, pitch, distance, fov?} in mm and radians, as the MCP screenshot takes it (docs/mcp.md);
        --no-grid and --no-axes leave the ground grid (on Z 0) and the origin's axes out of the picture)
   solidcraft-cli render <script|design> --out image.png [--setup NAME] [--width W] [--height H] [--transparent] [--overwrite] [--timeout SECONDS]
+      [--progressive] [--samples N] [--max-depth N] [--seed N] [--exposure EV]
   solidcraft-cli exec <command> [json-params]
   solidcraft-cli commands
   solidcraft-cli recipe <recipe.json>

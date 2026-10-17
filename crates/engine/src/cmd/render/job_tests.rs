@@ -23,6 +23,70 @@ fn finish(host: &CpuHost) {
     panic!("cooperative job did not finish");
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn additional_executor_routes_by_capability_and_survives_document_adoption() {
+    use solidcraft_render::job::{Admission, CancelToken, ImageExecutor, ImageHost, ImageRequest, ImageTask, ImageWork, JobOptions};
+    struct Progressive;
+    impl ImageExecutor for Progressive {
+        fn descriptor(&self) -> solidcraft_render::job::Result<solidcraft_render::ExecutorDescriptor> {
+            let mut descriptor = CpuHost::cooperative().descriptor()?;
+            descriptor.id = solidcraft_render::ExecutorId::new("test-progressive").unwrap();
+            descriptor.profiles[0].features.push(solidcraft_render::RenderFeature::Progressive);
+            Ok(descriptor)
+        }
+        fn admit(
+            &self,
+            scene: &solidcraft_render::ProductScene,
+            request: &ImageRequest,
+            options: JobOptions,
+        ) -> solidcraft_render::job::Result<Admission> {
+            options.validate()?;
+            solidcraft_render::job::admit(scene, request)
+        }
+        fn begin(
+            &self,
+            scene: solidcraft_render::ProductScene,
+            request: ImageRequest,
+            _: JobOptions,
+            cancel: CancelToken,
+        ) -> solidcraft_render::job::Result<Box<dyn ImageWork>> {
+            Ok(Box::new(ImageTask::new(scene, request, cancel)?))
+        }
+    }
+    let (mut session, cpu) = session();
+    let additional = ImageHost::with_executor(Arc::new(Progressive)).unwrap();
+    session.register_render_job_host(additional.clone()).unwrap();
+    assert!(
+        session.register_render_job_host(ImageHost::with_executor(Arc::new(Progressive)).unwrap()).is_err(),
+        "duplicate executor IDs must be rejected"
+    );
+    let cpu_id = start(&mut session);
+    let request = json!({"settings":{"width":16,"height":16},"progressive":true,"samples":3});
+    let preflight = session.execute("render.preflight", &request).unwrap();
+    assert_eq!(preflight["resolved"]["executor"], "test-progressive");
+    assert_eq!(additional.admitted_bytes(), 0);
+    let started = session.execute("render.start", &request).unwrap();
+    let id: JobId = serde_json::from_value(started["job"].clone()).unwrap();
+    let status = session.render_job_handle(id).unwrap().wait_timeout(std::time::Duration::from_secs(10)).unwrap();
+    assert_eq!(status.resolved.executor.as_str(), "test-progressive");
+    assert_eq!(status.options.samples, 3);
+    assert_eq!(status.progress.phase, solidcraft_render::job::Phase::Completed);
+    finish(&cpu);
+    assert_eq!(session.execute("render.status", &json!({"job":cpu_id})).unwrap()["frame"]["executor"], "cpu-product");
+    assert!(session.scratch().execute("render.status", &json!({"job":id})).is_err());
+    session.execute("file.new", &json!({})).unwrap();
+    assert_eq!(session.execute("render.preflight", &request).unwrap()["resolved"]["executor"], "test-progressive");
+    assert!(session.execute("render.status", &json!({"job":id})).is_err());
+    for bad in [json!({"samples":0}), json!({"max_depth":17}), json!({"seed":-1}), json!({"samples":4097})] {
+        let mut params = request.clone();
+        for (key, value) in bad.as_object().unwrap() {
+            params[key] = value.clone();
+        }
+        assert!(session.execute("render.start", &params).is_err());
+    }
+}
+
 #[test]
 fn runtime_commands_preserve_document_history_and_evaluation() {
     let (mut s, host) = session();
