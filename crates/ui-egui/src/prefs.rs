@@ -280,6 +280,9 @@ pub struct Prefs {
     pub space_mouse_axis_speed: [f32; 6],
     /// Anti-aliasing samples (applies on restart).
     pub msaa: u32,
+    /// The grid turns to the upright origin plane facing a side view (#1470). Off by default: the
+    /// grid stays on the ground plane (XY) whatever the view.
+    pub grid_follows_view: bool,
     /// How finely the viewport tessellates curved faces and edges: `coarse`, `normal`, `fine` or
     /// `ultra` (#1287). Only the display plan the viewport draws; never the design or exports.
     pub display_quality: String,
@@ -410,6 +413,7 @@ impl Default for Prefs {
             space_mouse_reverse: [false; 6],
             space_mouse_axis_speed: [1.0; 6],
             msaa: 4,
+            grid_follows_view: false,
             display_quality: "normal".into(),
             supersampling: 1.0,
             supersampling_adaptive: true,
@@ -1264,6 +1268,10 @@ fn page(app: &mut SolveApp, ui: &mut egui::Ui, t: &Tokens) {
             ui.end_row();
             ui.label(crate::i18n::tr_label("Grid"));
             ui.checkbox(&mut app.ui.show_grid, "");
+            ui.end_row();
+            ui.label(crate::i18n::tr_label("Grid follows the view"));
+            ui.add_enabled(app.ui.show_grid, egui::Checkbox::without_text(&mut app.preferences.grid_follows_view))
+                .on_hover_text(crate::i18n::tr_label("Side views show the grid on the upright plane facing them instead of the ground"));
             ui.end_row();
             ui.label(crate::i18n::tr_label("Ground shadow"));
             ui.checkbox(&mut app.ui.ground_shadow, "");

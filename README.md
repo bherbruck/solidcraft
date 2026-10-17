@@ -26,7 +26,7 @@
   <a href="https://solidcraft.io/download">Download</a> ·
   <a href="https://solidcraft.io/app">Try it in the browser</a> ·
   <a href="https://docs.solidcraft.io/">Documentation</a> ·
-  <a href="https://solidcraft.io/discord">Discord</a> ·
+  <a href="https://discord.gg/FtU4NQNVDH">Discord</a> ·
   <a href="https://github.com/bherbruck/solidcore">SolidCore</a>
 </p>
 
@@ -35,7 +35,7 @@
   <a href="https://github.com/tangency-labs/solidcraft/releases/latest"><img src="https://img.shields.io/github/v/release/tangency-labs/solidcraft?label=release" alt="Latest release" /></a>
   <a href="https://github.com/tangency-labs/solidcraft/releases"><img src="https://img.shields.io/github/downloads/tangency-labs/solidcraft/total?label=downloads" alt="Downloads" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/tangency-labs/solidcraft" alt="Licence" /></a>
-  <a href="https://solidcraft.io/discord"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="https://discord.gg/FtU4NQNVDH"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://remade.wiki/projects/solidcraft/"><img src="https://remade.wiki/badges/listed-on-remade-classic.svg" alt="Listed on Remade" /></a>
   <a href="https://github.com/tangency-labs/solidcraft/stargazers"><img src="https://img.shields.io/github/stars/tangency-labs/solidcraft?style=flat" alt="Stars" /></a>
 </p>
@@ -90,7 +90,7 @@ Install details, upgrading from earlier builds and building from source are in
 **Documentation:** the [SolidCraft book](https://docs.solidcraft.io/) (user guide,
 developer guide and command reference; sources in [docs/book](docs/book)).
 
-**Community:** chat with users and contributors on [Discord](https://solidcraft.io/discord).
+**Community:** chat with users and contributors on [Discord](https://discord.gg/FtU4NQNVDH).
 
 **Status: early but usable for simple parts.** 75 of 76 public reference parts
 match their analytic or FreeCAD-computed volume, area, centre of mass and bounding box

@@ -10,6 +10,10 @@
 # and app startup) run on pull requests only when what they test changes (the GPU crate, the app,
 # the viewport's GPU glue, the graphics dependencies, their scripts or this file); main and
 # nightly always run them. Only main saves the build caches; pull requests restore them.
+# The merge queue runs the full suite on exactly the commit it then puts on main, so a push to
+# main that a passing merge-queue run already tested runs only the repository checks; a push
+# that skipped the queue still runs everything. Pull requests run the reference tests when the
+# command line (or anything it depends on) changes, and doc tests for the affected packages.
 # Cross-compilation is opt-in through Run workflow; release builds remain in release.yml.
 # Pushes to main and merge-queue groups use both pools: Clippy, the doc tests and test shards
 # 1-2 run on the self-hosted runner (`self-hosted-fast`, warm build directories via
@@ -64,12 +68,17 @@ jobs:
   changes:
     name: Select checks
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # To ask whether the merge queue already tested a commit pushed to main.
+      actions: read
     outputs:
       native: ${{ steps.paths.outputs.native }}
       kernel: ${{ steps.paths.outputs.kernel }}
       windows: ${{ steps.paths.outputs.windows }}
       full: ${{ steps.paths.outputs.full }}
       packages: ${{ steps.paths.outputs.packages }}
+      oracle: ${{ steps.paths.outputs.oracle }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -80,13 +89,30 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           native=false
           kernel=false
           windows=false
           full=true
           packages=
-          if [ "$EVENT_NAME" != pull_request ]; then
+          if [ "$EVENT_NAME" = push ]; then
+            # The queue lands the very commit its merge_group run tested. If that run passed,
+            # testing the push again proves nothing new; otherwise (a merge that skipped the
+            # queue, or the API cannot answer) test everything.
+            # curl and grep only: Select checks of a push runs on the self-hosted runner.
+            tested=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/actions/workflows/ci.yml/runs?event=merge_group&head_sha=$PUSH_SHA&status=success&per_page=1" \
+              | grep -o '"total_count": *[0-9]*' | grep -o '[0-9]*$' || echo 0)
+            if [ "${tested:-0}" -gt 0 ]; then
+              echo "The merge queue already tested $PUSH_SHA: repository checks only."
+            else
+              native=true
+              windows=true
+            fi
+          elif [ "$EVENT_NAME" != pull_request ]; then
             native=true
             windows=true
           else
@@ -121,10 +147,17 @@ jobs:
             # Code changed but nothing was selected: be safe and test everything.
             if [ "$native" = true ] && [ "$full" != true ] && [ -z "$packages" ]; then full=true; fi
           fi
+          # The reference tests replay recipes through solidcraft-cli: needed when it, or anything
+          # it depends on, is selected.
+          oracle=$native
+          if [ "$EVENT_NAME" = pull_request ] && [ "$full" != true ]; then
+            case " $packages " in *" solidcraft-cli "*) ;; *) oracle=false ;; esac
+          fi
           {
             echo "native=$native"
             echo "kernel=$kernel"
             echo "windows=$windows"
+            echo "oracle=$oracle"
             echo "full=$full"
             echo "packages=$packages"
           } >> "$GITHUB_OUTPUT"
@@ -416,12 +449,32 @@ jobs:
         with:
           version: v0.16.0
       # nextest does not run doc tests.
-      - run: cargo test --workspace --profile ci --locked --doc
+      - name: Doc tests
+        env:
+          FULL: ${{ needs.changes.outputs.full }}
+          PACKAGES: ${{ needs.changes.outputs.packages }}
+        run: |
+          # Pull requests test the affected packages that have a library (only libraries have doc
+          # tests); everything else, the whole workspace.
+          scope=(--workspace)
+          if [ "$FULL" != true ]; then
+            scope=()
+            libs=$(cargo metadata --no-deps --format-version 1 --locked \
+              | python3 -I -c 'import json, sys; print(" ".join(p["name"] for p in json.load(sys.stdin)["packages"] if any("lib" in t["kind"] for t in p["targets"])))')
+            for p in $PACKAGES; do
+              case " $libs " in *" $p "*) scope+=(-p "$p") ;; esac
+            done
+          fi
+          if [ ${#scope[@]} -eq 0 ]; then
+            echo "No affected package has a library: no doc tests to run."
+            exit 0
+          fi
+          cargo test "${scope[@]}" --profile ci --locked --doc
 
   oracle:
     name: Reference tests
     needs: changes
-    if: needs.changes.outputs.native == 'true'
+    if: needs.changes.outputs.oracle == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -520,6 +573,7 @@ jobs:
           CHECKS: ${{ needs.checks.result }}
           NATIVE: ${{ needs.changes.outputs.native }}
           WINDOWS: ${{ needs.changes.outputs.windows }}
+          ORACLE_RUN: ${{ needs.changes.outputs.oracle }}
           CLIPPY: ${{ needs.clippy.result }}
           BUILD: ${{ needs.build-tests.result }}
           TESTS: ${{ needs.tests.result }}
@@ -535,6 +589,8 @@ jobs:
             test "$BUILD" = success
             test "$TESTS" = success
             test "$DOCS" = success
+          fi
+          if [ "$ORACLE_RUN" = true ]; then
             test "$ORACLE" = success
           fi
           if [ "$WINDOWS" = true ]; then
