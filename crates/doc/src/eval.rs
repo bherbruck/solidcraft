@@ -165,6 +165,8 @@ pub struct SolvedSketch {
     pub sketch: solidcraft_sketch::Sketch,
     pub report: SolveReport,
     pub profiles: Vec<Profile>,
+    /// Open and untied ends of its profile curves (where a profile can fail).
+    pub ends: solidcraft_sketch::EndReport,
 }
 
 /// A cosmetic thread: on which cylinder, its size, and the threaded part of the axis.
@@ -1104,7 +1106,15 @@ impl Model {
         let Some(last) = self.results.get(i).filter(|r| !r.skipped && r.error.is_none()).and_then(|r| r.state.sketch(feature)) else {
             return false;
         };
-        let solved = Arc::new(SolvedSketch { feature, name: last.name.clone(), plane: last.plane, profiles: find_profiles(&sketch), sketch, report });
+        let solved = Arc::new(SolvedSketch {
+            feature,
+            name: last.name.clone(),
+            plane: last.plane,
+            profiles: find_profiles(&sketch),
+            ends: solidcraft_sketch::loose_ends(&sketch),
+            sketch,
+            report,
+        });
         let shown = self.results.iter().rposition(|r| !r.skipped);
         for (k, r) in self.results.iter_mut().enumerate().skip(i) {
             r.stale = true;
@@ -1581,6 +1591,29 @@ fn apply_beside_sheet_cut(st: &mut ModelState, f: &Feature, tools: Vec<Traced>, 
     apply_traced(st, f, tools, op, &rest)
 }
 
+/// Only one target meets every separated tool. A tool with no contact must retain
+/// Join's first-target fallback; tools touching different targets must retain absorption order.
+fn common_join_target(state: &ModelState, indices: &[usize], tools: &[Traced]) -> Result<Option<usize>> {
+    if indices.len() > 64 {
+        return Ok(None);
+    }
+    let bodies: Vec<_> = tools.iter().map(|tool| tool.body.clone()).collect();
+    let mut contacts = vec![None; tools.len()];
+    for &index in indices {
+        let body = state.bodies.get(index).ok_or_else(|| DocError::Invalid("join target disappeared".into()))?;
+        for (contact, meets) in contacts.iter_mut().zip(body.body.meets_each(&bodies)?) {
+            if meets {
+                if contact.is_some() {
+                    return Ok(None);
+                }
+                *contact = Some(index);
+            }
+        }
+    }
+    let common = contacts.first().copied().flatten();
+    Ok(common.filter(|index| contacts.iter().all(|contact| *contact == Some(*index))))
+}
+
 fn apply_op(state: &mut ModelState, f: &Feature, tools: Vec<Body>, op: Operation, targets: &[String]) -> Result<()> {
     apply_traced(state, f, tools.into_iter().map(Traced::unnamed).collect(), op, targets)
 }
@@ -1633,6 +1666,41 @@ fn apply_traced(state: &mut ModelState, f: &Feature, tools: Vec<Traced>, op: Ope
         for &i in &target_idx {
             if let Some(mb) = state.bodies.get(i).filter(|b| state.sheets.iter().any(|s| s.body == b.name)) {
                 sheet_boolean_unchanged(&mb.body, &bodies, op)?;
+            }
+        }
+    }
+    // Batching solid targets must preserve Join's absorption order,
+    // sheet material tracking and the separate bodies of a New Body extrusion.
+    if tools.len() > 1
+        && matches!(f.kind, FeatureKind::Extrude { .. })
+        && matches!(op, Operation::Join | Operation::Cut)
+        && !target_idx.is_empty()
+        && target_idx.iter().all(|i| state.bodies.get(*i).is_some_and(|b| !b.body.is_mesh() && !state.sheets.iter().any(|s| s.body == b.name)))
+        && let Ok(Some(compound)) = kernel::compound_disjoint_extrusions(&tools.iter().map(|tool| tool.body.clone()).collect::<Vec<_>>())
+    {
+        let target = if target_idx.len() == 1 {
+            target_idx.first().copied()
+        } else if op == Operation::Join {
+            common_join_target(state, &target_idx, &tools).ok().flatten()
+        } else {
+            None
+        };
+        // The optimization must not reject geometry the original sequential path can
+        // handle. A failed batch leaves the model untouched and retries the original tools.
+        let batch_targets = if op == Operation::Cut {
+            // Subtracting a union equals subtracting its separated tools in order.
+            // Keep ALL original participants; no sampled contact test excludes a body.
+            Some(target_idx.iter().filter_map(|index| state.bodies.get(*index).map(|body| body.name.clone())).collect::<Vec<_>>())
+        } else {
+            target.and_then(|index| state.bodies.get(index)).map(|body| vec![body.name.clone()])
+        };
+        if let Some(names) = batch_targets {
+            let mut batched = state.clone();
+            // Preserve the original participants. For Join, the compound's larger
+            // size must not expand the contact tolerance and absorb a nearby body.
+            if apply_traced(&mut batched, f, vec![Traced::step(compound, &tools.iter().collect::<Vec<_>>())], op, &names).is_ok() {
+                *state = batched;
+                return Ok(());
             }
         }
     }
@@ -3219,25 +3287,63 @@ fn feature_tools_with_constructor(
             // Each tool's extent along the normal (they differ where one is run on into a face).
             let mut extents: Vec<(f64, f64)> = Vec::with_capacity(regions.len());
             let plain_targets: Vec<String> = crate::plain(targets);
-            let surroundings = Surroundings::of(st, *operation, &plain_targets);
-            // Trimming may discard a tool's material, so only bodies this feature
-            // actually joins can establish that the discarded end is already filled.
-            let participants = if plain_targets.is_empty() { &f.participants } else { &plain_targets };
-            let trim_targets: Vec<String> = st
-                .bodies
-                .iter()
-                .filter(|b| {
-                    if participants.is_empty() {
-                        b.component == f.component || b.feature == f.id
-                    } else {
-                        participants.iter().any(|t| t == "*" || t == &b.name)
-                    }
-                })
-                .map(|b| b.name.clone())
-                .collect();
-            let join_surroundings =
-                if *operation == Operation::Join && !trim_targets.is_empty() { Surroundings::of(st, *operation, &trim_targets) } else { None };
-            for r in &regions {
+            let exact_planar_cut = *operation == Operation::Cut
+                && ss.sketch.links.len() > 1
+                && ss.sketch.links.iter().all(|link| matches!(&link.source, solidcraft_sketch::LinkSource::Face { .. }))
+                && st
+                    .bodies
+                    .iter()
+                    .filter(|body| plain_targets.is_empty() || plain_targets.iter().any(|target| target == "*" || target == &body.name))
+                    .all(|body| kernel::is_planar(&body.body));
+            let mut touching_batch = false;
+            // Generated face profiles have full source seams. Check all of them in
+            // one guarded construction; arbitrary sketch profiles retain their existing path.
+            if *operation == Operation::Join
+                && regions.len() > 1
+                && ss.sketch.links.len() > 1
+                && ss.sketch.links.iter().all(|link| matches!(&link.source, solidcraft_sketch::LinkSource::Face { .. }))
+            {
+                let exact = regions
+                    .iter()
+                    .map(|region| centered_extrude(&ss.plane, region, lo + off, hi + off, Some(&ss)))
+                    .collect::<Result<Vec<_>>>()?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                if let Ok(Some(compound)) = kernel::compound_disjoint_extrusions(&exact.iter().map(|tool| tool.body.clone()).collect::<Vec<_>>())
+                    && st
+                        .bodies
+                        .iter()
+                        .filter(|body| plain_targets.is_empty() || plain_targets.contains(&body.name))
+                        .any(|body| kernel::can_join_all_touching_faces(&body.body, &compound))
+                {
+                    tools = exact;
+                    touching_batch = true;
+                }
+            }
+            let surroundings = if exact_planar_cut || touching_batch { None } else { Surroundings::of(st, *operation, &plain_targets) };
+            let join_surroundings = if *operation == Operation::Join && !touching_batch {
+                // Trimming may discard a tool's material, so only bodies this feature
+                // actually joins can establish that the discarded end is already filled.
+                let participants = if plain_targets.is_empty() { &f.participants } else { &plain_targets };
+                let trim_targets: Vec<String> = st
+                    .bodies
+                    .iter()
+                    .filter(|b| {
+                        if participants.is_empty() {
+                            b.component == f.component || b.feature == f.id
+                        } else {
+                            participants.iter().any(|t| t == "*" || t == &b.name)
+                        }
+                    })
+                    .map(|b| b.name.clone())
+                    .collect();
+
+                if trim_targets.is_empty() { None } else { Surroundings::of(st, *operation, &trim_targets) }
+            } else {
+                None
+            };
+            for r in regions.iter().filter(|_| !touching_batch) {
                 if *operation == Operation::Join {
                     let exact = centered_extrude(&ss.plane, r, lo + off, hi + off, Some(&ss))?;
                     if exact.iter().all(|tool| {
@@ -4639,8 +4745,9 @@ fn eval_feature(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, st:
             }
             sk.validate_periodic_splines()?;
             let profiles = find_profiles(&sk);
+            let ends = solidcraft_sketch::loose_ends(&sk);
             st.sketches.retain(|s| s.feature != f.id);
-            st.sketches.push(Arc::new(SolvedSketch { feature: f.id, name: f.name.clone(), plane, sketch: sk, report, profiles }));
+            st.sketches.push(Arc::new(SolvedSketch { feature: f.id, name: f.name.clone(), plane, sketch: sk, report, profiles, ends }));
             Ok(())
         }
         FeatureKind::Extrude { operation, targets, .. }

@@ -13,8 +13,10 @@
 // unchanged, the kept build starts; when a new build is deployed, it is downloaded first
 // (waiting at most UPDATE_TIMEOUT_MS; the download goes on in the background after that) and
 // started. When the site has no `build.json` (the app was removed), launches go to the network,
-// the kept build answering when that fails. Each page then gets its files from the build it
-// started (remembered in PAGES), never from another build with a file of the same name.
+// the kept build answering when that fails. So they do when `build.json` is redirected or
+// refused (a sign-in in front of the app): the browser then shows the sign-in. Each page then
+// gets its files from the build it started (remembered in PAGES), never from another build
+// with a file of the same name.
 //
 // A cache is only deleted when nothing uses it: a download holds its lock (Web Locks, shared,
 // in any tab or worker; the browser releases it when the download ends or its worker stops), and
@@ -158,9 +160,14 @@ function within(ms, promise) {
 /** No app is deployed here any more (the server says `build.json` doesn't exist). */
 const GONE = "gone";
 
-/** The deployed build's version and files, GONE, or null (unknown: offline, failing, invalid). */
+/** The site wants a sign-in first (`build.json` is redirected, often to another origin, or refused). */
+const SIGN_IN = "sign-in";
+
+/** The deployed build's version and files, GONE, SIGN_IN, or null (unknown: offline, failing, invalid). */
 async function deployed() {
-  const response = await fetch(url("build.json"), { cache: "no-cache" });
+  // `manual`: a redirect to another origin would only fail (CORS), looking like being offline.
+  const response = await fetch(url("build.json"), { cache: "no-cache", redirect: "manual" });
+  if (response.type === "opaqueredirect" || response.status === 401 || response.status === 403) return SIGN_IN;
   if (response.status === 404 || response.status === 410) return GONE;
   const build = response.ok ? await response.json() : null;
   const valid = build && typeof build.version === "string" && Array.isArray(build.files);
@@ -182,6 +189,7 @@ async function launch(event) {
   if (!kept) return [await fetch(event.request), NETWORK]; // Nothing kept yet (the first visit).
   extend(event, sweep());
   const build = await within(NAVIGATE_TIMEOUT_MS, deployed());
+  if (build === SIGN_IN) return [await fetch(event.request), NETWORK];
   if (build === GONE) {
     const page = await fetch(event.request).catch(() => null);
     return page && page.ok ? [page, NETWORK] : [kept, CACHE];

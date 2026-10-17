@@ -274,6 +274,25 @@ completed drawings publish atomically. The browser still exports synchronously.
 
 ## 0.2.1 critical fixes
 
+- Separated multi-profile Join/Cut extrusions into one solid target batch their tools using
+  conservative construction bounds, avoiding a Boolean rebuild for every profile. Live
+  extrusion previews build only their tools; confirmation validates the final Boolean.
+- Coplanar selected body faces share one linked sketch and one extrusion. Automatic Join/Cut
+  keeps the evaluator's participant scope, including parts of an empty imported component. Desktop OK/Enter
+  computes on a scratch session in the background, with atomic acceptance and cancellation.
+  Planar section stitching projects lines/arcs analytically and removes duplicate endpoints.
+- Imported rotated face groups can check all full start-face seams in one guarded
+  construction. Separated tools may batch a Join when each meets the same single body;
+  nearby uninvolved bodies retain the original contact decisions. Regression comparisons
+  cover all four extrusion operations.
+- Inward multi-face cuts retain every eligible target and subtract separated tools together.
+  Safe interior classification handles roundoff at shared imported line/arc endpoints.
+  Straight extrusion feedback caches existing face/profile triangles and updates the display
+  directly, including a newly opened STEP's single identity component placement; other
+  extents, moved or repeated components and curved sketch profiles keep the Engine preview.
+- The extrusion fixes retain tracked Boolean history and the current `solidcraft` packages.
+  Confirmation and tool previews use main's shared background calculation. Main's collapsed
+  blend-wall refusal and its tests are retained, including smaller valid radii and mirrored parts.
 - Axis view and navigation controls stay anchored to the viewport when feature dialogs or
   the command palette open, at normal and enlarged display scales. Fit still accounts for
   dialog coverage; covered controls do not receive clicks through dialogs.

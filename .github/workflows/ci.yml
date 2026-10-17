@@ -20,7 +20,8 @@
 # There, Select checks and ci run on the self-hosted light runner (`self-hosted-light`, quick
 # jobs, so they never wait behind a build), and the repository checks, Clippy, the doc tests,
 # the reference tests and test shards 1-2 on the self-hosted runners (`self-hosted-fast`, warm
-# build directories via scripts/ci/warm-target.sh); everything else runs on GitHub's runners.
+# build directories via scripts/ci/warm-target.sh). Fork PRs' Linux jobs run on the isolated, ephemeral
+# `self-hosted-untrusted` runners (no warm caches); everything else runs on GitHub's runners.
 # The test archive is always built on GitHub's runners: the self-hosted machine has a newer
 # glibc, so its binaries wouldn't start on ubuntu-24.04, while the archive runs there unchanged
 # (same /home/runner/work checkout path). Fork pull requests, the nightly run and Run workflow
@@ -170,12 +171,12 @@ jobs:
 
   checks:
     name: Format and repository checks
-    runs-on: ${{ (github.event_name == 'merge_group' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'self-hosted-fast' || 'ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name == 'merge_group' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) && 'self-hosted-fast' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'self-hosted-untrusted' || 'ubuntu-24.04') }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Warm build directory (self-hosted runner)
-        if: runner.environment == 'self-hosted'
+        if: runner.environment == 'self-hosted' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
         run: scripts/ci/warm-target.sh checks
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -207,12 +208,12 @@ jobs:
     name: Native Linux Clippy
     needs: changes
     if: needs.changes.outputs.native == 'true'
-    runs-on: ${{ needs.changes.outputs.local == 'true' && 'self-hosted-fast' || 'ubuntu-24.04' }}
+    runs-on: ${{ needs.changes.outputs.local == 'true' && 'self-hosted-fast' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'self-hosted-untrusted' || 'ubuntu-24.04') }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Warm build directory (self-hosted runner)
-        if: runner.environment == 'self-hosted'
+        if: runner.environment == 'self-hosted' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
         run: scripts/ci/warm-target.sh clippy
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -237,7 +238,7 @@ jobs:
     name: Build tests
     needs: changes
     if: needs.changes.outputs.native == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'self-hosted-untrusted' || 'ubuntu-24.04' }}
     timeout-minutes: 45
     env:
       CARGO_INCREMENTAL: "0"
@@ -280,7 +281,7 @@ jobs:
   tests:
     name: Native Linux tests (${{ matrix.shard }}/4)
     needs: [changes, build-tests]
-    runs-on: ${{ (needs.changes.outputs.local == 'true' && matrix.shard <= 2) && 'self-hosted-fast' || 'ubuntu-24.04' }}
+    runs-on: ${{ (needs.changes.outputs.local == 'true' && matrix.shard <= 2) && 'self-hosted-fast' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'self-hosted-untrusted' || 'ubuntu-24.04') }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -436,7 +437,7 @@ jobs:
     name: Doc tests
     needs: changes
     if: needs.changes.outputs.native == 'true'
-    runs-on: ${{ needs.changes.outputs.local == 'true' && 'self-hosted-fast' || 'ubuntu-24.04' }}
+    runs-on: ${{ needs.changes.outputs.local == 'true' && 'self-hosted-fast' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'self-hosted-untrusted' || 'ubuntu-24.04') }}
     timeout-minutes: 45
     env:
       CARGO_INCREMENTAL: "0"
@@ -446,7 +447,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Warm build directory (self-hosted runner)
-        if: runner.environment == 'self-hosted'
+        if: runner.environment == 'self-hosted' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
         run: scripts/ci/warm-target.sh doc-tests
       - uses: dtolnay/rust-toolchain@stable
       # The self-hosted runner keeps its build directory and Cargo home instead.
@@ -486,7 +487,7 @@ jobs:
     name: Reference tests
     needs: changes
     if: needs.changes.outputs.oracle == 'true'
-    runs-on: ${{ needs.changes.outputs.local == 'true' && 'self-hosted-fast' || 'ubuntu-24.04' }}
+    runs-on: ${{ needs.changes.outputs.local == 'true' && 'self-hosted-fast' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'self-hosted-untrusted' || 'ubuntu-24.04') }}
     timeout-minutes: 60
     env:
       CARGO_INCREMENTAL: "0"
@@ -496,7 +497,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Warm build directory (self-hosted runner)
-        if: runner.environment == 'self-hosted'
+        if: runner.environment == 'self-hosted' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
         run: scripts/ci/warm-target.sh oracle
       - uses: dtolnay/rust-toolchain@stable
       # The self-hosted runner keeps its build directory and Cargo home instead.

@@ -181,8 +181,8 @@ pub fn extrude_planar_regions(plane: &Plane, regions: &[Region2], start: f64, en
                         remaining_pairs = remaining_pairs
                             .checked_sub(1)
                             .ok_or_else(|| KernelError::Invalid("planar extrusion separation exceeds its work budget".into()))?;
-                        let endpoints_touch = [s.start(), s.end()].iter().any(|p| t.point_at(t.closest_param(*p)).dist(*p) <= 1e-7)
-                            || [t.start(), t.end()].iter().any(|p| s.point_at(s.closest_param(*p)).dist(*p) <= 1e-7);
+                        let endpoints_touch = [s.start(), s.end()].iter().any(|p| t.point_at(closest_param(t, *p)).dist(*p) <= 1e-7)
+                            || [t.start(), t.end()].iter().any(|p| s.point_at(closest_param(s, *p)).dist(*p) <= 1e-7);
                         if endpoints_touch || !crossings(s, t, 1e-7).is_empty() {
                             return Err(KernelError::Invalid("planar material pieces touch at a boundary".into()));
                         }
@@ -765,7 +765,7 @@ fn heights_of(b: &Body, plane: &Plane) -> (f64, f64) {
 /// Does `s` run along `t` from end to end? Two lines, `s`'s ends on `t`; two arcs of one
 /// circle, `s`'s ends and middle on `t`.
 fn runs_along(s: &Seg2, t: &Seg2, tol: f64) -> bool {
-    let on = |p: Vec2| t.point_at(t.closest_param(p)).dist(p) < tol;
+    let on = |p: Vec2| t.point_at(closest_param(t, p)).dist(p) < tol;
     match (*s, *t) {
         (Seg2::Line { .. }, Seg2::Line { .. }) => on(s.start()) && on(s.end()),
         (Seg2::Arc { center: c, radius: r, .. }, Seg2::Arc { center: d, radius: q, .. }) => {
@@ -840,7 +840,7 @@ fn crossings(s: &Seg2, t: &Seg2, tol: f64) -> Vec<(f64, f64)> {
     }
     let mut out = Vec::new();
     for p in pts {
-        let (u, v) = (s.closest_param(p), t.closest_param(p));
+        let (u, v) = (closest_param(s, p), closest_param(t, p));
         if s.point_at(u).dist(p) < tol && t.point_at(v).dist(p) < tol {
             out.push((u, v));
         }
@@ -871,7 +871,7 @@ fn inside_loop(lp: &Loop2, p: Vec2) -> bool {
         }
     }
     // A point on the loop keeps the half-open answer.
-    if lp.segs.iter().any(|s| s.point_at(s.closest_param(p)).dist(p) < scale * 1e-9) {
+    if lp.segs.iter().any(|s| s.point_at(closest_param(s, p)).dist(p) < scale * 1e-9) {
         return inside_loop_ray(lp, p);
     }
     let grazes = |q: Vec2| {
@@ -991,12 +991,43 @@ fn inside(regions: &[Region2], p: Vec2) -> bool {
     regions.iter().any(|r| inside_loop(&r.outer, p) && !r.holes.iter().any(|h| inside_loop(h, p)))
 }
 
+/// Call only after proving the point is at least `tol` from the other boundary.
+/// This sub-tolerance interior probe cannot cross that boundary, and avoids casting
+/// exactly through fitted arc/line endpoints whose heights differ by roundoff.
+fn inside_clear(regions: &[Region2], point: Vec2, tol: f64) -> bool {
+    inside(regions, point + Vec2::new(tol * 0.173, tol * 0.317))
+}
+
+/// Analytic projections avoid iterative searches at every planar boundary probe.
+/// Other curve types keep the shared solver introduced on main.
+fn closest_param(segment: &Seg2, point: Vec2) -> f64 {
+    match *segment {
+        Seg2::Line { a, b } => {
+            let direction = b - a;
+            let length2 = direction.dot(direction);
+            if length2 > 1e-300 && length2.is_finite() { ((point - a).dot(direction) / length2).clamp(0.0, 1.0) } else { 0.0 }
+        }
+        Seg2::Arc { center, radius, start, sweep } if radius > 0.0 && sweep.abs() > 1e-12 && sweep.abs() <= std::f64::consts::TAU + 1e-9 => {
+            let offset = point - center;
+            let delta = ((offset.y.atan2(offset.x) - start) * sweep.signum()).rem_euclid(std::f64::consts::TAU);
+            if delta <= sweep.abs() {
+                (delta / sweep.abs()).clamp(0.0, 1.0)
+            } else if segment.start().dist(point) <= segment.end().dist(point) {
+                0.0
+            } else {
+                1.0
+            }
+        }
+        _ => segment.closest_param(point),
+    }
+}
+
 fn dist_to(regions: &[Region2], p: Vec2) -> f64 {
     regions
         .iter()
         .flat_map(|r| std::iter::once(&r.outer).chain(&r.holes))
         .flat_map(|l| l.segs.iter())
-        .map(|s| s.point_at(s.closest_param(p)).dist(p))
+        .map(|s| s.point_at(closest_param(s, p)).dist(p))
         .fold(f64::INFINITY, f64::min)
 }
 
@@ -1043,7 +1074,7 @@ fn box_holds(b: Option<SegBox>, p: Vec2) -> bool {
 /// Distance from `p` to the nearest of `segs` whose box holds it: infinite when none does (no
 /// segment is within the tolerance of `p` then).
 fn near_dist(segs: &[Seg2], boxes: &[Option<SegBox>], p: Vec2) -> f64 {
-    segs.iter().zip(boxes).filter(|(_, b)| box_holds(**b, p)).map(|(s, _)| s.point_at(s.closest_param(p)).dist(p)).fold(f64::INFINITY, f64::min)
+    segs.iter().zip(boxes).filter(|(_, b)| box_holds(**b, p)).map(|(s, _)| s.point_at(closest_param(s, p)).dist(p)).fold(f64::INFINITY, f64::min)
 }
 
 /// Direction of the first of `segs` through `p` (within `tol`), as it runs.
@@ -1052,7 +1083,7 @@ fn near_dir(segs: &[Seg2], boxes: &[Option<SegBox>], p: Vec2, tol: f64) -> Optio
         .iter()
         .zip(boxes)
         .filter(|(_, b)| box_holds(**b, p))
-        .map(|(s, _)| (s, s.closest_param(p)))
+        .map(|(s, _)| (s, closest_param(s, p)))
         .find(|(s, t)| s.point_at(*t).dist(p) < tol)?;
     s.derivative(t).normalized()
 }
@@ -1193,7 +1224,7 @@ fn trimmed(src: &Seg2, t0: f64, t1: f64, a: Vec2, b: Vec2) -> Seg2 {
     if hi < 1.0 - 1e-12 {
         // Splitting a conic renormalises its weights, which moves its parameters: the second
         // split is found on the piece.
-        let at = s.closest_param(src.point_at(hi));
+        let at = closest_param(&s, src.point_at(hi));
         if at < 1.0 - 1e-12 {
             s = s.split_at(at).0;
         }
@@ -1304,7 +1335,7 @@ fn exact_loop(lp: &Loop2, tags: &[Tag], sources: &[Seg2], near: f64) -> (Vec<Seg
             } else if p.dist(src.end()) < near {
                 1.0
             } else {
-                src.closest_param(p)
+                closest_param(src, p)
             }
         };
         let (t0, t1) = (at(seg.start()), at(last.end()));
@@ -1340,12 +1371,12 @@ fn exact_loop(lp: &Loop2, tags: &[Tag], sources: &[Seg2], near: f64) -> (Vec<Seg
             (Piece::Exact { src: f, t1, .. }, Piece::Exact { src: g, t0, .. }) if f != g && (inner(t1) || inner(t0)) => {
                 src(f).zip(src(g)).and_then(|(x, y)| meet(x, t1, y, t0, near).map(|(a, b)| (Some(a), Some(b), x.point_at(a))))
             }
-            (Piece::Exact { src: f, t1, .. }, Piece::Plain(s, _)) if inner(t1) => {
-                src(f).zip(carrier(&s)).and_then(|(x, c)| meet(x, t1, &c, c.closest_param(joint), near).map(|(a, _)| (Some(a), None, x.point_at(a))))
-            }
-            (Piece::Plain(s, _), Piece::Exact { src: f, t0, .. }) if inner(t0) => {
-                src(f).zip(carrier(&s)).and_then(|(x, c)| meet(x, t0, &c, c.closest_param(joint), near).map(|(a, _)| (None, Some(a), x.point_at(a))))
-            }
+            (Piece::Exact { src: f, t1, .. }, Piece::Plain(s, _)) if inner(t1) => src(f)
+                .zip(carrier(&s))
+                .and_then(|(x, c)| meet(x, t1, &c, closest_param(&c, joint), near).map(|(a, _)| (Some(a), None, x.point_at(a)))),
+            (Piece::Plain(s, _), Piece::Exact { src: f, t0, .. }) if inner(t0) => src(f)
+                .zip(carrier(&s))
+                .and_then(|(x, c)| meet(x, t0, &c, closest_param(&c, joint), near).map(|(a, _)| (None, Some(a), x.point_at(a)))),
             _ => None,
         };
         // No crossing to refine (or none found): both end where the curve does.
@@ -1449,7 +1480,7 @@ fn boolean2d_arcs(a: &Section, b: &Section, op: BoolOp, tol: f64) -> Option<Sect
                 continue;
             }
             for p in [t.start(), t.end()] {
-                let u = s.closest_param(p);
+                let u = closest_param(s, p);
                 if s.point_at(u).dist(p) < tol {
                     events += 1;
                     if events > MAX_PLANAR_EVENTS {
@@ -1466,7 +1497,7 @@ fn boolean2d_arcs(a: &Section, b: &Section, op: BoolOp, tol: f64) -> Option<Sect
                 continue;
             }
             for p in [s.start(), s.end()] {
-                let v = t.closest_param(p);
+                let v = closest_param(t, p);
                 if t.point_at(v).dist(p) < tol {
                     events += 1;
                     if events > MAX_PLANAR_EVENTS {
@@ -1522,7 +1553,7 @@ fn boolean2d_arcs(a: &Section, b: &Section, op: BoolOp, tol: f64) -> Option<Sect
                     BoolOp::Cut => !same,
                 }
             } else {
-                let ins = inside(&b, m);
+                let ins = inside_clear(&b, m, tol);
                 match op {
                     BoolOp::Union | BoolOp::Cut => !ins,
                     BoolOp::Intersect => ins,
@@ -1548,7 +1579,7 @@ fn boolean2d_arcs(a: &Section, b: &Section, op: BoolOp, tol: f64) -> Option<Sect
             if near_dist(&sa, &box_a, m) < tol {
                 continue;
             }
-            let ins = inside(&a, m);
+            let ins = inside_clear(&a, m, tol);
             if kept.len() >= MAX_PLANAR_SEGMENTS {
                 return None;
             }
@@ -1712,7 +1743,7 @@ fn split_seg(seg: &Seg2, pts: &[Vec2], tol: f64) -> Option<Vec<Seg2>> {
             if p.dist(seg.start()) < tol || p.dist(seg.end()) < tol {
                 return None;
             }
-            let t = seg.closest_param(*p);
+            let t = closest_param(seg, *p);
             (t > 1e-9 && t < 1.0 - 1e-9 && seg.point_at(t).dist(*p) < tol).then_some(t)
         })
         .collect();
@@ -1941,6 +1972,13 @@ fn sew_connected_sections(
             grid.entry(cell(u)).or_default().push(ends.len());
             ends.push(u);
         }
+    }
+    // Welding above keeps its original encounter order. Side splitting needs
+    // only the distinct stations, whose resulting parameters are sorted anyway.
+    // Deduplicate in place, with bounded sorting work and no extra point list.
+    if pts.len() <= MAX_PLANAR_SEGMENTS * 8 {
+        pts.sort_unstable_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
+        pts.dedup_by_key(|p| (p.x.to_bits(), p.y.to_bits()));
     }
     // A piece of a free-form curve whose ends weld into one point (a font's curve cut a hair from
     // its end) is no edge and has no wall: the pieces on either side meet there. (Lines and arcs
@@ -2518,6 +2556,62 @@ pub(crate) fn prism_union_between_caps(a: &Body, b: &Body, op: BoolOp) -> Option
 #[cfg(test)]
 mod planar_tests {
     use super::*;
+    #[test]
+    fn shared_arc_line_endpoint_roundoff_does_not_open_a_union() {
+        let a = Region2 { outer: Loop2::polygon(&[Vec2::new(-2., 0.), Vec2::new(2., 0.), Vec2::new(2., 2.), Vec2::new(-2., 2.)]), holes: vec![] };
+        let line = |a: (f64, f64), b: (f64, f64)| Seg2::Line { a: Vec2::new(a.0, a.1), b: Vec2::new(b.0, b.1) };
+        for epsilon in [-4e-14, 4e-14] {
+            let b = Region2 {
+                outer: Loop2 {
+                    segs: vec![
+                        line((1.15, epsilon), (-1.15, -epsilon)),
+                        Seg2::Arc { center: Vec2::new(-1.35, epsilon), radius: 0.2, start: 0., sweep: -std::f64::consts::FRAC_PI_2 },
+                        line((-1.35, -0.2), (-2.4, -0.2)),
+                        line((-2.4, -0.2), (-2.4, -1.)),
+                        line((-2.4, -1.), (2.4, -1.)),
+                        line((2.4, -1.), (2.4, -0.2)),
+                        line((2.4, -0.2), (1.35, -0.2)),
+                        Seg2::Arc {
+                            center: Vec2::new(1.35, -epsilon),
+                            radius: 0.2,
+                            start: -std::f64::consts::FRAC_PI_2,
+                            sweep: -std::f64::consts::FRAC_PI_2,
+                        },
+                    ],
+                },
+                holes: vec![],
+            };
+            let result = planar_regions_boolean(std::slice::from_ref(&a), std::slice::from_ref(&b), BoolOp::Union, 1e-5).unwrap();
+            assert_eq!(result.len(), 1);
+            assert!(result[0].outer.is_closed(1e-4));
+            assert!((result[0].area() - a.area() - b.area()).abs() < 1e-6);
+        }
+    }
+    #[test]
+    fn analytic_projection_keeps_clamped_lines_and_wrapped_arcs() {
+        let line = Seg2::Line { a: Vec2::new(2., 3.), b: Vec2::new(5., 7.) };
+        for (point, expected) in [(Vec2::new(-1., -1.), 0.), (Vec2::new(3.5, 5.), 0.5), (Vec2::new(8., 11.), 1.)] {
+            assert!((closest_param(&line, point) - expected).abs() < 1e-12);
+        }
+        for start in [-7., -0.5, 3., 7.] {
+            for sweep in [-std::f64::consts::TAU, -5., -0.2, 0.2, 5., std::f64::consts::TAU] {
+                let arc = Seg2::Arc { center: Vec2::new(2., -3.), radius: 4., start, sweep };
+                for index in 0..128 {
+                    let angle = index as f64 * std::f64::consts::TAU / 128.;
+                    let point = Vec2::new(2., -3.) + Vec2::new(angle.cos(), angle.sin()) * 6.;
+                    let nearest = arc.point_at(closest_param(&arc, point));
+                    // Includes both signs, sweeps over pi, seam crossings and endpoint clamps.
+                    for sample in 0..=128 {
+                        assert!(nearest.dist(point) <= arc.point_at(sample as f64 / 128.).dist(point) + 1e-10);
+                    }
+                }
+                for t in [0., 0.25, 0.5, 0.75, 1.] {
+                    let point = arc.point_at(t);
+                    assert!(arc.point_at(closest_param(&arc, point)).dist(point) < 1e-10);
+                }
+            }
+        }
+    }
     fn rectangle(a: Vec2, b: Vec2) -> Region2 {
         Region2 { outer: Loop2::polygon(&[a, Vec2::new(b.x, a.y), b, Vec2::new(a.x, b.y)]), holes: vec![] }
     }

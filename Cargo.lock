@@ -4069,6 +4069,7 @@ dependencies = [
  "ron",
  "rustls",
  "serde_json",
+ "solidcraft-3dx-client",
  "solidcraft-engine",
  "solidcraft-space-mouse",
  "solidcraft-ui-egui",
@@ -4076,6 +4077,10 @@ dependencies = [
  "windows-sys 0.61.2",
  "winit",
 ]
+
+[[package]]
+name = "solidcraft-3dx-client"
+version = "0.15.0"
 
 [[package]]
 name = "solidcraft-cli"
