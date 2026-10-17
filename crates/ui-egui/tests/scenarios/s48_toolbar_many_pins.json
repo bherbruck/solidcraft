@@ -1,6 +1,6 @@
 [
  {
-  "note": "#323: every pinned command gets a toolbar button, with no fixed cap. Ten commands pinned to SOLID > CREATE all show as buttons at a wide window; at a narrow one the panel collapses into its drop-down, then into the » menu, and none is dropped."
+  "note": "#323: every pinned command gets a toolbar button, with no fixed cap. Ten commands pinned to SOLID > CREATE all show as buttons at a wide window; at a narrower one the panel keeps the buttons that fit and its drop-down lists the rest (#2108), then it moves into the » menu, and none is dropped."
  },
  {
   "call": "ui.resize",
@@ -229,7 +229,7 @@
   }
  },
  {
-  "note": "A narrow window: CREATE collapses into one button that opens its drop-down, which lists every pinned command."
+  "note": "A narrower window: CREATE keeps its first buttons and hands the rest to its drop-down, which lists every pinned command (#2108)."
  },
  {
   "call": "ui.resize",
@@ -241,26 +241,18 @@
  {
   "expect": {
    "hidden_handles": [
-    "button:solid.box",
-    "button:solid.cylinder",
-    "button:solid.sphere",
-    "button:solid.torus",
-    "button:solid.coil",
-    "button:solid.loft",
-    "button:solid.mirror",
-    "button:solid.hole",
     "button:solid.pipe",
     "button:solid.thread"
    ],
    "shown_handles": [
-    "collapsed:SOLID:CREATE",
+    "button:solid.extrude",
     "panel:SOLID:CREATE"
    ]
   }
  },
  {
   "click": {
-   "handle": "collapsed:SOLID:CREATE"
+   "handle": "panel:SOLID:CREATE"
   }
  },
  {
