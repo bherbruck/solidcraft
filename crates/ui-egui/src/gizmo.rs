@@ -277,7 +277,11 @@ pub fn show(ui: &mut egui::Ui, painter: &egui::Painter, proj: &Proj, id: egui::I
     active?;
     ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
     let r = ui.interact(Rect::from_center_size(p, vec2(24.0, 24.0)), id.with("hit"), Sense::drag());
-    let free = ui.input(|i| i.modifiers.alt || i.modifiers.ctrl || i.modifiers.command);
+    // Free drag is driven by the per-frame thread-local set from prefs::manipulator_free_held.
+    let free = crate::tool_modifiers::manipulator_free();
+    if state.is_some() || r.dragged() || r.drag_started() {
+        crate::tool_modifiers::set_manipulator_dragging(true);
+    }
     let view = proj.ray(sh.ball).1;
     let plane_normal = |h: Handle| match h {
         Handle::Plane(i) | Handle::Ring(i) => DIRS[i],

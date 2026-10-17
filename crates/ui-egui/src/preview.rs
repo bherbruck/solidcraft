@@ -98,9 +98,21 @@ pub struct PreviewState {
     pub stopped: Option<serde_json::Value>,
     /// The radius splines the previewed fillet tapered its edges with.
     pub tapered: Vec<(Vec3, solidcraft_engine::kernel::Taper)>,
+    /// PreviewReselect: Primary held - hide the preview and restore replaced bodies for picks.
+    pub rolled_back: bool,
 }
 
 impl PreviewState {
+    /// Bodies the model scene should hide for the preview (empty while rolled back).
+    pub fn effective_replaced(&self) -> &[String] {
+        if self.rolled_back { &[] } else { &self.replaced }
+    }
+
+    /// Whether the preview scene should be drawn.
+    pub fn draw_active(&self) -> bool {
+        self.active && !self.rolled_back
+    }
+
     fn clear(&mut self) {
         self.running = None;
         self.running_tool = false;
@@ -112,6 +124,7 @@ impl PreviewState {
         self.tapered.clear();
         self.sketches.clear();
         self.busy = false;
+        self.rolled_back = false;
         if self.active || !self.replaced.is_empty() {
             self.active = false;
             self.bounds = Aabb3::EMPTY;
@@ -696,6 +709,9 @@ pub fn point_triangle_dist(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> f64 {
 
 /// The same computed sketch preview is drawn over both native GPU and CPU viewports.
 pub fn paint_sketches(app: &SolveApp, painter: &egui::Painter, proj: &crate::viewport::Proj) {
+    if app.preview.rolled_back {
+        return;
+    }
     if !app.dialog.as_ref().is_some_and(|d| matches!(d.kind, crate::dialogs::Kind::SketchModify(_)) && d.previews()) {
         return;
     }

@@ -528,6 +528,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
             hl_slot: slot.clone(),
             pv_key: 0,
             pv_slot: slot,
+            pv_hide: false,
             view_proj: camera.view_proj(f64::from(rect.width() / rect.height().max(1.0)), radius).to_f32(),
             back: camera.back().to_f32(),
             size_px: [rect.width() * ppp, rect.height() * ppp],

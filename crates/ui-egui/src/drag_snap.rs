@@ -1,8 +1,8 @@
-//! Snapping while a sketch point or a line is dragged, like Fusion: the dragged point snaps to
-//! other points (ends, centres, the origin, projected points), to the middle of a line and onto
-//! curves, and lines up horizontally or vertically with other points (a dashed guide). Letting
-//! go on a point, a midpoint or a curve adds the matching constraint; lining up adds none. Ctrl
-//! or Alt held: no snapping (here and while drawing).
+//! Snapping while a sketch point or a line is dragged: the dragged point snaps to other points
+//! (ends, centres, the origin, projected points), to the middle of a line and onto curves, and
+//! lines up horizontally or vertically with other points (a dashed guide). Letting go on a point,
+//! a midpoint or a curve adds the matching constraint; lining up adds none. The suppress-snap
+//! chord is configurable (default Alt/Option; see `prefs::suppress_sketch_snap`).
 
 use std::cell::{Cell, RefCell};
 
@@ -60,7 +60,7 @@ thread_local! {
     static SUPPRESSED: Cell<bool> = const { Cell::new(false) };
 }
 
-/// Ctrl or Alt held this frame (no snapping).
+/// Whether sketch snap is suppressed this frame (set from the viewport via `prefs::suppress_sketch_snap_held`).
 pub fn set_suppressed(on: bool) {
     SUPPRESSED.with(|s| s.set(on));
 }

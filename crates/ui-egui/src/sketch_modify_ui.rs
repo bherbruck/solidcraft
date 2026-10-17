@@ -33,7 +33,27 @@ use solidcraft_engine::sketch::PatternAlignment;
 use crate::SolveApp;
 use crate::dialogs::{CHAMFER_TYPES, Dialog, Kind, check, field, icon_choice, pattern_toggle, row_label};
 use crate::selection::{AXES, CURVES, SKETCH_POINTS, SelInput};
+use crate::tool_modifiers::{Audit, Scope, ToolModifiers};
 use crate::viewport::{Hit, Proj};
+
+const SELECT_MANIP: &[Scope] = &[Scope::Selection, Scope::Manipulator, Scope::FeaturePreview];
+const SELECT_ONLY: &[Scope] = &[Scope::Selection, Scope::FeaturePreview];
+
+/// Per-tool modifier descriptors owned by this host file.
+pub const MODIFIERS: &[ToolModifiers] = &[
+    ToolModifiers { tool: "sketch.scale", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.offset", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.mirror", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    // Sketch Move: dialog/manipulator inherit only - no invented Alt-copy.
+    ToolModifiers { tool: "sketch.move", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    // Pattern spacing/count live in the dialog - no viewport modifier chords.
+    ToolModifiers { tool: "sketch.pattern.rectangular", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.pattern.circular", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.fillet", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.chamfer.equal_distance", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.chamfer.two_distance", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.chamfer.distance_angle", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+];
 
 /// The three chamfer types, drawn as the cut each one makes, in `CHAMFER_TYPES` order.
 const CHAMFER_TYPE_ICONS: [&str; 3] = ["sketch_chamfer_equal", "sketch_chamfer_two", "sketch_chamfer_angle"];
