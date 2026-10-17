@@ -483,8 +483,8 @@ fn fillet_chamfer_corner_preview_draws_curves() {
     let mut h = crate::scenario::Harness::new();
     // Create a simple L-shape with two lines meeting at (0, 10).
     h.app.run("sketch.create", json!({"plane":"XY"})).unwrap();
-    h.app.run("sketch.line", json!({"points":[[[-30,10],[0,10]]]})).unwrap();
-    h.app.run("sketch.line", json!({"points":[[[0,10],[0,-20]]]})).unwrap();
+    h.app.run("sketch.line", json!({"points": [[-30,10],[0,10]], "ids": ["top"]})).unwrap();
+    h.app.run("sketch.line", json!({"points": ["top.end",[0,-20]], "ids": ["right"]})).unwrap();
     h.frames(2);
 
     // Open the fillet tool and pick the corner at (0, 10).
@@ -501,9 +501,9 @@ fn fillet_chamfer_corner_preview_draws_curves() {
     let sk = h.app.session.world_state().sketch(sid).unwrap().sketch.clone();
     assert_eq!(sk.curves.len(), 2, "fillet preview must not modify the sketch");
 
-    // Now test chamfer too.
-    h.step(&json!({"click":{"handle":"dialog:Cancel"}})).unwrap();
-    h.frames(2);
+    // Now test chamfer too. Close the fillet dialog first.
+    h.step(&json!({"key":"Escape"})).unwrap();
+    h.frames(3);
     h.step(&json!({"start":"sketch.chamfer.equal_distance"})).unwrap();
     h.frames(2);
     h.step(&json!({"click":{"world":[0.0,10.0,0.0]}})).unwrap();
