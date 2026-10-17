@@ -1,0 +1,26 @@
+# Self-host SolidCraft in the browser (see "Self-hosting with Docker" in the book's Getting started).
+# From this folder, or from anywhere with -f packaging/docker/compose.yaml:
+#
+#   docker compose up -d             the published image from GitHub's container registry
+#   docker compose pull && docker compose up -d     update to the latest release
+#   docker compose up -d --build     build the image from this checkout instead
+#
+# SOLIDCRAFT_PORT picks the host port (default 8080). Saving designs needs HTTPS or localhost:
+# on a server, put a TLS reverse proxy (Caddy, Traefik, nginx) in front of it.
+name: solidcraft
+services:
+  solidcraft:
+    image: ghcr.io/tangency-labs/solidcraft-web:latest
+    build:
+      context: ../..
+      dockerfile: packaging/docker/Dockerfile
+    ports:
+      - "${SOLIDCRAFT_PORT:-8080}:8080"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

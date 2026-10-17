@@ -1,0 +1,7 @@
+# Build context for packaging/docker/Dockerfile (the repository root): the sources the web build
+# needs, without build output, git history or local files.
+.git
+**/target*
+dist
+plan
+docs/screenshots

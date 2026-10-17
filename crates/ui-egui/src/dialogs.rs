@@ -151,6 +151,8 @@ pub enum Kind {
         thickness: String,
         depth: String,
         flip: bool,
+        /// Grow along the sketch normal rather than across the plane.
+        normal: bool,
     },
     /// Raise or sink profiles of a sketch on a face.
     Emboss {
@@ -491,7 +493,7 @@ impl Dialog {
                 Dialog::new(Kind::Mirror, vec![SelInput::new("Objects", BODIES, true), SelInput::new("Mirror Plane", PLANES | PLANAR_FACES, false)])
             }
             "solid.rib" | "solid.web" => Dialog::new(
-                Kind::Rib { web: id == "solid.web", thickness: "2 mm".into(), depth: String::new(), flip: false },
+                Kind::Rib { web: id == "solid.web", thickness: "2 mm".into(), depth: String::new(), flip: false, normal: false },
                 vec![SelInput::new("Curves", CURVES, true)],
             ),
             "solid.emboss" => Dialog::new(
@@ -2701,7 +2703,12 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
                         ui.end_row();
                     }
                     Kind::Split | Kind::ReplaceFace | Kind::Remove | Kind::Midplane => {}
-                    Kind::Rib { thickness, depth, flip, .. } => {
+                    Kind::Rib { thickness, depth, flip, normal, .. } => {
+                        row_label(ui, "Direction");
+                        let mut i = usize::from(*normal);
+                        combo(ui, "rib_direction", &["In plane", "Normal to sketch"], &mut i);
+                        *normal = i == 1;
+                        ui.end_row();
                         row_label(ui, "Thickness");
                         enter |= field(ui, thickness);
                         ui.end_row();
@@ -3977,11 +3984,14 @@ fn dialog_commands(app: &SolveApp, d: &Dialog) -> Result<Vec<(String, Value)>, S
             };
             ("construct.plane.at_angle", json!({"base": base, "axis": axis, "angle": angle}))
         }
-        Kind::Rib { web, thickness, depth, flip } => {
+        Kind::Rib { web, thickness, depth, flip, normal } => {
             need(0, "open sketch curves")?;
             let curves = curve_ids(d, 0);
             let sketch = curves_sketch(app, &curves, None).ok_or("the curves must be in one sketch")?;
             let mut p = json!({"sketch": sketch, "curves": curves, "thickness": thickness, "flip": flip});
+            if *normal {
+                p["direction"] = json!("normal");
+            }
             if !depth.trim().is_empty() {
                 p["depth"] = json!(depth);
             }
@@ -5204,13 +5214,14 @@ pub fn for_feature(app: &SolveApp, id: u64, marker: Option<usize>) -> Option<Dia
             }
             d
         }
-        FeatureKind::Rib { curves, thickness, depth, flip, web, .. } => {
+        FeatureKind::Rib { curves, thickness, depth, flip, web, normal, .. } => {
             let mut d = start(if *web { "solid.web" } else { "solid.rib" })?;
             d.kind = Kind::Rib {
                 web: *web,
                 thickness: thickness.to_string(),
                 depth: depth.as_deref().map(str::to_string).unwrap_or_default(),
                 flip: *flip,
+                normal: *normal,
             };
             if let Some(inp) = d.inputs.first_mut() {
                 inp.items = curves.iter().map(|id| Sel::SketchCurve { id: id.clone() }).collect();

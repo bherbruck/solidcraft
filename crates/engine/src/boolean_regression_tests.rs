@@ -45,6 +45,64 @@ fn volume(s: &Session, body: &str) -> f64 {
     s.model.state().body(body).map(|b| solidcraft_kernel::measure(&b.body).unwrap().volume).unwrap_or(0.0)
 }
 
+/// #2059: tabs exactly as wide as their supporting ribs share the ribs' side
+/// planes. The base's remote conical chamfer must not prevent their join.
+#[test]
+fn eighteen_tabs_join_the_ribs_of_a_chamfered_base() {
+    let s = replay(include_str!("../../../examples/regressions/tabs_on_chamfered_ribbed_base.json"));
+    let check = |s: &Session| {
+        assert!(s.model.results.iter().all(|r| r.error.is_none()), "{:?}", s.model.results);
+        assert_eq!(s.model.state().bodies.len(), 1);
+        let state = s.model.state();
+        let body = &state.body("Base").unwrap().body;
+        assert_eq!(body.shell_count(), 1);
+        assert!(body.validity().is_empty(), "{:?}", body.validity());
+        let mesh = body.tessellate(1e-4).unwrap();
+        // R40 x 4 disc less its 1 x 1 chamfer, six 32 x 2 ribs
+        // standing 4 above it, and eighteen 1 x 2 tabs another 8 higher.
+        let expected = std::f64::consts::PI * (6400.0 - 40.0 + 1.0 / 3.0) + 1536.0 + 288.0;
+        let got = mesh.measure().volume;
+        assert!((got - expected).abs() < 0.1, "{got} vs {expected}");
+        println!("#2059 volume {got:.6} / {expected:.6} mm³; one valid shell, eighteen tabs");
+        for k in 0..6 {
+            let angle = k as f64 * std::f64::consts::TAU / 6.0;
+            let p = |x: f64, y: f64, z| solidcraft_geom::Vec3::new(x * angle.cos() - y * angle.sin(), x * angle.sin() + y * angle.cos(), z);
+            for x in [15.5, 25.5, 35.5] {
+                assert!(mesh.contains(p(x, 0.0, 12.0)), "tab {k} at {x}");
+                assert!(!mesh.contains(p(x, 1.2, 12.0)), "tab {k} grew sideways at {x}");
+            }
+            assert!(mesh.contains(p(20.0, 0.0, 6.0)), "rib {k}");
+            assert!(mesh.contains(p(39.5, 0.0, 2.0)), "rim {k}");
+            assert!(!mesh.contains(p(39.75, 0.0, 3.75)), "chamfer {k}");
+        }
+        assert!((mesh.bounds().max.z - 16.0).abs() < 1e-8);
+    };
+    check(&s);
+    let reopened = Session::new(solidcraft_doc::Document::from_json(&s.doc.to_json()).unwrap());
+    check(&reopened);
+}
+
+#[test]
+fn buried_join_end_ignores_bodies_in_other_components() {
+    for own_body in [false, true] {
+        let mut s = Session::default();
+        let run = |s: &mut Session, command: &str, params: Value| s.execute(command, &params).unwrap();
+        run(&mut s, "solid.box", json!({"length": 10, "width": 10, "height": 8, "body_name": "Other"}));
+        run(&mut s, "component.create", json!({"name": "Child"}));
+        if own_body {
+            run(&mut s, "solid.box", json!({"corner": [50, 0, 0], "length": 10, "width": 10, "height": 8, "body_name": "Child"}));
+        }
+        run(&mut s, "sketch.create", json!({"plane": "XY"}));
+        run(&mut s, "sketch.rectangle.two_point", json!({"p0": [2, 2], "p1": [4, 4]}));
+        run(&mut s, "sketch.finish", json!({}));
+        run(&mut s, "solid.extrude", json!({"distance": 16, "operation": "join", "body_name": "Tab"}));
+        let got = volume(&s, if own_body { "Child" } else { "Tab" });
+        let expected = 64.0 + if own_body { 800.0 } else { 0.0 };
+        assert!((got - expected).abs() < 1e-6, "{got}");
+        assert!((volume(&s, "Other") - 800.0).abs() < 1e-6);
+    }
+}
+
 /// Slab less a 557.68 × 100 × 120 pocket and the loft below its floor (556.68 × 99 down 4 mm to
 /// 80 × 80; prismatoid: h/6 · (A_top + A_bottom + 4 A_mid)).
 fn slab_pocket_loft() -> (f64, f64) {
@@ -473,5 +531,56 @@ fn box_intersect_splits_the_end_off_a_raked_wedge_after_its_end_rounds() {
             assert!((slice + rest - whole).abs() < 1e-6 * whole, "{slice} + {rest} vs {whole}");
             assert!((at.min.x - x0).abs() < 1e-6 && (at.max.x - 69.0).abs() < 1e-3, "slice spans x {} to {}", at.min.x, at.max.x);
         }
+    }
+}
+
+/// #1853: half a slot drawn on a plate's top face, cut along its centreline, revolved about a
+/// construction line on that centreline as a cut. Half a turn into the plate and a full turn
+/// both failed with "no result": the revolve came out wrong where its arcs end on the axis (a
+/// fifth too much or too little), and the cut could not intersect it there. Both now take the
+/// half of the capsule below the face.
+#[test]
+fn revolve_cut_of_a_half_slot_about_its_centreline_in_the_face() {
+    let pi = std::f64::consts::PI;
+    let inside = (pi * 9.0 * 14.0 + 4.0 / 3.0 * pi * 27.0) / 2.0;
+    for angle in ["-180 deg", "360 deg"] {
+        let mut s = Session::default();
+        let steps = [
+            ("solid.box", json!({"corner": [0, 0, 0], "length": 40, "width": 20, "height": 10, "body_name": "Plate"})),
+            ("sketch.create", json!({"plane": {"origin": [0, 0, 10], "x_dir": [1, 0, 0], "y_dir": [0, 1, 0]}, "name": "Half"})),
+            ("sketch.line", json!({"points": [[10, 10], [30, 10]]})),
+            ("sketch.line", json!({"points": [[27, 13], [13, 13]]})),
+            ("sketch.arc.center_point", json!({"center": [13, 10], "start": [13, 13], "end": [10, 10]})),
+            ("sketch.arc.center_point", json!({"center": [27, 10], "start": [30, 10], "end": [27, 13]})),
+            ("sketch.line", json!({"points": [[5, 10], [35, 10]], "construction": true, "ids": ["axis"]})),
+            ("sketch.finish", json!({})),
+        ];
+        for (command, params) in steps {
+            s.execute(command, &params).unwrap_or_else(|e| panic!("{command}: {e}"));
+        }
+        let whole = volume(&s, "Plate");
+        s.execute("solid.revolve", &json!({"sketch": "Half", "axis": "axis", "angle": angle, "operation": "cut"}))
+            .unwrap_or_else(|e| panic!("revolve {angle}: {e}"));
+        let bad = s.model.state().body("Plate").map(|b| b.body.validity()).unwrap_or_default();
+        assert!(bad.is_empty(), "{angle}: {bad:?}");
+        let removed = whole - volume(&s, "Plate");
+        println!("#1853 revolve {angle}: removed {removed:.6} mm³ of the {inside:.6} below the face");
+        assert!((removed - inside).abs() < 1e-3 * inside, "{angle}: removed {removed} instead of {inside}");
+    }
+}
+
+/// #2005: changing a circular sweep from a separate body to a half-turn cut must create the
+/// internal channel, rather than failing the Boolean on coincident end caps.
+#[test]
+fn closed_sweep_redefines_to_a_half_turn_torus_cut() {
+    let s = replay(include_str!("../../../examples/regressions/closed_sweep_torus_cut.json"));
+    assert_eq!(s.model.state().bodies.len(), 1);
+    let body = &s.model.state().bodies[0].body;
+    assert!(body.validity().is_empty(), "{:?}", body.validity());
+    let mesh = body.tessellate(0.02).unwrap();
+    let expected = (std::f64::consts::PI * 64.0 - 64.0) * std::f64::consts::TAU * 30.0;
+    assert!((mesh.measure().volume - expected).abs() < expected * 0.015);
+    for (point, material) in [(solidcraft_geom::Vec3::new(30.0, 0.0, 0.0), false), (solidcraft_geom::Vec3::new(30.0, 0.0, 7.0), true)] {
+        assert_eq!(mesh.contains(point), material, "material at {point:?}");
     }
 }
