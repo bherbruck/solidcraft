@@ -1146,6 +1146,8 @@
   "ui.fully_constrained": "W pełni związany",
   "ui.general": "Ogólne",
   "ui.graphics": "Grafika",
+  "ui.grid_follows_view": "Siatka podąża za widokiem",
+  "ui.grid_follows_view_hint": "Widoki boczne pokazują siatkę na pionowej płaszczyźnie zwróconej do nich zamiast na podłożu",
   "ui.ground_shadow": "Cień na podłożu",
   "ui.groupSelected": "Grupuj zaznaczone",
   "ui.heading_add_ins": "DODATKI",
