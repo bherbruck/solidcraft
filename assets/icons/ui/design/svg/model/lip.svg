@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Lip</title>
+  <path d="M3 27.43L32 44.18L32 57.88L3 41.13Z" fill="#b8c3cf"/>
+  <path d="M61 27.43L32 44.18L32 57.88L61 41.13Z" fill="#8e9faf"/>
+  <path d="M32 10.69L61 27.43L32 44.18L3 27.43Z" fill="#e2e8ef"/>
+  <path d="M32 10.69L61 27.43L61 41.13L32 57.88L3 41.13L3 27.43Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M3 27.43L32 44.18L61 27.43" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 44.18L32 57.88" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 13.73L49.14 23.63L49.14 27.43L32 17.54Z" fill="#328bd3"/>
+  <path d="M32 13.73L49.14 23.63L49.14 27.43L32 17.54Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M14.86 23.63L32 13.73L32 17.54L14.86 27.43Z" fill="#236ead"/>
+  <path d="M14.86 23.63L32 13.73L32 17.54L14.86 27.43Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M55.73 23.63L32 37.33L32 41.13L55.73 27.43Z" fill="#236ead"/>
+  <path d="M55.73 23.63L32 37.33L32 41.13L55.73 27.43Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 37.33L8.27 23.63L8.27 27.43L32 41.13Z" fill="#328bd3"/>
+  <path d="M32 37.33L8.27 23.63L8.27 27.43L32 41.13Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 9.93L55.73 23.63L32 37.33L8.27 23.63ZM32 13.73L49.14 23.63L32 33.52L14.86 23.63Z" fill="#b9ddf8" fill-rule="evenodd"/>
+  <path d="M32 9.93L55.73 23.63L32 37.33L8.27 23.63ZM32 13.73L49.14 23.63L32 33.52L14.86 23.63Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" fill-rule="evenodd"/>
+</svg>

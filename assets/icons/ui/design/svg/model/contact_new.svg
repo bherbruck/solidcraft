@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>New contact set</title>
+  <path d="M20.81 15.02L35.47 23.49L35.47 40.42L20.81 31.95Z" fill="#b8c3cf"/>
+  <path d="M50.14 15.02L35.47 23.49L35.47 40.42L50.14 31.95Z" fill="#8e9faf"/>
+  <path d="M35.47 6.55L50.14 15.02L35.47 23.49L20.81 15.02Z" fill="#e2e8ef"/>
+  <path d="M35.47 6.55L50.14 15.02L50.14 31.95L35.47 40.42L20.81 31.95L20.81 15.02Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.81 15.02L35.47 23.49L50.14 15.02" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M35.47 23.49L35.47 40.42" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M6.14 23.49L20.81 31.95L20.81 48.89L6.14 40.42Z" fill="#b8c3cf"/>
+  <path d="M35.47 23.49L20.81 31.95L20.81 48.89L35.47 40.42Z" fill="#8e9faf"/>
+  <path d="M20.81 15.02L35.47 23.49L20.81 31.95L6.14 23.49Z" fill="#e2e8ef"/>
+  <path d="M20.81 15.02L35.47 23.49L35.47 40.42L20.81 48.89L6.14 40.42L6.14 23.49Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M6.14 23.49L20.81 31.95L35.47 23.49" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.81 31.95L20.81 48.89" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.81 15.02L35.47 23.49L35.47 40.42" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.81 15.02L35.47 23.49L35.47 40.42" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="48.14" cy="47.72" r="11" fill="#ffffff"/>
+  <circle cx="48.14" cy="47.72" r="9.5" fill="#236ead"/>
+  <path d="M43.64 47.72L52.64 47.72M48.14 43.22L48.14 52.22" fill="none" stroke="#ffffff" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

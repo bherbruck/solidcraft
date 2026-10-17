@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Dependency graph</title>
+  <path d="M16.5 17L47.5 32L16.5 47" fill="none" stroke="#34465b" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8.6 12.44L16.5 17L16.5 26.12L8.6 21.56Z" fill="#b8c3cf"/>
+  <path d="M24.4 12.44L16.5 17L16.5 26.12L24.4 21.56Z" fill="#8e9faf"/>
+  <path d="M16.5 7.88L24.4 12.44L16.5 17L8.6 12.44Z" fill="#e2e8ef"/>
+  <path d="M16.5 7.88L24.4 12.44L24.4 21.56L16.5 26.12L8.6 21.56L8.6 12.44Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8.6 12.44L16.5 17L24.4 12.44" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M16.5 17L16.5 26.12" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8.6 42.44L16.5 47L16.5 56.12L8.6 51.56Z" fill="#b8c3cf"/>
+  <path d="M24.4 42.44L16.5 47L16.5 56.12L24.4 51.56Z" fill="#8e9faf"/>
+  <path d="M16.5 37.88L24.4 42.44L16.5 47L8.6 42.44Z" fill="#e2e8ef"/>
+  <path d="M16.5 37.88L24.4 42.44L24.4 51.56L16.5 56.12L8.6 51.56L8.6 42.44Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8.6 42.44L16.5 47L24.4 42.44" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M16.5 47L16.5 56.12" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M39.6 27.44L47.5 32L47.5 41.12L39.6 36.56Z" fill="#328bd3"/>
+  <path d="M55.4 27.44L47.5 32L47.5 41.12L55.4 36.56Z" fill="#236ead"/>
+  <path d="M47.5 22.88L55.4 27.44L47.5 32L39.6 27.44Z" fill="#b9ddf8"/>
+  <path d="M47.5 22.88L55.4 27.44L55.4 36.56L47.5 41.12L39.6 36.56L39.6 27.44Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M39.6 27.44L47.5 32L55.4 27.44" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M47.5 32L47.5 41.12" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

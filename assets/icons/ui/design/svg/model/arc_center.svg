@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Centre-point arc</title>
+  <path d="M32 44L9.45 35.79" fill="none" stroke="#8e9faf" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 44L54.55 35.79" fill="none" stroke="#8e9faf" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M9.45 35.79A24 24 0 0 1 54.55 35.79" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="32" cy="44" r="5.8" fill="#ffffff"/>
+  <circle cx="32" cy="44" r="3.4" fill="#236ead"/>
+  <circle cx="9.45" cy="35.79" r="5.8" fill="#ffffff"/>
+  <circle cx="9.45" cy="35.79" r="3.4" fill="#236ead"/>
+  <circle cx="54.55" cy="35.79" r="5.8" fill="#ffffff"/>
+  <circle cx="54.55" cy="35.79" r="3.4" fill="#236ead"/>
+</svg>

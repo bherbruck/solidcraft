@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Render scene</title>
+  <path d="M10.16 30.74L24.12 38.8L24.12 54.92L10.16 46.86Z" fill="#b8c3cf"/>
+  <path d="M38.08 30.74L24.12 38.8L24.12 54.92L38.08 46.86Z" fill="#8e9faf"/>
+  <path d="M24.12 22.68L38.08 30.74L24.12 38.8L10.16 30.74Z" fill="#e2e8ef"/>
+  <path d="M24.12 22.68L38.08 30.74L38.08 46.86L24.12 54.92L10.16 46.86L10.16 30.74Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10.16 30.74L24.12 38.8L38.08 30.74" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M24.12 38.8L24.12 54.92" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M45.12 7.8Q46.32 16.6 55.12 17.8Q46.32 19 45.12 27.8Q43.92 19 35.12 17.8Q43.92 16.6 45.12 7.8Z" fill="#236ead"/>
+</svg>

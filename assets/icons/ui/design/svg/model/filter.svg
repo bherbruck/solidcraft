@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Filter</title>
+  <path d="M8 12L56 12L38 34L38 52L26 46L26 34Z" fill="#b8c3cf"/>
+  <path d="M8 12L56 12L48 22L16 22Z" fill="#328bd3"/>
+  <path d="M16 22L32 22L32 48L26 46L26 34Z" fill="#e2e8ef"/>
+  <path d="M8 12L56 12L38 34L38 52L26 46L26 34Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M16 22L48 22" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

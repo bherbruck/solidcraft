@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Body</title>
+  <path d="M8 19L32 33L32 59L8 45Z" fill="#b8c3cf"/>
+  <path d="M32 33L56 19L56 45L32 59Z" fill="#8e9faf"/>
+  <path d="M8 19L32 5L56 19L32 33Z" fill="#e2e8ef"/>
+  <path d="M8 19L32 5L56 19L56 45L32 59L8 45Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 33L8 19" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 33L56 19" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 33L32 59" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

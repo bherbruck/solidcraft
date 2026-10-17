@@ -1479,3 +1479,44 @@ fn measure_items_gives_diameters_and_centre_distances() {
     assert!((two["min"].as_f64().unwrap() - 45.0).abs() < 1e-9 && (two["max"].as_f64().unwrap() - 55.0).abs() < 1e-9, "{two}");
     assert!(two["distance_mm"].is_number() && two["from"].is_array(), "{two}");
 }
+
+/// #1833: `timings` / `profile` time every step run, the failing one included, headless with the
+/// kernel's share; bridged, the app is asked to time them and its numbers are passed on.
+#[test]
+fn batch_reports_timings_and_profile() {
+    let mut s = server();
+    let steps = json!([
+        {"command": "solid.box", "params": {"length": 10, "width": 10, "height": 10}},
+        {"command": "solid.box", "params": {"length": 4, "width": 4, "height": 30, "operation": "join"}},
+    ]);
+    let r = raw_tool(&mut s, "batch", json!({"commands": steps, "profile": true}));
+    let body: Value = serde_json::from_str(r["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    let rows = body["timings"].as_array().unwrap();
+    assert_eq!(rows.len(), 2, "{body}");
+    assert_eq!((rows[1]["index"].as_u64(), rows[1]["command"].as_str()), (Some(1), Some("solid.box")));
+    assert!(rows[1]["profile"]["boolean_ms"].as_f64().unwrap() > 0.0, "{body}");
+    assert!(body["total_ms"].as_f64().is_some(), "{body}");
+
+    let r = raw_tool(
+        &mut s,
+        "batch",
+        json!({"timings": true, "commands": [{"command": "solid.box", "params": {"length": 1, "width": 1, "height": 1}}, {"command": "NoSuchCommand"}]}),
+    );
+    let body: Value = serde_json::from_str(r["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(body["timings"].as_array().map(Vec::len), Some(2), "the failing step is timed too: {body}");
+    assert!(body["timings"][0].get("profile").is_none());
+    // Not asked: no timings.
+    let d = tool(&mut s, "batch", json!({"commands": [{"command": "solid.box", "params": {"length": 1, "width": 1, "height": 1}}]}));
+    assert!(d.get("timings").is_none(), "{d}");
+
+    let reply =
+        json!({"completed": 1, "results": [{"x": 1}], "undone": 0, "timings": [{"index": 0, "command": "a.one", "ms": 2.5}], "total_ms": 2.6});
+    let (b, body, _) = recorded_batch(Ok(reply), json!({"commands": [{"command": "a.one"}], "profile": true}));
+    assert_eq!(b.calls[0].1["timings"], true);
+    assert_eq!(b.calls[0].1["profile"], true);
+    assert_eq!((body["timings"][0]["ms"].as_f64(), body["total_ms"].as_f64()), (Some(2.5), Some(2.6)), "{body}");
+    // An app without engine.batch is timed step by step here, without a kernel split it can't measure.
+    let (_, body, _) = recorded_batch(Err("unknown method `engine.batch`".into()), json!({"commands": [{"command": "a.one"}], "profile": true}));
+    assert_eq!(body["timings"][0]["command"], "a.one", "{body}");
+    assert!(body["timings"][0].get("profile").is_none(), "{body}");
+}

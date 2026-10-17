@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Snap</title>
+  <path d="M34.71 43.43L44.61 33.53A10 10 0 0 0 30.47 19.39L20.57 29.29" fill="none" stroke="#34465b" stroke-width="16.4" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M34.71 43.43L44.61 33.53A10 10 0 0 0 30.47 19.39L20.57 29.29" fill="none" stroke="#328bd3" stroke-width="11.3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M35.29 52.64Q33.59 54.34 31.9 52.64L25.5 46.24Q23.8 44.55 25.5 42.85L28.82 39.53Q30.52 37.83 32.22 39.53L38.62 45.93Q40.31 47.62 38.62 49.32Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M21.15 38.5Q19.45 40.2 17.76 38.5L11.36 32.1Q9.66 30.41 11.36 28.71L14.68 25.38Q16.38 23.69 18.07 25.38L24.47 31.78Q26.17 33.48 24.47 35.18Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

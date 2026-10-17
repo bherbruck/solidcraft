@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Stitch</title>
+  <path d="M26.2 15.26L43.6 25.3L20.4 38.7L3 28.65Z" fill="#e2e8ef"/>
+  <path d="M26.2 15.26L43.6 25.3L20.4 38.7L3 28.65Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M43.6 25.3L61 35.35L37.8 48.74L20.4 38.7Z" fill="#b8c3cf"/>
+  <path d="M43.6 25.3L61 35.35L37.8 48.74L20.4 38.7Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M37.8 25.3L43.6 28.65" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 28.65L37.8 32" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.2 32L32 35.35" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.4 35.35L26.2 38.7" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

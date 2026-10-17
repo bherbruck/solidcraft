@@ -78,6 +78,8 @@ pub enum Asm {
         result: Option<Value>,
         overlaps: Vec<Mesh>,
         of: Vec<Sel>,
+        /// Pairs closer than this (mm, as typed) are listed too.
+        clearance: String,
     },
     /// Motion Trace: a picked point's path, previewed; OK keeps it as a 3D sketch spline.
     Trace(Box<TraceForm>),
@@ -189,9 +191,10 @@ pub fn start(app: &SolveApp, id: &str) -> Option<(Kind, Vec<SelInput>)> {
         }
         "joint.gear" | "joint.rack_pinion" | "joint.screw" => crate::dialogs_coupling::start(app, id)?,
         "joint.cam" => crate::dialogs_coupling::cam::start(app),
-        "inspect.interference" => {
-            (Asm::Interference { result: None, overlaps: Vec::new(), of: Vec::new() }, vec![SelInput::new("Bodies (all if none)", BODIES, true)])
-        }
+        "inspect.interference" => (
+            Asm::Interference { result: None, overlaps: Vec::new(), of: Vec::new(), clearance: "0".into() },
+            vec![SelInput::new("Bodies (all if none)", BODIES, true)],
+        ),
         _ => return None,
     };
     Some((Kind::Assembly(asm), inputs))
@@ -691,12 +694,15 @@ pub fn rows(app: &mut SolveApp, ui: &mut egui::Ui, k: &mut Asm, inputs: &mut [Se
         }
         Asm::Coupling(f) => enter |= crate::dialogs_coupling::rows(app, ui, f, inputs),
         Asm::Cam(f) => enter |= crate::dialogs_coupling::cam::rows(app, ui, f, inputs),
-        Asm::Interference { result, overlaps, of } => {
+        Asm::Interference { result, overlaps, of, clearance } => {
             let picked: Vec<Sel> = inputs.first().map(|i| i.items.clone()).unwrap_or_default();
+            row_label(ui, "Clearance");
+            field(ui, clearance);
+            ui.end_row();
             row_label(ui, "");
             let stale = result.is_some() && *of != picked;
             if ui.button(if stale { "Compute again" } else { "Compute" }).clicked() {
-                let (r, o) = interference(app, &picked);
+                let (r, o) = interference(app, &picked, clearance);
                 *result = Some(r);
                 *overlaps = o;
                 *of = picked;
@@ -716,16 +722,26 @@ fn capital(s: &str) -> String {
     c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
 }
 
-/// Run the check and find the overlapping volumes (world placement) to show in red.
-fn interference(app: &mut SolveApp, picked: &[Sel]) -> (Value, Vec<Mesh>) {
+/// Run the check (overlaps, pairs closer than the clearance, each body's nearest neighbour) and
+/// find the overlapping volumes (world placement) to show in red.
+fn interference(app: &mut SolveApp, picked: &[Sel], clearance: &str) -> (Value, Vec<Mesh>) {
     let names: Vec<String> = picked.iter().filter_map(|x| if let Sel::Body { name } = x { Some(name.clone()) } else { None }).collect();
-    let r = match app.run("inspect.interference", json!({ "bodies": names })) {
+    let (scale, _) = crate::prefs::unit_scale(&app.session.doc.units);
+    let clearance = match crate::prefs::parse_length_mm(clearance, scale) {
+        Some(v) if v >= 0.0 => v,
+        _ => return (json!({ "error": "the clearance must be a length of 0 or more" }), Vec::new()),
+    };
+    let mut p = json!({ "clearance": clearance, "nearest": 1 });
+    if !names.is_empty() {
+        p["bodies"] = json!(names);
+    }
+    let r = match app.run("inspect.clearance", p) {
         Ok(v) => v,
         Err(e) => return (json!({ "error": e }), Vec::new()),
     };
     let st = app.session.world_state();
     let mut meshes = Vec::new();
-    for hit in r["interferences"].as_array().into_iter().flatten() {
+    for hit in r["overlaps"].as_array().into_iter().flatten() {
         let (Some(a), Some(b)) = (hit["a"].as_str().and_then(|n| st.body(n)), hit["b"].as_str().and_then(|n| st.body(n))) else { continue };
         if let Ok(Some(o)) = solidcraft_engine::kernel::boolean(&a.body, &b.body, solidcraft_engine::kernel::BoolOp::Intersect)
             && let Ok(m) = o.tessellate((o.size() * 2e-3).max(1e-3))
@@ -744,15 +760,43 @@ fn interference_rows(app: &SolveApp, ui: &mut egui::Ui, r: &Value) {
         ui.end_row();
         return;
     }
-    let hits = r["interferences"].as_array().cloned().unwrap_or_default();
+    let hits = r["overlaps"].as_array().cloned().unwrap_or_default();
     row_label(ui, "Checked");
-    ui.label(format!("{} bodies", r["checked"].as_u64().unwrap_or(0)));
+    ui.label(format!("{} bodies", r["bodies"].as_u64().unwrap_or(0)));
     ui.end_row();
     let unchecked = r["unchecked"].as_array().cloned().unwrap_or_default();
+    let near = r["near"].as_array().cloned().unwrap_or_default();
+    let pair = |h: &Value| format!("{} · {}", h["a"].as_str().unwrap_or(""), h["b"].as_str().unwrap_or(""));
     if hits.is_empty() && unchecked.is_empty() {
         row_label(ui, "Result");
         ui.label(RichText::new(crate::i18n::tr_label("no interference")).color(t.text_dim));
         ui.end_row();
+    }
+    // Pairs closer than the clearance, nearest first.
+    if !near.is_empty() {
+        row_label(ui, "Too close");
+        ui.label(RichText::new(crate::i18n::tr("ui.distance")).strong());
+        ui.end_row();
+    }
+    for h in &near {
+        row_label(ui, &pair(h));
+        ui.label(RichText::new(crate::prefs::show_mm(app, h["distance_mm"].as_f64().unwrap_or(0.0), 1)).color(t.warning));
+        ui.end_row();
+    }
+    // Each body's nearest neighbour.
+    let nearest = r["nearest"].as_object().cloned().unwrap_or_default();
+    if !nearest.is_empty() {
+        row_label(ui, "Nearest");
+        ui.label(RichText::new(crate::i18n::tr("ui.distance")).strong());
+        ui.end_row();
+    }
+    for (body, list) in &nearest {
+        let Some(n) = list.get(0) else { continue };
+        row_label(ui, &format!("{body} → {}", n["body"].as_str().unwrap_or("")));
+        ui.label(crate::prefs::show_mm(app, n["distance_mm"].as_f64().unwrap_or(0.0), 1));
+        ui.end_row();
+    }
+    if hits.is_empty() && unchecked.is_empty() {
         return;
     }
     if !hits.is_empty() {
@@ -1001,7 +1045,7 @@ pub fn world_preview(s: &Session, cmds: &[(String, Value)], colors: Colors) -> O
         .map(|(_, r)| r.clone());
     let (before, after) = (preview.before, preview.after);
     // A moved component looks like itself (no new surface), with its old place as the ghost.
-    let colors = Colors { added: colors.body, ..colors };
+    let colors = Colors { added: colors.body, new_body: colors.body, ..colors };
     let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::preview::build(&before, &after, colors)));
     Some(match built {
         Ok(mut b) => {

@@ -15,34 +15,44 @@ pub static COMMANDS: &[CommandSpec] = &[
              favorite?: bool, new_name?: rename (references follow); or delete: name → recomputed: features rebuilt, \
          restored: features whose earlier result for the same inputs was reused (e.g. a value set back)",
     ),
-    CommandSpec::new("parameters.list", "List Parameters", list).noundo().doc_only().params(
+    CommandSpec::new("parameters.list", "List Parameters", list).icon("list").noundo().doc_only().params(
         "favorites?: bool (only favourites), filter?: all|user|sketch|feature|favorites → parameters (name, expression, unit, value in its unit, \
          source, feature/input, comment, favorite, uses, used_by, error) and cycles",
     ),
-    CommandSpec::new("parameters.add", "Add User Parameter", add).params("name, expression, unit?, comment?, favorite?: bool"),
+    CommandSpec::new("parameters.add", "Add User Parameter", add).icon("new").params("name, expression, unit?, comment?, favorite?: bool"),
     CommandSpec::new("parameters.rename", "Rename Parameter", rename)
+        .icon("rename")
         .params("name, new_name (expressions, feature inputs and dimensions that use it follow)"),
-    CommandSpec::new("parameters.delete", "Delete Parameter", delete).params("name (refused while something uses it; the error lists the users)"),
-    CommandSpec::new("parameters.favorite", "Favourite Parameter", favorite).params("name, favorite?: bool (default true)"),
+    CommandSpec::new("parameters.delete", "Delete Parameter", delete)
+        .icon("delete")
+        .params("name (refused while something uses it; the error lists the users)"),
+    CommandSpec::new("parameters.favorite", "Favourite Parameter", favorite).icon("star").params("name, favorite?: bool (default true)"),
     CommandSpec::new("parameters.move", "Move Parameter", move_param)
+        .icon("reorder")
         .params("name, before | after: another user parameter; the user parameter is listed just before or after it"),
-    CommandSpec::new("parameters.comment", "Comment Parameter", comment).params("name, comment"),
+    CommandSpec::new("parameters.comment", "Comment Parameter", comment).icon("text").params("name, comment"),
     CommandSpec::new("parameters.users", "Parameter Users", users)
+        .icon("graph")
         .noundo()
         .params("name → users (parameters, feature inputs, dimensions) and the features it drives"),
     CommandSpec::new("parameters.graph", "Parameter Graph", graph)
+        .icon("graph")
         .noundo()
         .params("→ nodes, edges [user, used] (users include Feature:<name>), cycles, errors"),
     CommandSpec::new("parameters.export", "Export Parameters", export)
+        .icon("export")
         .noundo()
         .params("format?: csv|json (default csv, or from the path), path?: write to a file → text"),
     CommandSpec::new("parameters.import", "Import Parameters", import)
+        .icon("import")
         .params("text: CSV (header with name, expression, unit?, comment?) or JSON [{name, expression, unit?, comment?}] | path; all or nothing"),
     CommandSpec::new("expr.evaluate", "Evaluate Expression", evaluate)
+        .icon("params")
         .noundo()
         .doc_only()
         .params("expression, kind?: length|angle|unitless (or unit?: mm|in|deg…) → ok, value (mm/rad), display_value, references, error"),
     CommandSpec::new("parameters.complete", "Complete Expression", complete)
+        .icon("params")
         .noundo()
         .doc_only()
         .params("prefix?: the text before the cursor → word, suggestions [{text, kind: parameter|function|unit|constant, detail}]"),

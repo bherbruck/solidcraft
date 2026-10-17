@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Enable contact sets</title>
+  <path d="M23.33 16.99L40.67 27L40.67 47.01L23.33 37Z" fill="#b8c3cf"/>
+  <path d="M58 16.99L40.67 27L40.67 47.01L58 37Z" fill="#8e9faf"/>
+  <path d="M40.67 6.98L58 16.99L40.67 27L23.33 16.99Z" fill="#e2e8ef"/>
+  <path d="M40.67 6.98L58 16.99L58 37L40.67 47.01L23.33 37L23.33 16.99Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M23.33 16.99L40.67 27L58 16.99" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M40.67 27L40.67 47.01" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M6 27L23.33 37L23.33 57.02L6 47.01Z" fill="#b8c3cf"/>
+  <path d="M40.67 27L23.33 37L23.33 57.02L40.67 47.01Z" fill="#8e9faf"/>
+  <path d="M23.33 16.99L40.67 27L23.33 37L6 27Z" fill="#e2e8ef"/>
+  <path d="M23.33 16.99L40.67 27L40.67 47.01L23.33 57.02L6 47.01L6 27Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M6 27L23.33 37L40.67 27" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M23.33 37L23.33 57.02" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M23.33 16.99L40.67 27L40.67 47.01" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M23.33 16.99L40.67 27L40.67 47.01" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

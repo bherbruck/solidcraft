@@ -359,6 +359,15 @@ fn lex_spans(s: &str) -> Result<Vec<(Tok, usize, usize)>, DocError> {
             }
             let t = s.get(at(st)..at(i)).unwrap_or_default();
             let v: f64 = t.replace(',', ".").parse().map_err(|_| DocError::Expr(format!("bad number `{t}`")))?;
+            // A mixed number, as imperial sizes are written (`2 1/8"` is 2.125 in, #1802): a whole
+            // number, then a proper fraction of whole numbers, is one value, not `2 × 1/8`.
+            if t.chars().all(|c| c.is_ascii_digit())
+                && let Some((fraction, end)) = mixed_fraction(&cs, i, depth)
+            {
+                out.push((Tok::Num(v + fraction), at(st), at(end)));
+                i = end;
+                continue;
+            }
             out.push((Tok::Num(v), at(st), at(i)));
         } else if c.is_alphabetic() || c == '_' || c == 'µ' {
             let st = i;
@@ -402,6 +411,43 @@ fn lex_spans(s: &str) -> Result<Vec<(Tok, usize, usize)>, DocError> {
         }
     }
     Ok(out)
+}
+
+/// The proper fraction of a mixed number whose whole part ends at `i`: spaces, digits, `/`,
+/// digits, with nothing after them that would continue the number (`2 1/8.5`, `2 1/8e3`, a
+/// decimal comma outside parentheses: `2 1/8,5`). Its value and where it ends. `depth`: the
+/// parentheses open there (inside them a comma separates arguments: `max(2 1/8,1)`).
+fn mixed_fraction(cs: &[(usize, char)], mut i: usize, depth: usize) -> Option<(f64, usize)> {
+    let digits = |from: usize| cs.get(from..).map_or(0, |rest| rest.iter().take_while(|(_, c)| c.is_ascii_digit()).count());
+    let space = i;
+    while cs.get(i).is_some_and(|(_, c)| *c == ' ' || *c == '\t') {
+        i += 1;
+    }
+    let numerator = digits(i);
+    if i == space || numerator == 0 || !cs.get(i + numerator).is_some_and(|(_, c)| *c == '/') {
+        return None;
+    }
+    let denominator = digits(i + numerator + 1);
+    let end = i + numerator + 1 + denominator;
+    let next = |k: usize| cs.get(end + k).map(|(_, c)| *c);
+    let continues = matches!(next(0), Some('.'))
+        || (depth == 0 && matches!(next(0), Some(',')) && next(1).is_some_and(|c| c.is_ascii_digit()))
+        || (matches!(next(0), Some('e' | 'E')) && next(1).is_some_and(|c| c.is_ascii_digit() || c == '-' || c == '+'));
+    if denominator == 0 || continues {
+        return None;
+    }
+    // Compared as digits, not as floats: long ones round to the same float (#1802 review).
+    let digits_of = |from: usize, len: usize| -> Option<String> {
+        let s: String = cs.get(from..from + len)?.iter().map(|(_, c)| *c).collect();
+        Some(s.trim_start_matches('0').to_string())
+    };
+    let (n, d) = (digits_of(i, numerator)?, digits_of(i + numerator + 1, denominator)?);
+    let proper = !d.is_empty() && (n.len(), n.as_str()) < (d.len(), d.as_str());
+    let value = |t: &str| if t.is_empty() { Some(0.0) } else { t.parse::<f64>().ok() };
+    if !proper {
+        return None;
+    }
+    Some((value(&n)? / value(&d)?, end))
 }
 
 fn lex(s: &str) -> Result<Vec<Tok>, DocError> {
@@ -963,6 +1009,29 @@ mod tests {
         assert_eq!(ev("2' + 3\"", Kind::Length).unwrap(), 685.8);
         // A mark alone is its unit alone, as `in` is.
         assert_eq!(ev("\"", Kind::Length).ok(), ev("in", Kind::Length).ok());
+    }
+
+    #[test]
+    fn mixed_numbers() {
+        // #1802: `2 1/8"` is 2.125 in, as imperial sizes are written, not 2 × 1/8 in.
+        assert_eq!(ev("2 1/8\"", Kind::Length).unwrap(), 2.125 * 25.4);
+        assert_eq!(ev("2 1/8 in", Kind::Length).unwrap(), 2.125 * 25.4);
+        assert_eq!(ev("3 7/16\"", Kind::Length).unwrap(), 3.4375 * 25.4);
+        assert_eq!(ev("10 1/2mm", Kind::Length).unwrap(), 10.5);
+        assert_eq!(ev("width + 1 1/2", Kind::Length).unwrap(), 41.5);
+        assert_eq!(ev("max(2 1/8, 3)", Kind::Unitless).unwrap(), 3.0);
+        // Inside parentheses a comma after the fraction separates arguments; outside, a comma
+        // between digits is a decimal comma, which continues the number (as before).
+        assert_eq!(ev("max(2 1/8,1)", Kind::Unitless).unwrap(), 2.125);
+        assert_eq!(ev("2 1/8,5", Kind::Unitless).unwrap(), 2.0 / 8.5);
+        // Long numerators and denominators are compared as digits, not as rounded floats.
+        assert!((ev("2 9007199254740992/9007199254740993", Kind::Unitless).unwrap() - 3.0).abs() < 1e-12);
+        assert_eq!(ev("2 007/8", Kind::Unitless).unwrap(), 2.875);
+        assert_eq!(ev("-2 1/4", Kind::Unitless).unwrap(), -2.25);
+        // Not a proper fraction of whole numbers after a whole number: as before.
+        for (s, v) in [("2 3/2", 3.0), ("2.5 1/2", 1.25), ("2 1/8.5", 2.0 / 8.5), ("2 1 / 8", 0.25), ("2 1/0", f64::INFINITY), ("1/8", 0.125)] {
+            assert_eq!(ev(s, Kind::Unitless).ok(), Some(v).filter(|v| v.is_finite()), "{s}");
+        }
     }
 
     #[test]

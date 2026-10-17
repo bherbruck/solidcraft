@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Pipe</title>
+  <path d="M6.8 52L6.8 32A25.2 25.2 0 0 1 32 6.8L52 6.8L52 21.2L32 21.2A10.8 10.8 0 0 0 21.2 32L21.2 52Q14 55.6 6.8 52Z" fill="#328bd3"/>
+  <path d="M9.6 50L9.6 32A22.4 22.4 0 0 1 32 9.6L49 9.6" fill="none" stroke="#b9ddf8" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M6.8 52L6.8 32A25.2 25.2 0 0 1 32 6.8L52 6.8L52 21.2L32 21.2A10.8 10.8 0 0 0 21.2 32L21.2 52Q14 55.6 6.8 52Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M48.6 14A3.4 7.2 0 1 0 55.4 14A3.4 7.2 0 1 0 48.6 14Z" fill="#b9ddf8"/>
+  <path d="M48.6 14A3.4 7.2 0 1 0 55.4 14A3.4 7.2 0 1 0 48.6 14Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M50.53 14A1.87 4.6 0 1 0 54.27 14A1.87 4.6 0 1 0 50.53 14Z" fill="#236ead"/>
+</svg>

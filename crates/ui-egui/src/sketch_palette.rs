@@ -575,7 +575,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
         app.start(id);
     }
     if look {
-        crate::dialogs::look_at_sketch(app);
+        crate::dialogs::look_at_sketch_again(app);
     }
     if finish {
         app.finish_sketch();

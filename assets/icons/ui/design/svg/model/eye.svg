@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Eye</title>
+  <path d="M4 32C16 14 48 14 60 32C48 50 16 50 4 32Z" fill="#e2e8ef"/>
+  <path d="M4 32C16 14 48 14 60 32C48 50 16 50 4 32Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22 32A10 10 0 1 0 42 32A10 10 0 1 0 22 32Z" fill="#328bd3"/>
+  <path d="M22 32A10 10 0 1 0 42 32A10 10 0 1 0 22 32Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="4" fill="#34465b"/>
+</svg>

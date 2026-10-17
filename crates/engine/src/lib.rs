@@ -22,6 +22,7 @@ pub mod render_jobs;
 pub mod sample;
 mod slicer_icon;
 pub mod slicers;
+pub mod timing;
 pub mod view;
 
 use std::sync::Arc;
@@ -308,6 +309,10 @@ pub enum SurfaceAnalysis {
 /// sampled at, in world coordinates, and how it reads. View state only: the design is untouched.
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct ContinuitySeam {
+    /// The body the seam is an edge of.
+    pub body: String,
+    /// The edge's index in the body's display mesh edge order.
+    pub edge: usize,
     /// Sample points along the seam, in world coordinates.
     pub points: Vec<Vec3>,
     /// The seam's worst verdict along its length.
@@ -956,6 +961,18 @@ impl Session {
     /// Run a script: a JSON array of `{"command": id, "params": {...}}` (or an object with a
     /// `commands` array). Stops at the first error. Returns each command's result.
     pub fn run_script(&mut self, script: &Value) -> Result<Vec<Value>> {
+        Ok(self.run_script_with(script, None)?.0)
+    }
+
+    /// [`Session::run_script`], timing each command (#1833): the results and
+    /// `{"timings": [{"index", "command", "ms", "profile"?}], "total_ms"}`, with `profile` the
+    /// kernel's share of each command ([`timing`]).
+    pub fn run_script_timed(&mut self, script: &Value, profile: bool) -> Result<(Vec<Value>, Value)> {
+        let (results, timings) = self.run_script_with(script, Some(profile))?;
+        Ok((results, timings.unwrap_or(Value::Null)))
+    }
+
+    fn run_script_with(&mut self, script: &Value, profile: Option<bool>) -> Result<(Vec<Value>, Option<Value>)> {
         let list = match script {
             Value::Array(a) => a.clone(),
             Value::Object(o) => {
@@ -967,6 +984,8 @@ impl Session {
             return Err(EngineError::Other("script too long".into()));
         }
         let mut out = Vec::new();
+        let mut steps = Vec::new();
+        let clock = timing::Clock::start();
         for (i, c) in list.iter().enumerate() {
             let id = c
                 .get("command")
@@ -974,10 +993,18 @@ impl Session {
                 .and_then(Value::as_str)
                 .ok_or_else(|| EngineError::Other(format!("script step {}: missing `command`", i + 1)))?;
             let p = c.get("params").cloned().unwrap_or(Value::Null);
-            let r = self.execute(id, &p).map_err(|e| EngineError::Other(format!("step {} ({id}): {e}", i + 1)))?;
-            out.push(r);
+            let r = match profile {
+                Some(profile) => {
+                    let (r, step) = timing::time(profile, || self.execute(id, &p));
+                    steps.push(step.to_json(i, id));
+                    r
+                }
+                None => self.execute(id, &p),
+            };
+            out.push(r.map_err(|e| EngineError::Other(format!("step {} ({id}): {e}", i + 1)))?);
         }
-        Ok(out)
+        let timings = profile.map(|_| serde_json::json!({"timings": steps, "total_ms": timing::round_ms(clock.ms())}));
+        Ok((out, timings))
     }
 }
 
@@ -991,6 +1018,8 @@ mod delete_face_tests;
 mod derived_units_tests;
 #[cfg(test)]
 mod display_mesh_tests;
+#[cfg(test)]
+mod exact_tool_tests;
 #[cfg(test)]
 mod extent_tests;
 #[cfg(test)]

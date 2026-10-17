@@ -5,7 +5,7 @@ members = ["crates/*", "apps/*", "xtask"]
 exclude = ["vendor"]
 
 [workspace.package]
-version = "0.14.0"
+version = "0.15.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"
@@ -23,6 +23,7 @@ solidcraft-doc = { path = "crates/doc" }
 solidcraft-io = { path = "crates/io" }
 solidcraft-engine = { path = "crates/engine" }
 solidcraft-ui-egui = { path = "crates/ui-egui" }
+solidcraft-space-mouse = { path = "crates/space-mouse" }
 solidcraft-mcp = { path = "crates/mcp" }
 solidcraft-derive = { path = "crates/derive" }
 
@@ -51,7 +52,7 @@ spade = { version = "2.15", default-features = false, features = ["std"] }
 rayon = "1.12"
 
 # packages (3MF)
-zip = { version = "3", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 quick-xml = "0.41"
 # glTF 2.0 import (MIT OR Apache-2.0): the document model and GLB container only; buffers are
 # read by crates/io itself, so no image decoding or file access comes with it.
@@ -73,6 +74,10 @@ image = { version = "0.25", default-features = false, features = ["png", "hdr"] 
 png = "0.18.1"
 # LZW for GIF animations (MIT OR Apache-2.0, pure Rust; already in the tree through image's tiff).
 weezl = "0.1.12"
+# rasterises the UI icon SVGs (BSD-3-Clause, pure Rust, builds for wasm)
+tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd"] }
+# build scripts: reads the icon palette (MIT OR Apache-2.0)
+toml = "1"
 
 # ui
 egui = "0.36"

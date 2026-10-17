@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Plane</title>
+  <path d="M8 33.87L32 47.87L32 54.87L8 40.87Z" fill="#b8c3cf"/>
+  <path d="M32 47.87L56 33.87L56 40.87L32 54.87Z" fill="#8e9faf"/>
+  <path d="M8 33.87L32 19.87L56 33.87L32 47.87Z" fill="#e2e8ef"/>
+  <path d="M8 33.87L32 19.87L56 33.87L56 40.87L32 54.87L8 40.87Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 47.87L8 33.87" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 47.87L56 33.87" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 47.87L32 54.87" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8 21.87L32 7.87L56 21.87L32 35.87Z" fill="#b9ddf8" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5"/>
+</svg>

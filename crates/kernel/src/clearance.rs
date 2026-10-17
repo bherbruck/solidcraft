@@ -5,6 +5,10 @@
 //! body (a cut), or nothing but its material (a join). A [`Clearance`] decides that on the
 //! other body's faces: every triangle of its mesh is clipped against that space, so a wall, a
 //! rib or a hole anywhere in it is found. Sample points miss what lies between them.
+//!
+//! A cut's or join's tool grown past the faces it lies on, to keep coincident faces out of its
+//! boolean, is asked the same way (in the document's evaluation): it may gain only empty space
+//! (a cut) or material (a join).
 
 use std::collections::HashMap;
 
@@ -16,7 +20,7 @@ use crate::offset::{Surf, surf_of};
 
 /// How a body's material sits in a region of space.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Occupancy {
+pub enum Occupancy {
     /// The region holds none of it.
     Empty,
     /// The region lies wholly in it.
@@ -104,7 +108,7 @@ enum Reach {
 }
 
 /// A body's faces, for telling how its material sits in the space a face moves through.
-pub(crate) struct Clearance<'a> {
+pub struct Clearance<'a> {
     body: &'a Body,
     mesh: Mesh,
     /// How far a curved face may stand off its triangles.
@@ -119,7 +123,7 @@ const MAX_PAIRS: usize = 2_000_000;
 
 impl<'a> Clearance<'a> {
     /// `chord`: the chord error of the mesh the body is asked on.
-    pub(crate) fn new(body: &'a Body, chord: f64) -> Option<Clearance<'a>> {
+    pub fn new(body: &'a Body, chord: f64) -> Option<Clearance<'a>> {
         let mesh = body.tessellate_with(chord, true).ok()?;
         (!mesh.triangles.is_empty()).then(|| Clearance { body, mesh, sag: 2.0 * chord, tol: (body.size() * 1e-7).max(1e-9), exact: false })
     }
@@ -140,7 +144,7 @@ impl<'a> Clearance<'a> {
     /// planar faces square to `along`, each with how far its face reaches past it sideways
     /// (negative: the triangle's sides are drawn in, so that faces lying against them don't
     /// count). `Mixed` as soon as a face of the body reaches into that space.
-    pub(crate) fn swept(&self, faces: &[([Vec3; 3], f64)], along: Vec3, lo: f64, hi: f64) -> Occupancy {
+    pub fn swept(&self, faces: &[([Vec3; 3], f64)], along: Vec3, lo: f64, hi: f64) -> Occupancy {
         let Some((first, _)) = faces.first() else { return Occupancy::Mixed };
         let base = along.dot(first[0]);
         // The body's triangles near that space.
@@ -264,6 +268,11 @@ impl<'a> Clearance<'a> {
                 return Ok(Reach::Never);
             }
             let round = surf_of(f, self.tol * 100.0);
+            // A flat face stored otherwise (a revolve's end: a line swept round its axis) is
+            // a plane all the same: its triangles lie in it.
+            if matches!(round, Some(Surf::Plane { .. })) {
+                return Ok(Reach::Exact);
+            }
             let straight = matches!(round, Some(Surf::Cylinder { a, .. }) if a.dot(along).abs() > 1.0 - 1e-12)
                 || crate::prism::wall_along(&surface, along, self.tol * 10.0, &mut 262_144);
             Ok(if straight {

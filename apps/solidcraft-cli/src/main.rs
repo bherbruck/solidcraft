@@ -1,7 +1,7 @@
 //! SolidCraft headless command line.
 //!
 //! ```text
-//! solidcraft-cli run <script.json|design.solidcraft|part.step|mesh.3mf> [--in design|part.step|mesh.3mf] [--out FILE]... [--save FILE] [--quiet] [--results] [--json-out FILE] [--allow-errors]
+//! solidcraft-cli run <script.json|design.solidcraft|part.step|mesh.3mf> [--in design|part.step|mesh.3mf] [--out FILE]... [--save FILE] [--quiet] [--results] [--timings] [--profile] [--json-out FILE] [--allow-errors]
 //! solidcraft-cli eval <script.json|design.solidcraft|part.step> [--json-out FILE] (alias: inspect) measurements as JSON
 //! solidcraft-cli script <design.solidcraft> [--out script.json]     the design's history as a command script
 //! solidcraft-cli bench-open <design.solidcraft | part.step> [--parse-only] [--display LEVEL [--edit NAME EXPR]] loading timings as JSON lines
@@ -37,9 +37,11 @@ use solidcraft_engine::Session;
 use solidcraft_engine::view::Guides;
 
 const USAGE: &str = "usage:
-  solidcraft-cli run <script.json|design.solidcraft|part.step> [--in design.solidcraft|part.step] [--out FILE]... [--save FILE] [--quiet] [--results] [--json-out FILE] [--allow-errors]
+  solidcraft-cli run <script.json|design.solidcraft|part.step> [--in design.solidcraft|part.step] [--out FILE]... [--save FILE] [--quiet] [--results] [--timings] [--profile] [--json-out FILE] [--allow-errors]
   solidcraft-cli run --in <design.solidcraft|part.step> [--out FILE]...
       (a timeline feature that fails fails the run and nothing is written; --allow-errors writes anyway)
+      (--timings prints {timings: [{index, command, ms}], total_ms} for a script, with --results its results too;
+       --profile adds each command's profile: {boolean_ms, tessellate_ms, other_ms}, the kernel's share)
   solidcraft-cli eval <script.json|design.solidcraft|part.step> [--json-out FILE]     (alias: inspect; or --in FILE)
       (--json-out FILE writes the JSON that run (with --results, else the measurement) and eval print to FILE instead of stdout,
        as plain UTF-8: a shell's > can re-encode it, e.g. Windows PowerShell adds a byte-order mark)
@@ -180,7 +182,11 @@ fn positional(args: &[String]) -> Option<&String> {
     let mut i = 0;
     while let Some(a) = args.get(i) {
         if a.starts_with("--") {
-            i += if matches!(a.as_str(), "--quiet" | "--results" | "--allow-errors" | "--no-grid" | "--no-axes") { 1 } else { 2 };
+            i += if matches!(a.as_str(), "--quiet" | "--results" | "--timings" | "--profile" | "--allow-errors" | "--no-grid" | "--no-axes") {
+                1
+            } else {
+                2
+            };
             continue;
         }
         return Some(a);
@@ -224,15 +230,28 @@ fn cmd_run(args: &[String]) -> Result<(), String> {
     if path.is_none() && base.is_none() {
         return Err(USAGE.to_string());
     }
-    let (mut s, results) = if args.iter().any(|a| a == "--results") {
-        // Collect every command's result (scripts only), then process requested files too.
+    let want_results = args.iter().any(|a| a == "--results");
+    // `--profile` times each command and splits out its kernel time; it implies `--timings`.
+    let profile = args.iter().any(|a| a == "--profile");
+    let timings = profile || args.iter().any(|a| a == "--timings");
+    let (mut s, results) = if want_results || timings {
+        // Collect every command's result or time (scripts only), then process requested files too.
         let mut s = match base {
             Some(b) => load(b)?,
             None => Session::default(),
         };
-        let v = read_json(path.ok_or("--results needs a script")?)?;
-        let r = s.run_script(&v).map_err(|e| e.to_string())?;
-        (s, Some(Value::Array(r)))
+        let needs = if want_results { "--results needs a script" } else { "--timings needs a script" };
+        let v = read_json(path.ok_or(needs)?)?;
+        let out = if timings {
+            let (r, mut t) = s.run_script_timed(&v, profile).map_err(|e| e.to_string())?;
+            if want_results && let Some(o) = t.as_object_mut() {
+                o.insert("results".into(), Value::Array(r));
+            }
+            t
+        } else {
+            Value::Array(s.run_script(&v).map_err(|e| e.to_string())?)
+        };
+        (s, Some(out))
     } else {
         (open(base, path)?, None)
     };

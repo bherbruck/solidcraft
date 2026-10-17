@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Spin</title>
+  <defs>
+    <mask id="spin-back" maskUnits="userSpaceOnUse" x="-32" y="-32" width="128" height="128">
+      <path d="M-32 -33.5L96 -33.5L96 94.5L-32 94.5Z" fill="white"/>
+      <path d="M32 7.5L32 56.5" fill="none" stroke="black" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+    </mask>
+    <mask id="spin-axis" maskUnits="userSpaceOnUse" x="-32" y="-32" width="128" height="128">
+      <path d="M-32 -33.5L96 -33.5L96 94.5L-32 94.5Z" fill="white"/>
+      <path d="M54.22 37.83L53.92 38.22L53.59 38.61L53.2 38.99L52.78 39.36L52.31 39.73L51.8 40.08L51.25 40.43L50.65 40.76L50.02 41.09L49.36 41.4L48.66 41.71L47.92 42L47.15 42.27L46.35 42.53L45.52 42.78L44.66 43.01L43.78 43.23L42.87 43.43L41.94 43.62L40.99 43.78L40.02 43.94L39.03 44.07L38.03 44.19L37.02 44.28L35.99 44.36L34.96 44.43L33.92 44.47L32.88 44.49L31.84 44.5L30.8 44.49L29.76 44.46L28.72 44.41L27.69 44.34L26.67 44.25L25.66 44.15L24.66 44.03L23.68 43.89L22.72 43.73L21.77 43.56L20.85 43.37L19.95 43.17L19.07 42.94L18.22 42.71L17.4 42.45L16.61 42.19L15.85 41.91L15.12 41.61L14.43 41.31L13.78 40.99L13.16 40.66" fill="none" stroke="black" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M9.78 33.17L10.08 32.78L10.41 32.39L10.8 32.01L11.22 31.64L11.69 31.27L12.2 30.92L12.75 30.57L13.35 30.24L13.98 29.91L14.64 29.6L15.34 29.29L16.08 29L16.85 28.73L17.65 28.47L18.48 28.22L19.34 27.99L20.22 27.77L21.13 27.57L22.06 27.38L23.01 27.22L23.98 27.06L24.97 26.93L25.97 26.81L26.98 26.72L28.01 26.64L29.04 26.57L30.08 26.53L31.12 26.51L32.16 26.5L33.2 26.51L34.24 26.54L35.28 26.59L36.31 26.66L37.33 26.75L38.34 26.85L39.34 26.97L40.32 27.11L41.28 27.27L42.23 27.44L43.15 27.63L44.05 27.83L44.93 28.06L45.78 28.29L46.6 28.55L47.39 28.81L48.15 29.09L48.88 29.39L49.57 29.69L50.22 30.01L50.84 30.34" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round" mask="url(#spin-back)"/>
+  <path d="M32 7.5L32 56.5" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round" mask="url(#spin-axis)"/>
+  <path d="M54.22 37.83L53.92 38.22L53.59 38.61L53.2 38.99L52.78 39.36L52.31 39.73L51.8 40.08L51.25 40.43L50.65 40.76L50.02 41.09L49.36 41.4L48.66 41.71L47.92 42L47.15 42.27L46.35 42.53L45.52 42.78L44.66 43.01L43.78 43.23L42.87 43.43L41.94 43.62L40.99 43.78L40.02 43.94L39.03 44.07L38.03 44.19L37.02 44.28L35.99 44.36L34.96 44.42L33.92 44.47L32.88 44.49L31.84 44.5L30.8 44.49L29.76 44.46L28.72 44.41L27.69 44.34L26.67 44.26L25.66 44.15L24.66 44.03L23.68 43.89L22.72 43.73L21.77 43.56L20.85 43.37L19.95 43.17L19.07 42.94L18.22 42.71L17.4 42.45L16.61 42.19L15.85 41.91L15.12 41.62L14.43 41.31L13.78 40.99L13.16 40.66" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M54.65 33.94L48.09 33.25L53.59 27.43Z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M9.35 37.06L15.91 37.75L10.41 43.57Z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

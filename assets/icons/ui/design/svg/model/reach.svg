@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Reach point</title>
+  <path d="M12.35 53.15L19.35 30.15L38.35 25.15" fill="none" stroke="#34465b" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M12.35 53.15L19.35 30.15L38.35 25.15" fill="none" stroke="#b8c3cf" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="12.35" cy="53.15" r="4.2" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="19.35" cy="30.15" r="4.2" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="48.35" cy="14.15" r="7.5" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="48.35" cy="14.15" r="2.6" fill="#236ead"/>
+  <path d="M31.35 42.15L43.36 28.63" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M47.35 24.15L45.02 32.79L39.05 27.47Z" fill="#ffffff" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M31.35 42.15L43.36 28.63" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M47.35 24.15L45.02 32.79L39.05 27.47Z" fill="#236ead"/>
+</svg>

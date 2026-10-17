@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Rollback</title>
+  <path d="M12 44.91L54 44.91" fill="none" stroke="#8e9faf" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10.5 39.91L17.5 39.91A1.5 1.5 0 0 1 19 41.41L19 48.41A1.5 1.5 0 0 1 17.5 49.91L10.5 49.91A1.5 1.5 0 0 1 9 48.41L9 41.41A1.5 1.5 0 0 1 10.5 39.91Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M28.5 39.91L35.5 39.91A1.5 1.5 0 0 1 37 41.41L37 48.41A1.5 1.5 0 0 1 35.5 49.91L28.5 49.91A1.5 1.5 0 0 1 27 48.41L27 41.41A1.5 1.5 0 0 1 28.5 39.91Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M46.5 39.91L53.5 39.91A1.5 1.5 0 0 1 55 41.41L55 48.41A1.5 1.5 0 0 1 53.5 49.91L46.5 49.91A1.5 1.5 0 0 1 45 48.41L45 41.41A1.5 1.5 0 0 1 46.5 39.91Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M50 34.91L50 26.91Q50 19.91 43 19.91L23 19.91" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M13 19.91L24 13.91L24 25.91Z" fill="#ffffff" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M50 34.91L50 26.91Q50 19.91 43 19.91L23 19.91" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M13 19.91L24 13.91L24 25.91Z" fill="#236ead"/>
+</svg>

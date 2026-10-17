@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Curvature</title>
+  <path d="M10.4 32L12.2 27.65L14 23.6L15.8 20.12L17.6 17.45L19.4 15.77L21.2 15.2L23 15.77L24.8 17.45L26.6 20.12L28.4 23.6L30.2 27.65L32 32" fill="none" stroke="#34465b" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 32L33.8 36.35L35.6 40.4L37.4 43.88L39.2 46.55L41 48.23L42.8 48.8L44.6 48.23L46.4 46.55L48.2 43.88L50 40.4L51.8 36.35L53.6 32" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="3.4" fill="#34465b"/>
+</svg>

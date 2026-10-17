@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Blend surface</title>
+  <path d="M25.93 18.37L36.72 24.6L13.79 37.84L3 31.61Z" fill="#e2e8ef"/>
+  <path d="M25.93 18.37L36.72 24.6L13.79 37.84L3 31.61Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M50.21 25.38L61 31.61L38.07 44.85L27.28 38.62Z" fill="#e2e8ef"/>
+  <path d="M50.21 25.38L61 31.61L38.07 44.85L27.28 38.62Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M36.72 24.6L38.07 25.18L39.42 25.43L40.77 25.42L42.12 25.25L43.47 24.99L44.81 24.73L46.16 24.56L47.51 24.55L48.86 24.8L50.21 25.38L27.28 38.62L25.93 38.04L24.58 37.79L23.23 37.8L21.88 37.97L20.53 38.23L19.19 38.49L17.84 38.66L16.49 38.67L15.14 38.42L13.79 37.84Z" fill="#b9ddf8"/>
+  <path d="M36.72 24.6L38.07 25.18L39.42 25.43L40.77 25.42L42.12 25.25L43.47 24.99L44.81 24.73L46.16 24.56L47.51 24.55L48.86 24.8L50.21 25.38L27.28 38.62L25.93 38.04L24.58 37.79L23.23 37.8L21.88 37.97L20.53 38.23L19.19 38.49L17.84 38.66L16.49 38.67L15.14 38.42L13.79 37.84Z" fill="none" stroke="#236ead" stroke-width="3.19" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

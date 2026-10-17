@@ -10,39 +10,10 @@ use crate::{SolveApp, icons};
 
 pub const TABS: &[&str] = &["SOLID", "SURFACE", "MESH", "SHEET METAL", "PLASTIC", "UTILITIES"];
 
-/// The accent stroke colour for a panel's icons: constraint commands use the same red as the
-/// constraint glyphs they draw in the sketch (`glyph_text`), sketch tools otherwise keep
-/// `sketch_accent`, and every other tab keeps the plain `accent`.
-fn panel_accent(t: Tokens, tab: &str, panel: &str) -> Color32 {
-    if panel == "CONSTRAINTS" {
-        t.glyph_text
-    } else if tab == "SKETCH" {
-        t.sketch_accent
-    } else {
-        t.accent
-    }
-}
-
-/// The accent stroke colour a command's icon keeps on every surface that draws it, where the
-/// command's own meaning fixes it. Construction geometry carries one fixed meaning across the
-/// whole app. `sketch.construction` and `sketch.centerline` therefore draw their icon in the
-/// theme's construction orange on the ribbon, in a panel's drop-down and under the pointer while
-/// being dragged. The Sketch Palette's own line type buttons pass that same orange. `icons::paint`
-/// draws both of these icon names in the accent its caller hands it, never in a colour of its own.
-/// The caller is the only place the rule can live. Every other command has no fixed colour. It
-/// keeps the accent of whichever surface draws it.
-fn fixed_accent(t: Tokens, id: &str) -> Option<Color32> {
-    match id {
-        "sketch.construction" | "sketch.centerline" => Some(t.construction_geom),
-        _ => None,
-    }
-}
-
-/// The accent stroke colour for one command's icon on the ribbon. It covers the command's own
-/// button and a collapsed panel's single button. A command with a `fixed_accent` keeps that.
-/// Every other command takes its `panel_accent`.
-fn command_accent(t: Tokens, tab: &str, panel: &str, id: &str) -> Color32 {
-    fixed_accent(t, id).unwrap_or_else(|| panel_accent(t, tab, panel))
+/// Legacy paint arguments and non-SVG affordances follow the same semantic palette as the icon.
+/// The requested icon id determines its meaning on ribbons, menus and drag previews alike.
+fn command_accent(icon: &str) -> Color32 {
+    crate::icon_svg::primary(icon, crate::theme::is_dark(), crate::theme::vision())
 }
 
 /// Panels shown on each tab (in order). Commands come from the registry by (tab, panel).
@@ -281,8 +252,7 @@ pub fn app_bar(app: &mut SolveApp, ui: &mut egui::Ui) {
             if enabled && resp.hovered() {
                 ui.painter().rect_filled(br, 4.0, Color32::from_white_alpha(30));
             }
-            let dim = |c: Color32| if enabled { c } else { c.gamma_multiply(0.35) };
-            icons::paint(ui.painter(), br.shrink(5.0), icon, dim(t.app_bar_icon[0]), dim(t.app_bar_icon[1]), dim(t.app_bar_icon[2]));
+            icons::paint_on(ui.painter(), br.shrink(5.0), icon, Some(true), if enabled { 1.0 } else { 0.35 });
             let clicked = resp.on_hover_text(tip).clicked();
             enabled && clicked
         };
@@ -351,7 +321,7 @@ pub fn app_bar(app: &mut SolveApp, ui: &mut egui::Ui) {
         ui.painter().rect_filled(report, 4.0, if response.hovered() || response.has_focus() { t.hover } else { t.app_bar });
         ui.painter().rect_stroke(report, 4.0, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         let icon = Rect::from_center_size(pos2(report.left() + 14.0, report.center().y), vec2(18.0, 18.0));
-        icons::paint(ui.painter(), icon, "bug_report", t.app_bar_text, t.app_bar_text, t.app_bar);
+        icons::paint_on(ui.painter(), icon, "bug_report", Some(true), 1.0);
         if report_label {
             ui.painter().text(pos2(report.left() + REPORT_TEXT_X, report.center().y), Align2::LEFT_CENTER, report_text, report_font, t.app_bar_text);
         }
@@ -364,7 +334,7 @@ pub fn app_bar(app: &mut SolveApp, ui: &mut egui::Ui) {
         if gresp.hovered() {
             ui.painter().rect_filled(gear, 4.0, Color32::from_white_alpha(30));
         }
-        icons::paint(ui.painter(), gear.shrink(4.0), "settings", t.app_bar_text, t.app_bar_text, t.app_bar);
+        icons::paint_on(ui.painter(), gear.shrink(4.0), "settings", Some(true), 1.0);
         crate::scenario::publish_handle("titlebar:preferences", gear.center());
         let prefs_tip = if cfg!(target_os = "macos") {
             format!("{} (Cmd+,)", app.tr("ui.preferences"))
@@ -597,7 +567,15 @@ pub fn toolbar(app: &mut SolveApp, ui: &mut egui::Ui) {
         let ws = Rect::from_min_max(pos2(r.left() + 6.0, r.top() + 4.0), pos2(r.left() + 104.0, r.bottom() - 5.0));
         let wresp = ui.interact(ws, ui.id().with("workspace_switcher"), Sense::click());
         painter.rect(ws, 4.0, if wresp.hovered() { t.hover } else { t.field }, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-        icons::paint(&painter, Rect::from_center_size(pos2(ws.center().x, ws.top() + 24.0), vec2(26.0, 26.0)), "box", t.icon, t.icon_fill, t.accent);
+        let workspace_icon = if crate::render_workspace::active(app) { "ws_render" } else { "ws_design" };
+        icons::paint(
+            &painter,
+            Rect::from_center_size(pos2(ws.center().x, ws.top() + 24.0), vec2(26.0, 26.0)),
+            workspace_icon,
+            t.icon,
+            t.icon_fill,
+            t.accent,
+        );
         painter.text(
             pos2(ws.center().x - 5.0, ws.top() + 52.0),
             Align2::CENTER_CENTER,
@@ -719,7 +697,7 @@ pub fn toolbar(app: &mut SolveApp, ui: &mut egui::Ui) {
                     painter.rect_filled(br, 4.0, t.hover);
                 }
                 if let Some(c) = shown.first().or(cmds.first()) {
-                    let acc = command_accent(t, &tab, panel, c.id);
+                    let acc = command_accent(c.icon);
                     icons::paint(&painter, Rect::from_center_size(br.center() - vec2(0.0, 3.0), vec2(26.0, 26.0)), c.icon, t.icon, t.icon_fill, acc);
                 }
                 caret(&painter, pos2(br.center().x, br.bottom() - 3.0), t.text_dim);
@@ -769,14 +747,10 @@ pub fn toolbar(app: &mut SolveApp, ui: &mut egui::Ui) {
                 } else if resp.hovered() && info.enabled {
                     painter.rect_filled(br, 4.0, t.hover);
                 }
-                let (ink, fill, acc) = if info.enabled {
-                    (t.icon, t.icon_fill, command_accent(t, &tab, panel, selected.id))
-                } else {
-                    (t.border, t.panel_header, t.border)
-                };
+                let (ink, fill, acc) =
+                    if info.enabled { (t.icon, t.icon_fill, command_accent(selected.icon)) } else { (t.border, t.panel_header, t.border) };
                 let icon = match selected.id {
                     "sketch.finish" => "finish",
-                    "config.table" => "configuration_table",
                     _ => selected.icon,
                 };
                 let icon_rect =
@@ -1105,11 +1079,9 @@ fn dropdown_row(app: &SolveApp, ui: &mut egui::Ui, c: &'static solidcraft_engine
         p.rect_filled(rect, 3.0, t.hover);
         crate::scenario::publish_handle(&format!("dropdown_hot:{}", c.id), rect.center());
     }
-    // Every other row keeps the plain accent it always has. A constraint command's row switches
-    // to the constraint red, to match its button on the ribbon. A command with a `fixed_accent`
-    // keeps that colour ahead of either.
+    // The icon keeps its semantic accent in a drop-down as well as on the ribbon.
     let (ink, fill, acc, text) = if info.enabled {
-        let acc = fixed_accent(t, c.id).unwrap_or(if c.panel == "CONSTRAINTS" { t.glyph_text } else { t.accent });
+        let acc = command_accent(c.icon);
         (t.icon, t.icon_fill, acc, t.text)
     } else {
         (t.border, t.panel_header, t.border, t.text_dim)
@@ -1243,7 +1215,7 @@ fn drag_ghost(ctx: &egui::Context, id: &str, at: egui::Pos2, removing: bool) {
     let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("sc_toolbar_drag")));
     let r = Rect::from_center_size(at + vec2(14.0, 16.0), vec2(30.0, 30.0));
     p.rect(r, 4.0, t.toolbar.gamma_multiply(0.92), Stroke::new(1.0, if removing { t.error } else { t.accent }), egui::StrokeKind::Inside);
-    icons::paint(&p, r.shrink(5.0), c.icon, t.icon, t.icon_fill, fixed_accent(t, c.id).unwrap_or(t.accent));
+    icons::paint(&p, r.shrink(5.0), c.icon, t.icon, t.icon_fill, command_accent(c.icon));
     if removing {
         let s = Stroke::new(2.0, t.error);
         let x = Rect::from_center_size(r.right_top(), vec2(9.0, 9.0));
@@ -1348,10 +1320,9 @@ pub fn shortcuts(app: &mut SolveApp, ctx: &egui::Context) {
                 } else if !app.session.selection.is_empty() || app.session.active_sketch.is_none() {
                     app.tree.picked_joints.clear();
                     let _ = app.run("select.clear", json!({}));
-                } else {
-                    // Nothing left to cancel: Esc finishes the sketch.
-                    app.finish_sketch();
                 }
+                // An open sketch with nothing left to cancel stays open (#1804). Finish Sketch
+                // is what leaves it, so a second Escape after putting a tool down is harmless.
             }
             Key::S if !mods.shift && !mods.alt => {
                 let at = ctx.input(|i| i.pointer.latest_pos());
@@ -1785,69 +1756,6 @@ mod panel_drop_tests {
         h.step(&json!({"expect":{"handle_order":["button:solid.fillet","button:solid.chamfer","button:solid.scale","button:solid.extrude"],"tool":null,"dialog":null,"errors":0}})).unwrap();
         h.step(&json!({"restart":"close"})).unwrap();
         h.step(&json!({"expect":{"handle_order":["button:solid.scale","button:solid.extrude"]}})).unwrap();
-    }
-}
-
-#[cfg(test)]
-mod icon_accent_tests {
-    use super::*;
-
-    /// `icons.rs` pins one half of the construction icon contract. `construction` and
-    /// `centerline` take their colour from whatever accent their caller hands over. That half
-    /// stays green when the caller hands over the wrong colour. That is exactly what the toolbar
-    /// did. This pins the other half: the colour the toolbar actually passes for those two
-    /// commands, on every surface the toolbar draws them on.
-    #[test]
-    fn the_toolbar_passes_construction_orange_for_both_line_type_commands() {
-        for t in [Tokens::light(), Tokens::dark()] {
-            // The regression itself: the SKETCH tab's accent is green. These two icons drew in
-            // it. Construction orange has to be a colour no panel accent can supply.
-            assert_ne!(t.construction_geom, t.sketch_accent, "construction orange must differ from the sketch accent");
-            assert_ne!(t.construction_geom, t.accent, "construction orange must differ from the plain accent");
-            assert_ne!(t.construction_geom, t.glyph_text, "construction orange must differ from the constraint red");
-            for id in ["sketch.construction", "sketch.centerline"] {
-                assert_eq!(fixed_accent(t, id), Some(t.construction_geom), "{id} must have a fixed accent");
-                // Its ribbon button, a collapsed panel's single button, and a drop-down row.
-                assert_eq!(command_accent(t, "SKETCH", "CREATE", id), t.construction_geom, "{id} on the SKETCH ribbon");
-                assert_eq!(command_accent(t, "SOLID", "CREATE", id), t.construction_geom, "{id} on the SOLID ribbon");
-                assert_eq!(fixed_accent(t, id).unwrap_or(t.accent), t.construction_geom, "{id} in a drop-down row");
-            }
-        }
-    }
-
-    /// Those two and no others. Every other command's icon keeps the accent of the panel it sits
-    /// on, so the constraint red and the sketch green both survive the exception above.
-    #[test]
-    fn no_other_command_overrides_the_accent_of_its_own_panel() {
-        let t = Tokens::light();
-        let specs = solidcraft_engine::command_specs();
-        let mut fixed: Vec<&str> = specs.iter().map(|c| c.id).filter(|id| fixed_accent(t, id).is_some()).collect();
-        fixed.sort_unstable();
-        assert_eq!(fixed, ["sketch.centerline", "sketch.construction"], "only the two line type commands fix their own accent");
-        for c in &specs {
-            if fixed.contains(&c.id) {
-                continue;
-            }
-            let want = panel_accent(t, c.tab, c.panel);
-            assert_eq!(command_accent(t, c.tab, c.panel, c.id), want, "{} must keep the accent of its own panel", c.id);
-        }
-        // The fix did not flatten every icon to one colour. A sketch tool is still green, a
-        // constraint still red, a solid tool still blue. A missing id fails this as well.
-        let accent_of = |id: &str| solidcraft_engine::find_command(id).map(|c| command_accent(t, c.tab, c.panel, c.id));
-        assert_eq!(accent_of("sketch.text"), Some(t.sketch_accent));
-        assert_eq!(accent_of("sketch.constraint.polygon"), Some(t.glyph_text));
-        assert_eq!(accent_of("solid.extrude"), Some(t.accent));
-    }
-
-    /// Both line type commands sit on the SKETCH tab's CREATE panel. The accent above is
-    /// therefore a colour a person can actually see. Their icons are the two `icons.rs` draws
-    /// from the caller's accent.
-    #[test]
-    fn both_line_type_commands_are_create_panel_commands_with_their_own_icons() {
-        for (id, icon) in [("sketch.construction", "construction"), ("sketch.centerline", "centerline")] {
-            let seen = solidcraft_engine::find_command(id).map(|c| (c.tab, c.panel, c.icon));
-            assert_eq!(seen, Some(("SKETCH", "CREATE", icon)), "{id} must be on the SKETCH CREATE panel");
-        }
     }
 }
 

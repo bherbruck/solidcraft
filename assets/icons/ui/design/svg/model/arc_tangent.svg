@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Tangent arc</title>
+  <path d="M6 52L24 52" fill="none" stroke="#8e9faf" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M24 52A26 26 0 0 0 50 26" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="24" cy="52" r="5.8" fill="#ffffff"/>
+  <circle cx="24" cy="52" r="3.4" fill="#236ead"/>
+  <circle cx="50" cy="26" r="5.8" fill="#ffffff"/>
+  <circle cx="50" cy="26" r="3.4" fill="#236ead"/>
+</svg>

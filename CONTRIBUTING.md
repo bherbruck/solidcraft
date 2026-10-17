@@ -10,7 +10,7 @@ Help is welcome, whether that's a one-line fix or owning a whole area. This page
 build it, how the code is laid out, the few rules that aren't negotiable, and where help is
 needed most.
 
-Questions, ideas or want to say what you're working on? Join the [Discord](https://solidcraft.io/discord).
+Questions, ideas or want to say what you're working on? Join the [Discord](https://discord.gg/FtU4NQNVDH).
 
 ## Get it running (about 10 minutes on a fast machine)
 
@@ -180,7 +180,7 @@ Pull requests skip a few heavy tests (one to four minutes each), which run on ev
 `.config/nextest.toml` and the [testing page](docs/book/src/dev/testing.md):
 
 - `solidcraft-engine`: `tests::hostile_params_never_panic`, everything in `tests::robustness` and
-  `tests::robustness_goldens` (pull requests that touch `crates/kernel` run its `sample_*` part),
+  the seeds of `tests::robustness_goldens` (`seed_00` … `seed_95`; pull requests that touch `crates/kernel` run every 8th),
   `pattern_suppress_tests::enclosure_arc_extinction_keeps_a_real_sharp_inner_lip_after_resize_and_reopen`,
   `pattern_suppress_tests::enclosure_datums_follow_wall_height_and_board_depth_with_material_proofs`,
   `cmd::plastic::tests::enclosure_snap_fit_follows_resized_front_wall`, the `atomic_commands` contract tests
@@ -300,7 +300,7 @@ long as the change meets the rules above.
 
 ## Where help is wanted most
 
-**Kernel speed (slow fillets, booleans, STEP):** please don't rewrite the current kernel code for speed; it is being replaced by [solidcore](https://github.com/bherbruck/solidcore) ([progress](https://bherbruck.github.io/solidcore/)). Report slow cases with a file under the `kernel-perf` label, and put kernel effort into solidcore instead. See [#1597](https://github.com/tangency-labs/solidcraft/issues/1597).
+**Kernel speed (slow fillets, booleans, STEP):** please don't rewrite the current kernel code for speed; it is being replaced by [solidcore](https://github.com/bherbruck/solidcore) ([progress](https://tangency-labs.github.io/solidcore/)). Report slow cases with a file under the `kernel-perf` label, and put kernel effort into solidcore instead. See [#1597](https://github.com/tangency-labs/solidcraft/issues/1597).
 
 See the [`help wanted`](https://github.com/tangency-labs/solidcraft/labels/help%20wanted) and
 [`good first issue`](https://github.com/tangency-labs/solidcraft/labels/good%20first%20issue) labels.

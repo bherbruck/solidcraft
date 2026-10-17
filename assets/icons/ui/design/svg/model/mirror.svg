@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Mirror</title>
+  <path d="M32 6L32 12M32 20L32 26M32 34L32 40M32 48L32 54" fill="none" stroke="#6f879c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8 50L28 50L28 16Z" fill="#b8c3cf"/>
+  <path d="M56 50L36 50L36 16Z" fill="#328bd3"/>
+  <path d="M8 50L28 50L28 16Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M56 50L36 50L36 16Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

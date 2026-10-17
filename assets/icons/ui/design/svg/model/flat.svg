@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Flat pattern</title>
+  <path d="M3 27.43L37.27 47.22L37.27 50.27L3 30.48Z" fill="#b8c3cf"/>
+  <path d="M61 33.52L37.27 47.22L37.27 50.27L61 36.57Z" fill="#8e9faf"/>
+  <path d="M26.73 13.73L61 33.52L37.27 47.22L3 27.43Z" fill="#e2e8ef"/>
+  <path d="M26.73 13.73L61 33.52L61 36.57L37.27 50.27L3 30.48L3 27.43Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M3 27.43L37.27 47.22L61 33.52" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M37.27 47.22L37.27 50.27" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M35.95 21.35L16.18 32.76" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M47.82 28.19L28.05 39.61" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

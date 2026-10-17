@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Isoparametric analysis</title>
+  <path d="M8 32A24 24 0 1 0 56 32A24 24 0 1 0 8 32Z" fill="#e2e8ef"/>
+  <defs><clipPath id="disc-iso"><path d="M8 32A24 24 0 1 0 56 32A24 24 0 1 0 8 32Z" fill="none"/></clipPath></defs>
+  <g clip-path="url(#disc-iso)">
+  <path d="M32 8L32 56" fill="none" stroke="#236ead" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20 32A12 24 0 1 0 44 32A12 24 0 1 0 20 32Z" fill="none" stroke="#236ead" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M11.22 32A20.78 24 0 1 0 52.78 32A20.78 24 0 1 0 11.22 32Z" fill="none" stroke="#236ead" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44 52.78A12 3.84 0 0 1 20 52.78" fill="none" stroke="#236ead" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M52.78 44A20.78 6.65 0 0 1 11.22 44" fill="none" stroke="#236ead" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M56 32A24 7.68 0 0 1 8 32" fill="none" stroke="#236ead" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M52.78 20A20.78 6.65 0 0 1 11.22 20" fill="none" stroke="#236ead" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44 11.22A12 3.84 0 0 1 20 11.22" fill="none" stroke="#236ead" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <path d="M8 32A24 24 0 1 0 56 32A24 24 0 1 0 8 32Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

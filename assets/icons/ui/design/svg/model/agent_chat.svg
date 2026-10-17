@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Agent chat</title>
+  <path d="M13 9.5L51 9.5Q57 9.5 57 15.5L57 39.5Q57 45.5 51 45.5L29 45.5L16 54.5L16 45.5L13 45.5Q7 45.5 7 39.5L7 15.5Q7 9.5 13 9.5Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="20" cy="27.5" r="3.1" fill="#236ead"/>
+  <circle cx="32" cy="27.5" r="3.1" fill="#236ead"/>
+  <circle cx="44" cy="27.5" r="3.1" fill="#236ead"/>
+</svg>

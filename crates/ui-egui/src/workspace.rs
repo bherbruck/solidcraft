@@ -152,8 +152,9 @@ pub fn feature_icon(k: &FeatureKind) -> Option<&'static str> {
         FeatureKind::SheetConvert { .. } => "convert_sheet",
         FeatureKind::Boss { .. } => "boss",
         FeatureKind::Lip { .. } => "lip",
-        FeatureKind::SnapFit { .. } => "snap",
+        FeatureKind::SnapFit { .. } => "snap_fit",
         FeatureKind::Rest { .. } => "rest",
+        FeatureKind::Rib { web: true, .. } => "web",
         FeatureKind::Rib { .. } => "rib",
         _ => return None,
     })

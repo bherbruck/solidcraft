@@ -1,5 +1,6 @@
 //! A failed feature is marked in the bottom timeline and the Feature History by a shape, not only
-//! its colour (#972): the error mark (a disc with a cross) where a warning's mark goes.
+//! its colour (#972): the error mark where a warning's mark goes (now an icon image, so these
+//! tests look for the 10-point image at the mark's place).
 
 use egui::{Pos2, Rect, Shape, vec2};
 use serde_json::json;
@@ -27,20 +28,23 @@ fn features(app: &SolveApp) -> Vec<(String, bool)> {
     app.session.doc.features.iter().map(|f| (f.name.clone(), app.session.model.result(f.id).is_some_and(|r| r.error.is_some()))).collect()
 }
 
-/// The discs filled in the error colour (either theme's) that one frame of `draw` paints.
+/// The centres of the 10 to 12-point icon images one frame of `draw` paints: the failed-feature mark
+/// (the sample has no warnings, so every such image is an error mark).
 fn error_discs(app: &mut SolveApp, draw: fn(&mut SolveApp, &mut egui::Ui)) -> Vec<Pos2> {
     crate::scenario::clear_handles();
     let ctx = egui::Context::default();
     let screen = Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 900.0));
-    let out = ctx.run_ui(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ui| draw(app, ui));
-    let errors = [crate::theme::Tokens::light().error, crate::theme::Tokens::dark().error];
+    let mut out = ctx.run_ui(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ui| draw(app, ui));
+    // Icons upload textures; dropping their deltas unapplied would panic.
+    out.textures_delta.clear();
     let mut found = Vec::new();
     for clipped in &out.shapes {
         each(&clipped.shape, &mut |s| {
-            if let Shape::Circle(c) = s
-                && errors.contains(&c.fill)
-            {
-                found.push(c.center);
+            if let Shape::Mesh(m) = s {
+                let b = m.calc_bounds();
+                if matches!(m.texture_id, egui::TextureId::Managed(_)) && (b.width() - 11.0).abs() < 1.5 && (b.height() - 11.0).abs() < 1.5 {
+                    found.push(b.center());
+                }
             }
         });
     }
@@ -80,28 +84,4 @@ fn a_failed_feature_is_marked_in_the_feature_history() {
     // The mark sits at the row's right end, on its centre line.
     let got = marked(&mut app, crate::timeline_left::left_timeline, |item, d| (d.y - item.y).abs() < 1.5 && d.x > item.x);
     assert_eq!(got, want, "an error mark on each failed feature and on no other");
-}
-
-/// The mark is its own drawing: a disc with a cross in the caller's colours, not the fallback
-/// square, and a different shape from the warning's triangle.
-#[test]
-fn the_error_mark_is_a_disc_with_a_cross() {
-    let ctx = egui::Context::default();
-    let (ink, fill) = (egui::Color32::from_rgb(1, 2, 3), egui::Color32::from_rgb(4, 5, 6));
-    let draw = |name: &'static str| {
-        let out = ctx.run_ui(egui::RawInput::default(), |ui| {
-            crate::icons::paint(ui.painter(), Rect::from_min_size(Pos2::ZERO, vec2(24.0, 24.0)), name, ink, fill, fill);
-        });
-        let mut shapes = Vec::new();
-        for c in &out.shapes {
-            each(&c.shape, &mut |s| shapes.push(s.clone()));
-        }
-        shapes
-    };
-    let error = draw("error");
-    let discs = error.iter().filter(|s| matches!(s, Shape::Circle(c) if c.fill == fill && c.stroke.color == ink)).count();
-    let strokes = error.iter().filter(|s| matches!(s, Shape::Path(p) if !p.closed && p.stroke.color == egui::epaint::ColorMode::Solid(ink))).count();
-    assert_eq!((discs, strokes), (1, 2), "one disc and the two strokes of a cross: {error:?}");
-    assert_ne!(format!("{error:?}"), format!("{:?}", draw("warning")));
-    assert_ne!(format!("{error:?}"), format!("{:?}", draw("no such icon")), "drawn, not the fallback square");
 }

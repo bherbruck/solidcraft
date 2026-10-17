@@ -339,9 +339,75 @@ impl Builder {
             return Err("no face could be imported".into());
         }
         let read = out.len();
+        let ball = match (out.as_slice(), origin.as_slice()) {
+            ([face], [file_face]) => whole_sphere(cx, *file_face, face).map(|patches| (*file_face, patches)),
+            _ => None,
+        };
+        if let Some((file_face, patches)) = ball {
+            origin = vec![file_face; patches.len()];
+            out = patches;
+        }
         let out = super::split::split_bands(out, &mut origin, failed);
         Ok((out.into(), closed, read, origin))
     }
+}
+
+/// A ball written as one face on a sphere bounded only by its seam, run out and back from pole
+/// to pole. Truck meshes a face on a revolved surface in parameter space, where that loop
+/// encloses nothing, so the ball is built as the kernel's own sphere instead: six patches with
+/// no pole or seam inside them (`build::sphere_patch_faces`), turned inside out for a void.
+/// `None` for any other face.
+fn whole_sphere(cx: &Ctx, file_face: u64, face: &mt::Face) -> Option<Vec<mt::Face>> {
+    use mt::{ParametricSurface3D, SearchParameter};
+    let surface = entity(cx, file_face).ok()?.params().get(2).and_then(Param::as_ref_id)?;
+    if entity(cx, surface).ok()?.name() != "SPHERICAL_SURFACE" {
+        return None;
+    }
+    let wires = face.boundaries();
+    let edges: Vec<&mt::Edge> = wires.iter().flat_map(|w| w.edge_iter()).collect();
+    let mut uses: HashMap<mt::EdgeID, usize> = HashMap::new();
+    let mut poles: Vec<mt::Vertex> = Vec::new();
+    for e in &edges {
+        *uses.entry(e.id()).or_default() += 1;
+        for v in [e.front(), e.back()] {
+            if !poles.iter().any(|p| p.id() == v.id()) {
+                poles.push(v.clone());
+            }
+        }
+    }
+    // Every edge a seam (used once each way), and the two vertices it joins are the poles.
+    if uses.is_empty() || uses.values().any(|n| *n != 2) {
+        return None;
+    }
+    let [a, b] = poles.as_slice() else { return None };
+    let (a, b) = (a.point(), b.point());
+    let center = a + (b - a) * 0.5;
+    let radius = a.distance(b) * 0.5;
+    let tol = cx.tol.max(radius * 1e-6);
+    // The seam is a meridian: all of it on the sphere whose diameter joins the poles.
+    let samples = |e: &&mt::Edge| {
+        let c = e.curve();
+        let (t0, t1) = c.range_tuple();
+        (0..=8).map(move |i| c.subs(t0 + (t1 - t0) * i as f64 / 8.0))
+    };
+    if !(radius.is_finite() && radius > tol) || !edges.iter().flat_map(samples).all(|p| (p.distance(center) - radius).abs() <= tol) {
+        return None;
+    }
+    // Ball or void: the face's normal at the middle of the seam, against the way out of the centre.
+    let probe = edges.first().and_then(|e| samples(e).nth(4))?;
+    let oriented = face.oriented_surface();
+    let (u, v) = oriented.search_parameter(probe, mt::SPHint2D::None, 100)?;
+    let outward = oriented.normal(u, v).dot(probe - center) > 0.0;
+    let z = (crate::body::from_p3(a) - crate::body::from_p3(b)).normalized()?;
+    let x = z.any_perp();
+    let c = crate::body::from_p3(center);
+    let mut patches = guard("step sphere", || crate::build::sphere_patch_faces(c, radius, [x, z.cross(x), z])).ok()?;
+    if !outward {
+        for f in &mut patches {
+            f.invert();
+        }
+    }
+    Some(patches)
 }
 
 /// Read a solid-like representation item: MANIFOLD_SOLID_BREP, BREP_WITH_VOIDS, FACETED_BREP,

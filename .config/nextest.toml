@@ -11,7 +11,7 @@ not (
     (package(solidcraft-engine) & (
         test(=tests::hostile_params_never_panic)
         | test(/^tests::robustness::/)
-        | test(/^tests::robustness_goldens::/)
+        | test(/^tests::robustness_goldens::seed_/)
         | test(=pattern_suppress_tests::enclosure_arc_extinction_keeps_a_real_sharp_inner_lip_after_resize_and_reopen)
         | test(=pattern_suppress_tests::enclosure_datums_follow_wall_height_and_board_depth_with_material_proofs)
         | test(=cmd::plastic::tests::enclosure_snap_fit_follows_resized_front_wall)

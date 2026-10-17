@@ -1038,6 +1038,10 @@ impl Body {
     /// [`Body::tessellate_with`] in which no facet turns more than `angle` radians either
     /// (infinite: the chord tolerance alone).
     fn tessellate_within(&self, tol: f64, angle: f64, refine: bool) -> Result<Mesh> {
+        crate::profile::timed(crate::profile::Kind::Tessellate, || self.tessellate_within_untimed(tol, angle, refine))
+    }
+
+    fn tessellate_within_untimed(&self, tol: f64, angle: f64, refine: bool) -> Result<Mesh> {
         let tol = if tol.is_finite() && tol > 0.0 { tol } else { 0.05 };
         let tol = tol.max(self.size() * 1e-6);
         if let Some(m) = &self.mesh {
@@ -1148,6 +1152,10 @@ impl Body {
     }
 
     fn plan_within(&self, tol: f64, angle: Option<f64>) -> Result<solidcraft_geom::tess::TessPlan> {
+        crate::profile::timed(crate::profile::Kind::Tessellate, || self.plan_within_untimed(tol, angle))
+    }
+
+    fn plan_within_untimed(&self, tol: f64, angle: Option<f64>) -> Result<solidcraft_geom::tess::TessPlan> {
         if self.is_mesh() {
             return Err(KernelError::Invalid("a mesh body has no surfaces to tessellate".into()));
         }
@@ -1266,6 +1274,10 @@ impl Body {
     /// body's [`Body::display_plan`] (shared edge nodes, structured grids), or the way
     /// [`Body::tessellate`] meshes when no plan can be made.
     pub fn display_mesh(&self, tol: f64) -> Result<Mesh> {
+        crate::profile::timed(crate::profile::Kind::Tessellate, || self.display_mesh_untimed(tol))
+    }
+
+    fn display_mesh_untimed(&self, tol: f64) -> Result<Mesh> {
         if self.is_mesh() {
             return self.flagged(self.tessellate(tol)?);
         }
@@ -1285,6 +1297,10 @@ impl Body {
     /// sagitta of a small radius on a large body (a sheet-metal bend, a small hole), which the
     /// tolerance alone leaves as one flat facet.
     pub fn display_mesh_angular(&self, tol: f64, angle: f64) -> Result<Mesh> {
+        crate::profile::timed(crate::profile::Kind::Tessellate, || self.display_mesh_angular_untimed(tol, angle))
+    }
+
+    fn display_mesh_angular_untimed(&self, tol: f64, angle: f64) -> Result<Mesh> {
         if self.is_mesh() {
             return self.flagged(self.tessellate(tol)?);
         }
@@ -1300,6 +1316,10 @@ impl Body {
     /// The display mesh of a plan made from this body ([`Body::display_plan`],
     /// [`Body::display_plan_angular`]): evaluated on the CPU, with its edges flagged.
     pub fn display_mesh_of(&self, plan: &solidcraft_geom::tess::TessPlan) -> Result<Mesh> {
+        crate::profile::timed(crate::profile::Kind::Tessellate, || self.display_mesh_of_untimed(plan))
+    }
+
+    fn display_mesh_of_untimed(&self, plan: &solidcraft_geom::tess::TessPlan) -> Result<Mesh> {
         self.flagged(plan.evaluate())
     }
 

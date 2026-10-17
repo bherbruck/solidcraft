@@ -144,7 +144,7 @@ pub enum InstallKind {
     Rpm,
     /// The plain `.tar.gz`, unpacked somewhere.
     LinuxTarball,
-    /// Installed by the `.msi` (under Program Files).
+    /// Installed by the `.msi` (under Program Files, or in the folder the installer recorded).
     WindowsMsi,
     /// The portable `.zip`, unpacked somewhere.
     WindowsPortable,
@@ -165,6 +165,9 @@ pub struct Probe<'a> {
     /// The running executable.
     pub exe: Option<PathBuf>,
     pub exists: &'a dyn Fn(&Path) -> bool,
+    /// Where the Windows installer put SolidCraft (`HKLM\Software\SolidCraft`, `InstallDir`): a
+    /// folder chosen in its wizard can be anywhere, not only under Program Files (#1870).
+    pub msi_dir: Option<PathBuf>,
 }
 
 pub fn detect(p: &Probe) -> InstallKind {
@@ -202,7 +205,8 @@ pub fn detect(p: &Probe) -> InstallKind {
         }
         "windows" => {
             let under = |k: &str| env(k).is_some_and(|dir| starts_with_ci(&exe, Path::new(&dir)));
-            if under("ProgramFiles") || under("ProgramW6432") || under("ProgramFiles(x86)") {
+            let installed = p.msi_dir.as_deref().is_some_and(|dir| starts_with_ci(&exe, dir));
+            if installed || under("ProgramFiles") || under("ProgramW6432") || under("ProgramFiles(x86)") {
                 return InstallKind::WindowsMsi;
             }
             if exe.parent().is_some_and(|d| (p.exists)(&d.join("solidcraft-cli.exe"))) {
@@ -240,8 +244,28 @@ pub fn this_install() -> InstallKind {
     {
         let env = |k: &str| std::env::var(k).ok();
         let exists = |p: &Path| p.exists();
-        detect(&Probe { os: std::env::consts::OS, release_build: release_build(), env: &env, exe: std::env::current_exe().ok(), exists: &exists })
+        let msi_dir = msi_install_dir();
+        detect(&Probe {
+            os: std::env::consts::OS,
+            release_build: release_build(),
+            env: &env,
+            exe: std::env::current_exe().ok(),
+            exists: &exists,
+            msi_dir,
+        })
     }
+}
+
+/// The folder the Windows installer recorded (solidcraft.wxs writes it for upgrades), if any.
+#[cfg(windows)]
+fn msi_install_dir() -> Option<PathBuf> {
+    let key = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE).open_subkey(r"Software\SolidCraft").ok()?;
+    key.get_value::<String, _>("InstallDir").ok().map(PathBuf::from)
+}
+
+#[cfg(all(not(windows), not(target_arch = "wasm32")))]
+fn msi_install_dir() -> Option<PathBuf> {
+    None
 }
 
 impl InstallKind {

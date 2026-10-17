@@ -1269,4 +1269,6 @@ impl StepReading {
 }
 
 #[cfg(test)]
+mod conic_tests;
+#[cfg(test)]
 mod tests;

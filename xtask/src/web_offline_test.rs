@@ -66,6 +66,67 @@ const SLOW_NETWORK_WAIT: Duration = Duration::from_secs(3);
 /// How long a file takes in Mode::SlowFiles.
 const SLOW_FILE: Duration = Duration::from_secs(6);
 
+/// Exercise the real browser build's command bridge, using the same Chrome harness as the offline test.
+pub fn run_api(site: &str) -> Result<(), String> {
+    let site = std::fs::canonicalize(site).map_err(|e| format!("{site}: {e}; build apps/solidcraft-web with trunk first"))?;
+    if !site.join("index.html").is_file() {
+        return Err(format!("{}: index.html missing; build apps/solidcraft-web with trunk first", site.display()));
+    }
+    let chrome = find_chrome().ok_or("web-api-test: Chrome not found (set CHROME to its executable)")?;
+    let work = TempDir::new()?;
+    let server = Server::start(site.clone())?;
+    server.set(Mode::Serve(site));
+    let browser = Chrome::launch(&chrome, &work.0.join("profile"))?;
+    let mut cdp = browser.connect()?;
+    cdp.call("Emulation.setDeviceMetricsOverride", json!({"width": 1280, "height": 900, "deviceScaleFactor": 1, "mobile": false}))?;
+    cdp.call("Page.navigate", json!({"url": format!("http://127.0.0.1:{}{PREFIX}?webgl", server.port)}))?;
+    wait_for(&mut cdp, "!!window.solidcraft && !document.getElementById('solidcraft_loading')", "the browser API is ready", |v| v == true)?;
+    let result = cdp.eval(API_TEST)?;
+    println!("web-api-test: {result}");
+    Ok(())
+}
+
+const API_TEST: &str = r#"(async () => {
+    const app = window.solidcraft;
+    const check = (condition, message) => { if (!condition) throw new Error(message); };
+    const rejects = async (call, message) => {
+        try { await call(); } catch (error) {
+            check(error instanceof Error, 'rejections must be Error objects');
+            check(error.message.includes(message), error.message);
+            return;
+        }
+        throw new Error('expected rejection: ' + message);
+    };
+    const commands = await app.commands();
+    check(JSON.stringify(commands).includes('solid.box'), 'command discovery');
+    await app.request('ui.home', {open: false});
+    const before = await app.inspect();
+    check(before.bodies.length === 0, 'test starts with an empty design');
+    await app.execute('solid.box', {length: 30, width: 20, height: 10, body_name: 'Browser API box'});
+    const after = await app.inspect({measure: true});
+    check(after.bodies.length === 1, 'box appears in the active document');
+    check(Math.abs(after.bodies[0].volume_mm3 - 6000) < 0.001, 'box volume is 6000 mm³');
+    await app.execute('edit.undo');
+    check((await app.inspect()).bodies.length === 0, 'undo removes the box');
+    await app.execute('edit.redo', null);
+    check((await app.inspect()).bodies.length === 1, 'redo restores the box');
+    await rejects(() => app.request('missing.browser.method'), 'unknown');
+    await rejects(() => app.execute('missing.browser.command'), 'unknown');
+    const circular = {}; circular.self = circular;
+    await rejects(() => app.request('ui.inspect', circular), 'JSON serializable');
+    await rejects(() => app.request('ui.inspect', {value: 1n}), 'JSON serializable');
+    await rejects(() => app.request('ui.inspect', {text: 'x'.repeat(16 * 1024 * 1024)}), '16 MiB');
+    const queued = Array.from({length: 257}, () => app.request('ui.inspect'));
+    const settled = await Promise.allSettled(queued);
+    check(settled.filter(r => r.status === 'fulfilled').length === 256, 'queued requests drain across frames');
+    check(settled.filter(r => r.status === 'rejected' && r.reason instanceof Error && r.reason.message.includes('pending')).length === 1,
+        'queue limit rejects excess work');
+    check((await app.inspect()).bodies.length === 1, 'API still works after rejected requests');
+    const ui = await app.request('ui.inspect');
+    check(ui.home === false && ui.viewport[2] > 600, 'model viewport is visible');
+    return {commands: 'discovered', bodies: [0, 1, 0, 1], errors: 'rejected', queue: '256 completed, 1 rejected'};
+})()"#;
+
 /// Run the test; `required: false` (from `cargo xtask ci`) skips it when Chrome is missing.
 pub fn run(root: &Path, site: Option<&str>, required: bool) -> Result<(), String> {
     let Some(chrome) = find_chrome() else {
@@ -555,6 +616,7 @@ fn answer(mut stream: TcpStream, shared: &Mutex<Mode>, slow: &AtomicUsize, elsew
     let kind = match file.and_then(|f| f.rsplit('.').next()) {
         Some("html") => "text/html; charset=utf-8",
         Some("js") => "text/javascript",
+        Some("css") => "text/css",
         Some("json") => "application/json",
         Some("wasm") => "application/wasm",
         _ => "application/octet-stream",

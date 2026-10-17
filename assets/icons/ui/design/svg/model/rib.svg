@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Rib</title>
+  <path d="M3 38.09L32 54.83L32 59.4L3 42.65Z" fill="#b8c3cf"/>
+  <path d="M61 38.09L32 54.83L32 59.4L61 42.65Z" fill="#8e9faf"/>
+  <path d="M32 21.35L61 38.09L32 54.83L3 38.09Z" fill="#e2e8ef"/>
+  <path d="M32 21.35L61 38.09L61 42.65L32 59.4L3 42.65L3 38.09Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M3 38.09L32 54.83L61 38.09" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 54.83L32 59.4" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M17.5 28.96L21.45 31.24L21.45 46.46L17.5 44.18Z" fill="#328bd3"/>
+  <path d="M46.5 16.78L21.45 31.24L21.45 46.46L46.5 32Z" fill="#236ead"/>
+  <path d="M42.55 14.5L46.5 16.78L21.45 31.24L17.5 28.96Z" fill="#b9ddf8"/>
+  <path d="M42.55 14.5L46.5 16.78L46.5 32L21.45 46.46L17.5 44.18L17.5 28.96Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M17.5 28.96L21.45 31.24L46.5 16.78" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M21.45 31.24L21.45 46.46" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

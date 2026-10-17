@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Ws render</title>
+  <defs>
+    <clipPath id="rs">
+      <circle cx="28" cy="38" r="21"/>
+    </clipPath>
+  </defs>
+  <circle cx="28" cy="38" r="21" fill="#8e9faf"/>
+  <g clip-path="url(#rs)">
+    <circle cx="24" cy="33" r="21" fill="#b8c3cf"/>
+    <circle cx="21" cy="29" r="16" fill="#e2e8ef"/>
+  </g>
+  <path d="M23.51 23.85A5.5 3.2 145 1 1 14.49 30.15A5.5 3.2 145 1 1 23.51 23.85Z" fill="#328bd3"/>
+  <circle cx="28" cy="38" r="21" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M50 5L52.8 11.2L59 14L52.8 16.8L50 23L47.2 16.8L41 14L47.2 11.2Z" fill="#236ead" stroke="#236ead" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

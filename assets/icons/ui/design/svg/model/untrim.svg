@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Untrim</title>
+  <path d="M29.36 15.26L61 33.52L34.64 48.74L3 30.48Z" fill="#e2e8ef"/>
+  <path d="M29.36 15.26L61 33.52L34.64 48.74L3 30.48Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M23.61 32A8.39 4.84 0 1 0 40.39 32A8.39 4.84 0 1 0 23.61 32Z" fill="#8e9faf"/>
+  <path d="M23.61 32A8.39 4.84 0 1 0 40.39 32A8.39 4.84 0 1 0 23.61 32Z" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

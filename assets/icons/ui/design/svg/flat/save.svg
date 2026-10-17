@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Save</title>
+  <defs>
+    <mask id="save3-slots" maskUnits="userSpaceOnUse" x="-32" y="-32" width="128" height="128">
+      <path d="M-32 -32L96 -32L96 96L-32 96Z" fill="white"/>
+      <path d="M25.5 9L35.5 9A3.5 3.5 0 0 1 39 12.5L39 19.5A3.5 3.5 0 0 1 35.5 23L25.5 23A3.5 3.5 0 0 1 22 19.5L22 12.5A3.5 3.5 0 0 1 25.5 9Z" fill="black"/>
+      <path d="M25 34L39 34A4.5 4.5 0 0 1 43.5 38.5L43.5 43.5A4.5 4.5 0 0 1 39 48L25 48A4.5 4.5 0 0 1 20.5 43.5L20.5 38.5A4.5 4.5 0 0 1 25 34Z" fill="black"/>
+    </mask>
+  </defs>
+  <path d="M19 10L40.5 10Q43 10 44.8 11.8L52.2 19.2Q54 21 54 23.5L54 45Q54 54 45 54L19 54Q10 54 10 45L10 19Q10 10 19 10Z" fill="currentColor" mask="url(#save3-slots)"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>List</title>
+  <circle cx="12" cy="16" r="4" fill="#236ead"/>
+  <path d="M23 16L54 16" fill="none" stroke="#8e9faf" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="12" cy="32" r="4" fill="#236ead"/>
+  <path d="M23 32L54 32" fill="none" stroke="#8e9faf" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="12" cy="48" r="4" fill="#236ead"/>
+  <path d="M23 48L54 48" fill="none" stroke="#8e9faf" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

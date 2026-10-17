@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Extrude</title>
+  <path d="M9.36 38.84L32 52.04L32 59.58L9.36 46.38Z" fill="#b8c3cf"/>
+  <path d="M32 52.04L54.63 38.84L54.63 46.38L32 59.58Z" fill="#8e9faf"/>
+  <path d="M9.36 30.35L32 43.55L32 52.04L9.36 38.84Z" fill="#328bd3"/>
+  <path d="M32 43.55L54.63 30.35L54.63 38.84L32 52.04Z" fill="#236ead"/>
+  <path d="M9.36 30.35L32 17.15L54.63 30.35L32 43.55Z" fill="#b9ddf8"/>
+  <path d="M9.36 30.35L32 17.15L54.63 30.35L54.63 46.38L32 59.58L9.36 46.38Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M9.36 30.35L32 43.55L54.63 30.35" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M9.36 38.84L32 52.04L54.63 38.84" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 43.55L32 59.58" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 3L39.54 10.55L34.82 10.55L34.82 13.38L29.17 13.38L29.17 10.55L24.45 10.55Z" fill="#236ead"/>
+</svg>

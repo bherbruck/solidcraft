@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Move</title>
+  <path d="M32 14L32 50M14 32L50 32" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 5L38 15L26 15Z" fill="#236ead"/>
+  <path d="M32 59L26 49L38 49Z" fill="#236ead"/>
+  <path d="M5 32L15 26L15 38Z" fill="#236ead"/>
+  <path d="M59 32L49 38L49 26Z" fill="#236ead"/>
+</svg>

@@ -300,6 +300,18 @@ thread_local! {
 /// The result carries its exact history ([`Body::history`]) over the operands `[a, b]`,
 /// whichever way it was made, or none where a step it took does not report one.
 pub fn boolean(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
+    crate::profile::timed(crate::profile::Kind::Boolean, || boolean_untimed(a, b, op))
+}
+
+fn boolean_untimed(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
+    // Earlier coarse bores can leave a junction a later pattern copy cannot intersect.
+    // Resolve conical-cut junctions from the first copy, while the operands are unchanged.
+    if op == BoolOp::Cut && !APART.with(|c| c.get()) && conical_cut_junction(a, b) {
+        let refined = |a: &Body, b: &Body, op| boolean_whole_with_refinement(a, b, op, true);
+        if let Ok(result) = boolean_via(a, b, op, &refined) {
+            return Ok(result);
+        }
+    }
     let r = boolean_via(a, b, op, &boolean_whole);
     if r.is_ok() || !crate::tangent_cylinders::needed(a, b) {
         return r;
@@ -310,6 +322,19 @@ pub fn boolean(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
         crate::tangent_cylinders::boolean(a, b, op, &boolean_whole).unwrap_or_else(|| Err(KernelError::Failed("no split of faces helps".into())))
     };
     boolean_via(a, b, op, &split).or(r)
+}
+
+/// A conical cutter meeting a body with an earlier conical cut needs finer tracing at
+/// their junctions. Guard the analytic recognition as well as the Boolean itself.
+fn conical_cut_junction(a: &Body, b: &Body) -> bool {
+    guard("conical cut junction", || {
+        let conical = |body: &Body| {
+            let tol = (body.size() * 1e-5).max(1e-7);
+            body.solid.face_iter().any(|face| matches!(crate::offset::surf_of(face, tol), Some(crate::offset::Surf::Cone { .. })))
+        };
+        Ok(conical(b) && conical(a))
+    })
+    .unwrap_or(false)
 }
 
 /// [`boolean`], the boolean of the whole bodies taken by `whole`.
@@ -491,6 +516,15 @@ fn meeting_size(a: &Body, b: &Body) -> f64 {
     if s.x > 0.0 && s.y > 0.0 && s.z > 0.0 { s.x.min(s.y).min(s.z) } else { f64::INFINITY }
 }
 
+/// Smallest side of the box where the bounds of two meshes overlap (infinite when they don't).
+/// Unlike [`meeting_size`], this follows curved faces: a cylinder's vertices are only the points
+/// on its seam, so its vertex box says nothing about where its side reaches.
+fn mesh_meeting_size(a: &solidcraft_geom::Mesh, b: &solidcraft_geom::Mesh) -> f64 {
+    let (ba, bb) = (a.bounds(), b.bounds());
+    let s = solidcraft_geom::Aabb3 { min: ba.min.max(bb.min), max: ba.max.min(bb.max) }.size();
+    if s.x > 0.0 && s.y > 0.0 && s.z > 0.0 { s.x.min(s.y).min(s.z) } else { f64::INFINITY }
+}
+
 /// Whether a result volume is plausible for `op`: within the bounds the operands' volumes
 /// leave, plus the slack the meshed volumes are measured to.
 fn plausible(v: f64, op: BoolOp, va: f64, vb: f64, slack: f64) -> bool {
@@ -548,6 +582,10 @@ fn swept_prism(a: &Body, b: &Body, op: BoolOp) -> Option<Body> {
 }
 
 fn boolean_whole(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
+    boolean_whole_with_refinement(a, b, op, false)
+}
+
+fn boolean_whole_with_refinement(a: &Body, b: &Body, op: BoolOp, refine: bool) -> Result<Option<Body>> {
     if let Some(body) = swept_prism(a, b, op) {
         return Ok(Some(body));
     }
@@ -561,7 +599,7 @@ fn boolean_whole(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
     // refined: a round side trimmed to a thin band (a short boss crossing a gently sloping
     // floor) is otherwise spanned by triangles cutting through it, which reads as missing
     // material.
-    let tol_m = (size * 5e-4).min(meeting_size(a, b) * 2e-3).max(size * 1e-5);
+    let mut tol_m = (size * 5e-4).min(meeting_size(a, b) * 2e-3).max(size * 1e-5);
     // A prism pair (a plate and the tool through it) is decided exactly in 2D, with no mesh of
     // either operand. The sampled shortcuts below need a refined mesh of both, and that mesh is
     // most of what a boolean costs: a pattern or a multi-profile sketch rebuilds the whole
@@ -585,7 +623,30 @@ fn boolean_whole(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
             return Ok(Some(body.clone()));
         }
     }
-    let meshes = (a.tessellate_with(tol_m, true).ok(), b.tessellate_with(tol_m, true).ok());
+    let mut meshes = (a.tessellate_with(tol_m, true).ok(), b.tessellate_with(tol_m, true).ok());
+    // The vertex boxes above miss a curved operand's reach (a cylinder has only seam vertices),
+    // so a thin meeting region of curved bodies kept the coarse step: a sliver 0.5 mm thick was
+    // faceted at 0.017 mm and a correct result failed the membership test. The meshes just made
+    // do span the bodies, so the step is set again from where they meet and the meshes are
+    // remade once, when that is a much finer step.
+    let refined = match &meshes {
+        // A meeting box only a few steps thick is the tessellation error of bodies that merely
+        // touch or miss each other: a finer mesh there cannot help and only slows the operation.
+        (Some(ma), Some(mb)) => {
+            let meet = mesh_meeting_size(ma, mb);
+            (meet > tol_m * 8.0).then(|| (size * 5e-4).min(meet * 2e-3).max(size * 1e-5))
+        }
+        _ => None,
+    };
+    if let Some(refined) = refined
+        && refined < tol_m * 0.5
+    {
+        let again = (a.tessellate_with(refined, true).ok(), b.tessellate_with(refined, true).ok());
+        if again.0.is_some() && again.1.is_some() {
+            tol_m = refined;
+            meshes = again;
+        }
+    }
     let (va, vb) = match &meshes {
         (Some(ma), Some(mb)) => (ma.measure().volume, mb.measure().volume),
         _ => (volume(a), volume(b)),
@@ -622,6 +683,25 @@ fn boolean_whole(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
         };
         (consistent, v)
     };
+    if refine {
+        let keep: Vec<Vec<Vec3>> = a.split_keep().iter().chain(b.split_keep()).cloned().collect();
+        // Bounded to two finer meshes; no tool displacement or relaxed acceptance tests.
+        for k in [1e-5, 1e-6] {
+            let tol = (size * k).max(1e-6);
+            if let Ok((solid, history)) = truck_boolean(a, b, op, None, tol)
+                && !solid.boundaries().is_empty()
+                && let Ok(body) = guard("refined boolean result", || recorded::truck_result(solid, history, size, &keep, &counts))
+                && check(&body).0
+                && crate::boolean_guard::check_retry(a, b, op, Some(&body)).is_ok()
+            {
+                let mut event = BooleanFallback::new(BooleanStrategy::RefinedTolerance);
+                event.tolerance_mm = tol;
+                record(event);
+                return Ok(Some(body));
+            }
+        }
+        return Err(KernelError::Failed("no reliable result at refined tolerances".into()));
+    }
     // One body clear of or inside the other: no intersection needed.
     // Kept for the end when the facetings disagree with it: bodies that touch along curved
     // faces can pass through each other slightly, and often can't be intersected.
@@ -819,6 +899,18 @@ fn boolean_whole(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
                 return Ok(Some(body));
             }
         }
+        // A prism tool whose walls only touch the target (a corner of its outline on a ring's bore
+        // or in its end face, the wall beside it outside the ring): with those walls pushed
+        // outward, clear of the target, it takes the same cut exactly, without the contact the
+        // tries below fail on (and the nudge after them got through only seconds later, leaving a
+        // face of no width at the corner).
+        if attempt == 1
+            && op == BoolOp::Cut
+            && let (Some(ma), Some(_)) = &meshes
+            && let Some(body) = pushed_walls_cut(a, b, ma, 2.0 * tol_m, size, &keep, &counts, &check)
+        {
+            return Ok(Some(body));
+        }
         // A prism tool whose target is a prism along its direction only round it (a pocket made
         // deeper in a plate with a chamfered rim, a ring cut round a counterbored hole in a
         // chamfered disc): the exact 2D route in a column cut round the tool. Its walls lying on
@@ -830,6 +922,18 @@ fn boolean_whole(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
             {
                 merge(diagnostics);
                 return Ok(Some(body));
+            }
+        }
+        // A whole turn of a cylinder or cone bounded by one wire along its seam (as STEP files
+        // write them) can't be divided by a loop lying inside it, and the tries below end in a
+        // nudged tool, or fail: the same boolean with such faces in two halves, which is exact.
+        if attempt == 1 && crate::seam_faces::needed(a, b) {
+            let (halves, diagnostics) = capture_boolean_diagnostics(|| crate::seam_faces::boolean(a, b, op, &boolean));
+            if let Some(Ok(r)) = halves
+                && r.as_ref().is_none_or(|body| check(body).0)
+            {
+                merge(diagnostics);
+                return Ok(r);
             }
         }
         let shift = mt::Vector3::new(j[0], j[1], j[2]) * (size * 0.01);
@@ -1040,6 +1144,39 @@ fn boolean_whole(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
     }
 }
 
+/// `a` cut by `b` with the walls of `b` that only touch `a` pushed outward (see
+/// [`crate::touching_walls`]), at each of the general boolean's tolerances by a little more than
+/// it (at least `by`, past the sag of `target`, the mesh of `a`): the first result that checks
+/// and whose faces lie on none of the pushed walls. The pushed tool keeps `b`'s order, so the
+/// history holds for `b`.
+#[allow(clippy::too_many_arguments)]
+fn pushed_walls_cut(
+    a: &Body,
+    b: &Body,
+    target: &solidcraft_geom::Mesh,
+    by: f64,
+    size: f64,
+    keep: &[Vec<Vec3>],
+    counts: &[(usize, usize)],
+    check: &dyn Fn(&Body) -> (bool, f64),
+) -> Option<Body> {
+    let inside = target.inside_index();
+    for k in [2e-3, 5e-4] {
+        // Pushed past what the boolean takes for touching, and past the mesh's sag.
+        let tol = (size * k).max(1e-5);
+        let Some(pushed) = crate::touching_walls::pushed_tool(b, &inside, (2.5 * tol).max(by)) else { continue };
+        let Ok((s, h)) = truck_boolean(a, &pushed.tool, BoolOp::Cut, None, tol) else { continue };
+        if s.boundaries().is_empty() || s.face_iter().next().is_none() {
+            continue;
+        }
+        let Ok(body) = guard("boolean result", || recorded::truck_result(s, h, size, keep, counts)) else { continue };
+        if pushed.untouched(&body) && check(&body).0 {
+            return Some(body);
+        }
+    }
+    None
+}
+
 /// The screw motions a tool is nudged by as a last resort: (direction of the move, axis of the
 /// turn), each tried both ways. The first is the one every nudge used before #1490; the others
 /// are asked only when it fails both ways.
@@ -1185,6 +1322,10 @@ pub(crate) fn by_lumps(a: &Body, b: &Body, la: Vec<Body>, lb: Vec<Body>, op: Boo
 /// intersection work (many identical pattern tools, #261). `None` when any two may meet, or a
 /// body is a mesh: the caller unions those the usual way.
 pub fn union_apart(bodies: &[Body]) -> Result<Option<Body>> {
+    crate::profile::timed(crate::profile::Kind::Boolean, || union_apart_untimed(bodies))
+}
+
+fn union_apart_untimed(bodies: &[Body]) -> Result<Option<Body>> {
     if bodies.len() < 2 || bodies.len() > 10_000 || bodies.iter().any(Body::is_mesh) {
         return Ok(None);
     }
@@ -1223,6 +1364,10 @@ pub fn union_apart(bodies: &[Body]) -> Result<Option<Body>> {
 /// shows they are apart (profiles apart in their sketch, extruded alike). `None` for fewer than
 /// two bodies or a mesh.
 pub fn join_apart(bodies: &[Body]) -> Result<Option<Body>> {
+    crate::profile::timed(crate::profile::Kind::Boolean, || join_apart_untimed(bodies))
+}
+
+fn join_apart_untimed(bodies: &[Body]) -> Result<Option<Body>> {
     if bodies.len() < 2 || bodies.len() > 10_000 || bodies.iter().any(Body::is_mesh) {
         return Ok(None);
     }
@@ -1440,7 +1585,87 @@ pub fn split_by_plane(body: &Body, plane: &solidcraft_geom::Plane) -> Result<Vec
 pub fn half_space(body: &Body, plane: &solidcraft_geom::Plane, positive: bool) -> Result<(Option<Body>, Body)> {
     // The box's own construction roles describe no face of the design: the cut face has none.
     let tool = half_box(body, plane, positive)?.with_face_sources(None);
-    Ok((boolean(body, &tool, BoolOp::Intersect)?, tool))
+    let (part, report) = capture_boolean_diagnostics(|| boolean(body, &tool, BoolOp::Intersect));
+    // Faces of the body lying in the plane coincide with the box's cap, which the boolean may
+    // only take by nudging the box, by a share of its own size: the cut face then moves off the
+    // plane, a different way for each part, and the parts lose the slab between (#1510). Moved
+    // off the plane to the side the box leaves out, those faces change nothing of the part, and
+    // the cap meets no face. Asked only when the boolean failed or nudged the box: a part made
+    // without, its faces' names included, stays as it is.
+    let nudged = report.events.iter().any(|e| e.strategy == BooleanStrategy::ToolNudge);
+    if (part.is_err() || nudged)
+        && let Some(moved) = off_plane(body, plane, positive)
+    {
+        let (exact, moved_report) = capture_boolean_diagnostics(|| boolean(&moved, &tool, BoolOp::Intersect));
+        if let Ok(exact) = exact {
+            merge(moved_report);
+            // The part's history over [body, box], through the moved body (its faces are the body's).
+            let hb = recorded::placed(recorded::through(&moved, 0, recorded::kept(body, 0, 1).as_ref()), 0, 2);
+            let ht = recorded::placed(recorded::kept(&tool, 0, 1), 1, 2);
+            let counts = record::counts(&[body, &tool]);
+            let exact = exact.map(|r| {
+                let h = recorded::of_pair(&r, &hb, &ht);
+                r.with_checked_history(h, &counts)
+            });
+            return Ok((exact, tool));
+        }
+    }
+    merge(report);
+    Ok((part?, tool))
+}
+
+/// `body` with its planar faces lying in `plane` moved off it, a thousandth of the body's size,
+/// to the side a split's part on the `positive` side leaves out. `None` when no face lies there
+/// or moving them doesn't give a sound body.
+pub(crate) fn off_plane(body: &Body, plane: &solidcraft_geom::Plane, positive: bool) -> Option<Body> {
+    let m = plane.normal().normalized()?;
+    let keep = if positive { m } else { -m };
+    let size = body.size();
+    let tol = (size * 1e-7).max(1e-9);
+    // Lying in the plane means in it, not within the boolean's tolerance of it: a face that close
+    // but off it bounds a real sliver, which moving the face would take or add.
+    let exact = (size * 1e-9).max(1e-12);
+    let delta = size * 1e-3;
+    let mut out: Option<Body> = None;
+    for n in [keep, -keep] {
+        let d = n.dot(plane.origin);
+        // The faces `push_faces` takes for this plane (by their surface), which must all lie in
+        // it: one only nearly parallel, its origin in the plane, would be moved where it isn't.
+        let taken: Vec<&mt::Face> = body
+            .solid
+            .face_iter()
+            .filter(|f| match f.oriented_surface() {
+                mt::Surface::Plane(p) => {
+                    let q = p.normal();
+                    Vec3::new(q.x, q.y, q.z).normalized().is_some_and(|q| q.dot(n) > 1.0 - 1e-9)
+                        && (n.dot(from_p3(p.origin())) - d).abs() < tol * 10.0
+                }
+                _ => false,
+            })
+            .collect();
+        if taken.is_empty() {
+            continue;
+        }
+        // Its vertices and points along its edges (a disc has one vertex).
+        let lies = |f: &mt::Face| {
+            use mt::{BoundedCurve, ParametricCurve};
+            let on = |p: mt::Point3| (n.dot(from_p3(p)) - d).abs() < exact;
+            f.vertex_iter().all(|v| on(v.point()))
+                && f.edge_iter().all(|e| {
+                    let c = e.curve();
+                    let (t0, t1) = c.range_tuple();
+                    [0.25, 0.5, 0.75].iter().all(|k| on(c.subs(t0 + (t1 - t0) * k)))
+                })
+        };
+        if !taken.iter().all(|f| lies(f)) {
+            return None;
+        }
+        // Along -keep: inwards for a face facing the kept side, outwards for one facing away.
+        let shift = if n.dot(keep) > 0.0 { -delta } else { delta };
+        let cur = out.as_ref().unwrap_or(body);
+        out = Some(crate::coplanar::push_faces(cur, n, d, shift).ok().filter(|b| b.validity().is_empty())?);
+    }
+    out
 }
 
 /// A box covering everything of `body` on one side of a plane, its start cap in the plane.

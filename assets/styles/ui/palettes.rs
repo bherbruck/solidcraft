@@ -1,6 +1,10 @@
 //! Original light and dark palette values. Compiled by the UI theme boundary.
 use crate::theme::{AnalysisColors, IconColors, Tokens};
 use egui::Color32;
+
+const fn icon_primary(rgb: [u8; 3]) -> Color32 {
+    Color32::from_rgb(rgb[0], rgb[1], rgb[2])
+}
 impl Tokens {
     pub const fn light() -> Tokens {
         Tokens {
@@ -13,7 +17,7 @@ impl Tokens {
             text_dim: Color32::from_rgb(110, 116, 128),
             accent: Color32::from_rgb(38, 120, 218),
             accent_soft: Color32::from_rgb(214, 230, 250),
-            sketch_accent: Color32::from_rgb(46, 150, 90),
+            sketch_accent: icon_primary(crate::icon_svg::SKETCH_PRIMARY[0]),
             error: Color32::from_rgb(214, 54, 54),
             warning: Color32::from_rgb(222, 150, 30),
             icon: Color32::from_rgb(70, 78, 92),
@@ -39,11 +43,12 @@ impl Tokens {
             axis_y: Color32::from_rgb(0, 255, 0),
             axis_z: Color32::from_rgb(2, 2, 248),
             construction_plane: Color32::from_rgba_unmultiplied_const(249, 184, 134, 70),
-            construction_geom: Color32::from_rgb(232, 140, 48),
+            construction_geom: icon_primary(crate::icon_svg::CONSTRUCTION_PRIMARY[0]),
             body: Color32::from_rgb(176, 186, 198),
             body_edge: Color32::from_rgb(40, 44, 52),
             manipulator: Color32::from_rgb(40, 110, 220),
             preview_add: Color32::from_rgb(112, 160, 226),
+            preview_new: Color32::from_rgb(240, 225, 105),
             preview_sketch: Color32::from_rgb(32, 190, 96),
             preview_cut: Color32::from_rgba_unmultiplied_const(232, 84, 44, 110),
             cube_face: Color32::from_rgb(236, 239, 244),
@@ -71,7 +76,7 @@ impl Tokens {
             profile_fill: Color32::from_rgba_unmultiplied_const(255, 196, 120, 70),
             glyph_bg: Color32::WHITE,
             glyph_edge: Color32::from_rgb(190, 110, 100),
-            glyph_text: Color32::from_rgb(150, 40, 35),
+            glyph_text: icon_primary(crate::icon_svg::CONSTRAINT_PRIMARY[0]),
             overlay: Color32::from_rgba_unmultiplied_const(255, 255, 255, 235),
             rubber_band: Color32::from_rgb(30, 120, 230),
             app_bar_text: Color32::from_rgb(230, 234, 242),
@@ -93,6 +98,12 @@ impl Tokens {
             bend_up: Color32::from_rgb(30, 140, 50),
             bend_down: Color32::from_rgb(200, 90, 20),
             interference: Color32::from_rgb(235, 45, 40),
+            continuity: [
+                Color32::from_rgb(0, 158, 115),
+                Color32::from_rgb(0, 114, 178),
+                Color32::from_rgb(240, 200, 0),
+                Color32::from_rgb(204, 0, 140),
+            ],
             analysis: AnalysisColors::DEFAULT,
             icons: IconColors {
                 sheet: Color32::from_rgb(170, 200, 240),
@@ -132,7 +143,8 @@ impl Tokens {
         t.text_dim = Color32::from_rgb(148, 155, 168);
         t.accent = Color32::from_rgb(58, 136, 238);
         t.accent_soft = Color32::from_rgb(42, 70, 110);
-        t.sketch_accent = Color32::from_rgb(110, 200, 140);
+        t.sketch_accent = icon_primary(crate::icon_svg::SKETCH_PRIMARY[1]);
+        t.construction_geom = icon_primary(crate::icon_svg::CONSTRUCTION_PRIMARY[1]);
         t.error = Color32::from_rgb(240, 100, 96);
         t.warning = Color32::from_rgb(236, 170, 70);
         t.icon = Color32::from_rgb(208, 214, 226);
@@ -162,7 +174,7 @@ impl Tokens {
         t.subheading_bg = Color32::from_rgb(48, 55, 68);
         t.glyph_bg = Color32::from_rgb(44, 50, 60);
         t.glyph_edge = Color32::from_rgb(200, 130, 120);
-        t.glyph_text = Color32::from_rgb(240, 165, 155);
+        t.glyph_text = icon_primary(crate::icon_svg::CONSTRAINT_PRIMARY[1]);
         t.overlay = Color32::from_rgba_unmultiplied_const(34, 38, 46, 240);
         t.rubber_band = Color32::from_rgb(92, 160, 255);
         t.timeline_item = Color32::from_rgb(52, 58, 70);
@@ -196,18 +208,19 @@ impl Tokens {
         t.icons.axes[0] = t.triad[0];
         t.icons.axes[1] = t.triad[1];
         t.icons.access = [good, Color32::from_rgb(217, 102, 13)];
+        t.construction_geom = icon_primary(crate::icon_svg::CONSTRUCTION_RED_GREEN[dark as usize]);
         t.icons.draft = [good, Color32::from_rgb(242, 230, 153)];
         if dark {
             t.bend_up = Color32::from_rgb(110, 165, 255);
             t.bend_down = Color32::from_rgb(240, 180, 70);
-            t.sketch_accent = Color32::from_rgb(150, 225, 195);
+            t.sketch_accent = icon_primary(crate::icon_svg::SKETCH_RED_GREEN[1]);
         } else {
             t.sketch_projected = Color32::from_rgb(205, 120, 215);
             t.sketch_locked = Color32::from_rgb(60, 150, 120);
             t.timeline_item_error = Color32::from_rgb(232, 196, 170);
             t.bend_up = Color32::from_rgb(30, 100, 210);
             t.bend_down = Color32::from_rgb(200, 120, 0);
-            t.sketch_accent = Color32::from_rgb(60, 150, 105);
+            t.sketch_accent = icon_primary(crate::icon_svg::SKETCH_RED_GREEN[0]);
         }
         t
     }
@@ -217,10 +230,11 @@ impl Tokens {
         let mut t = self;
         t.analysis.hatch = true;
         t.preview_sketch = Color32::from_rgb(125, 180, 105);
+        t.glyph_text = icon_primary(crate::icon_svg::CONSTRAINT_BLUE_YELLOW[dark as usize]);
+        t.construction_geom = icon_primary(crate::icon_svg::CONSTRUCTION_BLUE_YELLOW[dark as usize]);
         if dark {
             t.sketch_locked = Color32::from_rgb(140, 225, 110);
             t.box_crossing = Color32::from_rgb(240, 110, 170);
-            t.glyph_text = Color32::from_rgb(240, 180, 165);
         } else {
             t.sketch_locked = Color32::from_rgb(20, 165, 70);
             t.box_crossing = Color32::from_rgb(200, 60, 120);

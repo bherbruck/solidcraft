@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Ws drawing</title>
+  <path d="M13 6L51 6A3 3 0 0 1 54 9L54 55A3 3 0 0 1 51 58L13 58A3 3 0 0 1 10 55L10 9A3 3 0 0 1 13 6Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M17 14L36 14L36 30L17 30Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M17 38L36 38M17 35L17 41M36 35L36 41" fill="none" stroke="#328bd3" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M34.5 46L46.5 46A1.5 1.5 0 0 1 48 47.5L48 51.5A1.5 1.5 0 0 1 46.5 53L34.5 53A1.5 1.5 0 0 1 33 51.5L33 47.5A1.5 1.5 0 0 1 34.5 46Z" fill="#b9ddf8" stroke="#34465b" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44 14L44 30" fill="none" stroke="#328bd3" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

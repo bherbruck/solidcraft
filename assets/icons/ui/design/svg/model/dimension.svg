@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Dimension</title>
+  <path d="M10 12L10 52M54 12L54 52" fill="none" stroke="#34465b" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M19 32L45 32" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M13 32L24 26L24 38Z" fill="#236ead"/>
+  <path d="M51 32L40 38L40 26Z" fill="#236ead"/>
+</svg>

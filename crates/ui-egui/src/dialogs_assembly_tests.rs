@@ -74,7 +74,13 @@ fn joint_and_drive_preview_on_the_placed_model() {
     let mut d = app.dialog.clone().unwrap();
     d.pick(&app.session, face_sel(&app.session, Vec3::new(10.0, 10.0, 10.0)).unwrap());
     d.pick(&app.session, face_sel(&app.session, Vec3::new(40.0, 10.0, 0.0)).unwrap());
-    let colors = crate::preview::Colors { body: [1, 1, 1, 255], added: [2, 2, 2, 255], removed: [3, 3, 3, 100], edge: [0, 0, 0, 255] };
+    let colors = crate::preview::Colors {
+        body: [1, 1, 1, 255],
+        added: [2, 2, 2, 255],
+        new_body: [2, 2, 2, 255],
+        removed: [3, 3, 3, 100],
+        edge: [0, 0, 0, 255],
+    };
     let cmds = preview_commands(&app, &d).unwrap();
     let b = world_preview(&app.session, &cmds, colors).unwrap().unwrap();
     assert_eq!(b.replaced, vec!["Body2".to_string()], "B moves");
@@ -461,7 +467,13 @@ fn four_bar() -> SolveApp {
 #[test]
 fn drive_says_where_a_loop_stopped_it() {
     let mut app = four_bar();
-    let colors = crate::preview::Colors { body: [1, 1, 1, 255], added: [2, 2, 2, 255], removed: [3, 3, 3, 100], edge: [0, 0, 0, 255] };
+    let colors = crate::preview::Colors {
+        body: [1, 1, 1, 255],
+        added: [2, 2, 2, 255],
+        new_body: [2, 2, 2, 255],
+        removed: [3, 3, 3, 100],
+        edge: [0, 0, 0, 255],
+    };
     let rocker = app.session.doc.assembly.joints.iter().position(|j| j.name == "Rocker").unwrap();
     let mut d = drive_joint(&app, app.session.doc.assembly.joints[rocker].id).unwrap();
     let ask = |d: &mut Dialog, v: &str| {
@@ -514,7 +526,13 @@ fn drive_says_when_its_joint_is_joined_to_nothing_grounded() {
     if let Kind::Assembly(Asm::Drive { values, .. }) = &mut d.kind {
         values[0] = "45 deg".into();
     }
-    let colors = crate::preview::Colors { body: [1, 1, 1, 255], added: [2, 2, 2, 255], removed: [3, 3, 3, 100], edge: [0, 0, 0, 255] };
+    let colors = crate::preview::Colors {
+        body: [1, 1, 1, 255],
+        added: [2, 2, 2, 255],
+        new_body: [2, 2, 2, 255],
+        removed: [3, 3, 3, 100],
+        edge: [0, 0, 0, 255],
+    };
     let b = world_preview(&app.session, &apply_commands(&app, &d).unwrap(), colors).unwrap().unwrap();
     let why = b.stopped.as_ref().and_then(drive_stop).unwrap();
     assert!(why.starts_with("Moves nothing") && why.contains("C:1"), "{why}");

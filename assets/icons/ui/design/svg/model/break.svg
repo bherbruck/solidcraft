@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Break</title>
+  <path d="M7 32L23 32M41 32L57 32" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="23" cy="32" r="3.07" fill="#236ead"/>
+  <circle cx="41" cy="32" r="3.07" fill="#236ead"/>
+  <path d="M32 22L32 42" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

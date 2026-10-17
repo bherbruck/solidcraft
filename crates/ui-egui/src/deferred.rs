@@ -108,11 +108,12 @@ impl SolveApp {
                 let _ = tx.send(());
             })
             .ok()?;
-        match rx.recv_timeout(wait) {
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                Some(Deferred { done: rx, started: crate::now_ms(), command, revision: self.session.revision })
-            }
-            _ => None,
+        // Zero explicitly requests off-thread application, even if a fast worker
+        // finishes before this thread is scheduled again. Apply on the next frame.
+        if wait.is_zero() || matches!(rx.recv_timeout(wait), Err(std::sync::mpsc::RecvTimeoutError::Timeout)) {
+            Some(Deferred { done: rx, started: crate::now_ms(), command, revision: self.session.revision })
+        } else {
+            None
         }
     }
 

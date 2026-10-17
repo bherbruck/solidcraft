@@ -38,7 +38,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .key("L")
         .enabled(in_sketch)
         .params(concat!("points: [[x,y] | \"l1.end\" | {at, ref}…], closed?: bool, construction?: bool, ids?: [..], infer?: bool (add horizontal/vertical)", connect_doc!(), created_doc!())),
-    CommandSpec::new("sketch.draw.dimensioned", "Draw Dimensioned Sketch Geometry", draw_dimensioned)
+    CommandSpec::new("sketch.draw.dimensioned", "Draw Dimensioned Sketch Geometry", draw_dimensioned).icon("dimension")
         .enabled(in_sketch)
         .params(concat!("command: sketch creation command, params: object, dimensions: object of role to numeric or expression value; creates geometry and all driving dimensions atomically in one undo step", created_doc!())),
     CommandSpec::new("sketch.rectangle.two_point", "2-Point Rectangle", rect_two_point)
@@ -91,12 +91,12 @@ pub static COMMANDS: &[CommandSpec] = &[
         .params(concat!("center, radius (to vertices), sides, angle?: deg", connect_doc!(), created_doc!())),
     CommandSpec::new("sketch.polygon.circumscribed", "Circumscribed Polygon", polygon_circumscribed)
         .at("SKETCH", "CREATE")
-        .icon("polygon")
+        .icon("polygon_circumscribed")
         .enabled(in_sketch)
         .params(concat!("center, radius (to edge midpoints), sides, angle?: deg", connect_doc!(), created_doc!())),
     CommandSpec::new("sketch.polygon.edge", "Edge Polygon", polygon_edge)
         .at("SKETCH", "CREATE")
-        .icon("polygon")
+        .icon("polygon_edge")
         .enabled(in_sketch)
         .params(concat!("p0, p1: one edge, sides", connect_doc!(), created_doc!())),
     CommandSpec::new("sketch.slot.center_to_center", "Center to Center Slot", slot_c2c)
@@ -106,7 +106,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .params(concat!("p0, p1: arc centres, width", connect_doc!(), created_doc!())),
     CommandSpec::new("sketch.slot.overall", "Overall Slot", slot_overall)
         .at("SKETCH", "CREATE")
-        .icon("slot")
+        .icon("slot_overall")
         .enabled(in_sketch)
         .params(concat!("p0, p1: overall ends, width", connect_doc!(), created_doc!())),
     CommandSpec::new("sketch.point", "Point", draw_point).at("SKETCH", "CREATE").icon("point").enabled(in_sketch).params(concat!("point: [x,y], id?", connect_doc!(), created_doc!())),
@@ -174,27 +174,27 @@ pub static COMMANDS: &[CommandSpec] = &[
         .key("X")
         .enabled(in_sketch)
         .params("curves: [ids], value?: bool (default: construction unless all of them already are)"),
-    CommandSpec::new("sketch.delete", "Delete Sketch Entities", sketch_delete)
+    CommandSpec::new("sketch.delete", "Delete Sketch Entities", sketch_delete).icon("delete")
         .enabled(in_sketch)
         .params("entities: [curve, point or constraint ids]"),
-    CommandSpec::new("sketch.move_point", "Drag Sketch Point", move_point).enabled(in_sketch).params("point: ref, to: [x,y]"),
-    CommandSpec::new("sketch.drag", "Drag Sketch Geometry", drag).enabled(in_sketch).live(drag_live).params(
+    CommandSpec::new("sketch.move_point", "Drag Sketch Point", move_point).icon("sketch_move").enabled(in_sketch).params("point: ref, to: [x,y]"),
+    CommandSpec::new("sketch.drag", "Drag Sketch Geometry", drag).icon("sketch_move").enabled(in_sketch).live(drag_live).params(
         "entity: point or curve, from: [x,y] where it was grabbed, to: [x,y], live?: bool: a point goes to `to`, a line (spline, conic) slides by to - from, a circle or arc grabbed on its edge takes the radius to `to`; the rest moves as little as it can and keeps its solution branch (a long move is followed in short steps, each solved with the entity held; a step that cannot be solved that way is approached as far as it can be and the next ones tried; when none past it solves, the last one is left to the sketch's ordinary solve, which may pull it back or leave the sketch unsolved; a step that would sweep an arc through its start is undone and the drag ends there). Returns `reached`: how much of the way from `from` to `to` the geometry followed (0..1), and `at`: where the grabbed spot went (`from` moved as the dragged points did), the `from` of the next move. `live: true` (each frame of an interactive drag) solves the sketch once and leaves the features after it as they were (stale) until `sketch.drag_end` or any command that reads the model; `dof` is then the one from before the drag",
     ),
-    CommandSpec::new("sketch.drag_end", "End Sketch Drag", drag_end).enabled(in_sketch).doc_only().params(
+    CommandSpec::new("sketch.drag_end", "End Sketch Drag", drag_end).icon("sketch_move").enabled(in_sketch).doc_only().params(
         "constraint?: {command: a sketch.constraint.* id, params}: ends a drag made of `sketch.drag` `live: true` frames: adds the constraint it let go on (not kept if it over-constrains the sketch), then evaluates the whole model once; returns the constraint's result and the sketch's solved state and degrees of freedom",
     ),
-    CommandSpec::new("sketch.dimension_text", "Move Dimension Text", dimension_text)
+    CommandSpec::new("sketch.dimension_text", "Move Dimension Text", dimension_text).icon("edit")
         .enabled(in_sketch)
         .params("dimension: constraint id or parameter name; at: [x,y] text centre (sketch coordinates) | reset: true (default place)"),
     CommandSpec::new("sketch.options", "Sketch Palette Options", sketch_options).icon("sketch").params(
         "sketch?: id|name (default active); any of show_profile, show_points, show_dimensions, show_constraints, show_projected, show_construction, grid, snap, slice, sketch_3d: bool. Returns them all",
     ),
-    CommandSpec::new("sketch.chain", "Chain", chain_cmd)
+    CommandSpec::new("sketch.chain", "Chain", chain_cmd).icon("chain")
         .enabled(in_sketch)
         .noundo()
         .params("curve: id: the curves joined to it end to end (what a double-click selects)"),
-    CommandSpec::new("sketch.solve", "Solve Sketch", solve_cmd)
+    CommandSpec::new("sketch.solve", "Solve Sketch", solve_cmd).icon("compute")
         .enabled(in_sketch)
         .noundo()
         .params("reports the solver status and degrees of freedom"),

@@ -87,6 +87,16 @@ impl DriverMapping {
         mapping
     }
 
+    /// The mapping with the user's per-axis choices folded in: `reverse` flips and `speed` scales
+    /// each physical axis of the cap. A speed that is not a finite number counts as 1.
+    pub fn with_user_axes(mut self, reverse: [bool; 6], speed: [f32; 6]) -> Self {
+        for ((rule, reverse), speed) in self.axes.iter_mut().zip(reverse).zip(speed) {
+            rule.reversed ^= reverse;
+            rule.scale *= if speed.is_finite() { f64::from(speed).clamp(0.0, 3.0) } else { 1.0 };
+        }
+        self
+    }
+
     pub fn apply(self, axes: Axes) -> Motion {
         let raw = [
             normalized(axes.translation[0]),
@@ -139,7 +149,10 @@ pub fn navigate_frame(app: &mut SolveApp, ctx: &egui::Context, mapping: DriverMa
     app.begin_external_navigation();
     // A long gap (the first frame after a pause) moves as far as a 50 ms one.
     let step = if seconds.is_finite() { seconds.min(0.05) } else { 0.0 };
-    app.viewport.device_motion = Some(DeviceMotion { motion: mapping.apply(axes), seconds: step * speed.clamp(0.1, 5.0) });
+    app.viewport.device_motion = Some(DeviceMotion {
+        motion: mapping.with_user_axes(app.preferences.space_mouse_reverse, app.preferences.space_mouse_axis_speed).apply(axes),
+        seconds: step * speed.clamp(0.1, 5.0),
+    });
     ctx.request_repaint_after(Duration::from_millis(16));
     true
 }
@@ -180,6 +193,56 @@ mod tests {
         let mut app = SolveApp::new(Session::default(), Services::default());
         app.home.open = false;
         app
+    }
+
+    #[test]
+    fn per_axis_choices_flip_and_scale_one_physical_axis() {
+        let mapping = DriverMapping::default().with_user_axes([false, true, false, false, false, false], [1.0, 1.0, 1.0, 0.5, f32::NAN, 1.0]);
+        let still = Motion::default();
+        assert_eq!(mapping.apply(Axes { translation: [0, 350, 0], rotation: [0; 3] }).translation[1], -raw(PUSH).translation[1]);
+        assert_eq!(
+            mapping.apply(Axes { translation: [350, 0, 0], rotation: [0; 3] }).translation[0],
+            raw(Axes { translation: [350, 0, 0], rotation: [0; 3] }).translation[0]
+        );
+        assert_eq!(mapping.apply(Axes { translation: [0; 3], rotation: [350, 0, 0] }).rotation[0], 0.5);
+        assert_eq!(mapping.apply(Axes { translation: [0; 3], rotation: [0, 350, 0] }).rotation[1], 1.0);
+        assert_eq!(mapping.apply(Axes::default()), still);
+        let off = DriverMapping::default().with_user_axes([false; 6], [0.0; 6]);
+        assert_eq!(off.apply(PUSH), still);
+    }
+
+    #[test]
+    fn solidworks_free_orbit_respects_per_axis_settings_through_both_poles() {
+        let ctx = egui::Context::default();
+        let initial = Camera { yaw: 0.0, pitch: 1.4, roll: 0.0, ..Default::default() };
+        let axes = Axes { translation: [0; 3], rotation: [350, 0, 0] };
+        let step = std::f64::consts::TAU / 128.0;
+        for mapping in [DriverMapping::default(), DriverMapping::object_mode()] {
+            for reversed in [false, true] {
+                for speed in [0.5, 2.0] {
+                    let mut app = app();
+                    app.preferences.nav = "solidworks".into();
+                    app.preferences.space_mouse_reverse[3] = reversed;
+                    app.preferences.space_mouse_axis_speed[3] = speed;
+                    app.cam = initial;
+                    for i in 0..128 {
+                        let before = app.cam;
+                        assert!(frame(&mut app, &ctx, mapping, axes, step / (2.0 * f64::from(speed))));
+                        assert!((before.back().dot(app.cam.back()) - step.cos()).abs() < 1e-10);
+                        if i == 0 {
+                            let direction = if reversed { -1.0 } else { 1.0 };
+                            assert!((app.cam.back().dot(initial.basis().1) - direction * step.sin()).abs() < 1e-10);
+                        }
+                    }
+                    assert!(app.cam.back().dist(initial.back()) < 1e-9 && app.cam.basis().0.dist(initial.basis().0) < 1e-9);
+                    assert_eq!((app.cam.target, app.cam.distance, app.cam.fov), (initial.target, initial.distance, initial.fov));
+                    app.preferences.space_mouse_axis_speed[3] = 0.0;
+                    let before = app.cam;
+                    frame(&mut app, &ctx, mapping, axes, 0.04);
+                    assert_eq!(app.cam, before);
+                }
+            }
+        }
     }
 
     const PUSH: Axes = Axes { translation: [0, 350, 0], rotation: [0; 3] };

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Snap fit</title>
+  <path d="M15.68 39.48L36.8 51.69L36.8 56.12L15.68 43.91Z" fill="#b8c3cf"/>
+  <path d="M48.32 45.02L36.8 51.69L36.8 56.12L48.32 49.47Z" fill="#8e9faf"/>
+  <path d="M27.2 32.84L48.32 45.02L36.8 51.69L15.68 39.48Z" fill="#e2e8ef"/>
+  <path d="M27.2 32.84L48.32 45.02L48.32 49.47L36.8 56.12L15.68 43.91L15.68 39.48Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M15.68 39.48L36.8 51.69L48.32 45.02" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M36.8 51.69L36.8 56.12" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M28.16 35.61L28.16 7.89L33.92 11.22L39.68 21.2L39.68 24.52L33.92 21.2L33.92 38.94Z" fill="#b9ddf8"/>
+  <path d="M33.92 21.2L33.92 38.94L26.24 43.37L26.24 25.63Z" fill="#236ead" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M28.16 7.89L33.92 11.22L26.24 15.65L20.48 12.33Z" fill="#b9ddf8" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M39.68 21.2L39.68 24.52L32 28.96L32 25.63Z" fill="#236ead" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M33.92 11.22L39.68 21.2L32 25.63L26.24 15.65Z" fill="#b9ddf8" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.48 40.04L20.48 12.33L26.24 15.65L32 25.63L32 28.96L26.24 25.63L26.24 43.37Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

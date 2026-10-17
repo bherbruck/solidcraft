@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Axis through cylinder, cone or torus</title>
+  <path d="M32 6L32 58" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 6L32 58" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M19 19L19 44A13 7.5 0 0 0 45 44L45 19Z" fill="#b8c3cf"/>
+  <path d="M36.55 19L36.55 51.03A13 7.5 0 0 0 45 44L45 19Z" fill="#8e9faf"/>
+  <path d="M19 19L19 44A13 7.5 0 0 0 45 44L45 19Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M19 19A13 7.5 0 1 0 45 19A13 7.5 0 1 0 19 19Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 6L32 19" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 6L32 19" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

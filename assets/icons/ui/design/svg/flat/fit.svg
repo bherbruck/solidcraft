@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Fit</title>
+  <path d="M10 24L10 10L24 10M40 10L54 10L54 24M54 40L54 54L40 54M24 54L10 54L10 40" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26 24L38 24A2 2 0 0 1 40 26L40 38A2 2 0 0 1 38 40L26 40A2 2 0 0 1 24 38L24 26A2 2 0 0 1 26 24Z" fill="currentColor"/>
+</svg>

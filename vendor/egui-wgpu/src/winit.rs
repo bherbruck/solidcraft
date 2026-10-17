@@ -588,43 +588,6 @@ impl Painter {
             return vsync_sec;
         };
 
-        let mut encoder =
-            render_state
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("encoder"),
-                });
-
-        // Upload all resources for the GPU.
-        // SolidCraft: a clamped surface draws the whole window at a smaller scale.
-        let screen_descriptor = renderer::ScreenDescriptor {
-            size_in_pixels: [surface_state.width, surface_state.height],
-            pixels_per_point: pixels_per_point * surface_state.scale,
-        };
-
-        let user_cmd_bufs = {
-            let mut renderer = render_state.renderer.write();
-            #[expect(clippy::iter_over_hash_type)] // Order doesn't matter here
-            for (id, image_deltas) in textures_delta.set.drain() {
-                for image_delta in image_deltas {
-                    renderer.update_texture(
-                        &render_state.device,
-                        &render_state.queue,
-                        id,
-                        &image_delta,
-                    );
-                }
-            }
-
-            renderer.update_buffers(
-                &render_state.device,
-                &render_state.queue,
-                &mut encoder,
-                clipped_primitives,
-                &screen_descriptor,
-            )
-        };
-
         if surface_state.needs_reconfigure {
             Self::configure_surface(surface_state, render_state, &self.config.surface);
             surface_state.needs_reconfigure = false;
@@ -668,6 +631,47 @@ impl Painter {
                 }
                 return vsync_sec;
             }
+        };
+
+        // SolidCraft: acquire the drawable before preparing callbacks. Preparation can
+        // cache GPU resources whose initialization is recorded into `encoder` (such as
+        // the viewport's tessellated vertices). If acquisition skips this frame, dropping
+        // that encoder leaves the cached resources uninitialized on every later frame.
+        let mut encoder =
+            render_state
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("encoder"),
+                });
+
+        // Upload all resources for the GPU.
+        // SolidCraft: a clamped surface draws the whole window at a smaller scale.
+        let screen_descriptor = renderer::ScreenDescriptor {
+            size_in_pixels: [surface_state.width, surface_state.height],
+            pixels_per_point: pixels_per_point * surface_state.scale,
+        };
+
+        let user_cmd_bufs = {
+            let mut renderer = render_state.renderer.write();
+            #[expect(clippy::iter_over_hash_type)] // Order doesn't matter here
+            for (id, image_deltas) in textures_delta.set.drain() {
+                for image_delta in image_deltas {
+                    renderer.update_texture(
+                        &render_state.device,
+                        &render_state.queue,
+                        id,
+                        &image_delta,
+                    );
+                }
+            }
+
+            renderer.update_buffers(
+                &render_state.device,
+                &render_state.queue,
+                &mut encoder,
+                clipped_primitives,
+                &screen_descriptor,
+            )
         };
 
         let mut capture_buffer = None;

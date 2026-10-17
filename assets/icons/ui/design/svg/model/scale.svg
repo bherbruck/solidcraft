@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Scale</title>
+  <path d="M9.25 33.57L19.57 39.59L19.57 50.77L9.25 44.75Z" fill="#b8c3cf"/>
+  <path d="M19.57 39.59L29.89 33.57L29.89 44.75L19.57 50.77Z" fill="#8e9faf"/>
+  <path d="M9.25 33.57L19.57 27.55L29.89 33.57L19.57 39.59Z" fill="#e2e8ef"/>
+  <path d="M9.25 33.57L19.57 27.55L29.89 33.57L29.89 44.75L19.57 50.77L9.25 44.75Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M19.57 39.59L9.25 33.57" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M19.57 39.59L29.89 33.57" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M19.57 39.59L19.57 50.77" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M9.25 20.05L32.05 6.75L54.85 20.05L54.85 44.75L32.05 58.05L9.25 44.75Z" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="2.4 4.2"/>
+  <path d="M32.05 33.35L9.25 20.05" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="2.4 4.2"/>
+  <path d="M32.05 33.35L54.85 20.05" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="2.4 4.2"/>
+  <path d="M32.05 33.35L32.05 58.05" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="2.4 4.2"/>
+</svg>

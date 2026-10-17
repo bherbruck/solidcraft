@@ -9,8 +9,16 @@ use serde_json::{Value, json};
 
 #[test]
 fn mcp_connect_serves_before_the_app_runs_and_reaches_it_once_it_does() {
-    // A port that was free a moment ago: nothing listens on it.
-    let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    // This test needs the port closed until its second phase. A port obtained
+    // with bind(:0) and released can immediately be reused by another parallel
+    // test's mock server. Stay below the usual ephemeral ranges,
+    // with a process-specific starting point, and skip any occupied ports.
+    let port = (0..512u32)
+        .find_map(|offset| {
+            let port = 16000 + (std::process::id() + offset) % 16000;
+            TcpListener::bind(("127.0.0.1", port as u16)).ok().map(|listener| listener.local_addr().unwrap().port())
+        })
+        .expect("an unused non-ephemeral test port");
     let addr = format!("127.0.0.1:{port}");
     let control_dir = std::env::temp_dir().join(format!("solidcraft-mcp-connect-{}-{port}", std::process::id()));
     std::fs::create_dir_all(&control_dir).unwrap();

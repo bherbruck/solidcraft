@@ -314,6 +314,7 @@ mod large_step_import;
 mod loft_cut;
 mod loft_ring;
 mod loft_spacing;
+mod mirror_placed;
 mod mirror_planes;
 #[cfg(not(target_arch = "wasm32"))]
 mod native_cad_import;
@@ -805,6 +806,7 @@ fn hostile_params_never_panic() {
         "scale",
         "continuity",
         "crown",
+        "faces",
     ];
     // Commands are independent; worker threads take them one at a time (their costs vary a lot).
     let ids: Vec<&str> = command_specs()
@@ -899,6 +901,100 @@ fn sample_design_builds() {
     let bore = PI * 36.0 * 22.0;
     let v = m["total"]["volume_mm3"].as_f64().unwrap();
     assert!(rel(v, plate + boss - bore) < 1e-3, "{v} vs {}", plate + boss - bore);
+}
+
+fn silhouette_box(s: &mut Session, name: &str, x0: f64, x1: f64, z: f64) {
+    let sketch = format!("{name}Sketch");
+    run(s, "sketch.create", json!({"plane": "XY", "name": sketch}));
+    run(s, "sketch.rectangle.two_point", json!({"p0": [x0, 0], "p1": [x1, 10]}));
+    run(s, "sketch.finish", json!({}));
+    run(s, "solid.extrude", json!({"sketch": sketch, "distance": z, "operation": "new_body", "body_name": name}));
+}
+
+fn silhouette_pixels(v: &Value) -> usize {
+    v["mask"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row.as_array().unwrap().iter().map(|span| (span[1].as_u64().unwrap() - span[0].as_u64().unwrap()) as usize).sum::<usize>())
+        .sum()
+}
+
+#[test]
+fn silhouette_box_standard_views_and_full_mask() {
+    let mut s = Session::default();
+    silhouette_box(&mut s, "Box", 0.0, 20.0, 30.0);
+    let front = run(&mut s, "inspect.silhouette", json!({"rows": 60}));
+    assert_eq!(front["box_mm"], json!([[0.0, 0.0], [20.0, 30.0]]));
+    assert_eq!(front["mm_per_px"], 0.5);
+    assert_eq!((front["width"].as_u64(), front["height"].as_u64()), (Some(40), Some(60)));
+    assert_eq!(silhouette_pixels(&front), 2400);
+    assert_eq!(front["bodies"], 1);
+    let right = run(&mut s, "inspect.silhouette", json!({"view": "right", "rows": 60}));
+    assert_eq!(right["box_mm"], json!([[0.0, 0.0], [10.0, 30.0]]));
+    assert_eq!((right["width"].as_u64(), right["height"].as_u64()), (Some(20), Some(60)));
+    let top = run(&mut s, "inspect.silhouette", json!({"view": "top", "rows": 60}));
+    assert_eq!(top["box_mm"], json!([[0.0, 0.0], [20.0, 10.0]]));
+    assert_eq!((top["width"].as_u64(), top["height"].as_u64()), (Some(120), Some(60)));
+}
+
+#[test]
+fn silhouette_front_and_back_mirror_tall_body() {
+    let mut s = Session::default();
+    silhouette_box(&mut s, "Tall", 0.0, 10.0, 30.0);
+    silhouette_box(&mut s, "Short", 30.0, 40.0, 10.0);
+    let front = run(&mut s, "inspect.silhouette", json!({"view": "front", "rows": 60}));
+    let back = run(&mut s, "inspect.silhouette", json!({"view": "back", "rows": 60}));
+    assert_eq!(front["mask"][0], json!([[0, 20]]));
+    assert_eq!(back["mask"][0], json!([[60, 80]]));
+    assert_eq!(front["right"], json!([1.0, 0.0, 0.0]));
+    assert_eq!(back["right"], json!([-1.0, 0.0, 0.0]));
+}
+
+#[test]
+fn silhouette_visibility_selection_and_bad_input() {
+    let mut s = Session::default();
+    silhouette_box(&mut s, "Shown", 0.0, 20.0, 30.0);
+    silhouette_box(&mut s, "Hidden", 40.0, 50.0, 10.0);
+    run(&mut s, "browser.visibility", json!({"items": ["Hidden"], "visible": false}));
+    assert_eq!(run(&mut s, "inspect.silhouette", json!({}))["bodies"], 1);
+    let named = run(&mut s, "inspect.silhouette", json!({"bodies": ["Hidden"]}));
+    assert_eq!(named["bodies"], 1);
+    assert_eq!(named["box_mm"], json!([[40.0, 0.0], [50.0, 10.0]]));
+    assert!(s.execute("inspect.silhouette", &json!({"bodies": ["Unknown"]})).unwrap_err().to_string().contains("Unknown"));
+    assert!(s.execute("inspect.silhouette", &json!({"view": "front", "camera": {}})).is_err());
+    assert!(s.execute("inspect.silhouette", &json!({"camera": {"target": [0,0,0], "yaw": 0, "pitch": 0, "distance": 0}})).is_err());
+}
+
+#[test]
+fn silhouette_perspective_scales_the_near_face_and_refuses_bodies_behind_the_eye() {
+    let mut s = Session::default();
+    silhouette_box(&mut s, "Box", 0.0, 20.0, 30.0);
+    // Looking along +Y at the box's centre from 100 mm: the near face (Y 0) is 95 mm from the
+    // eye, so it is drawn 100/95 times its size on the plane through the target.
+    let camera = json!({"target": [10, 5, 15], "yaw": 0, "pitch": 0, "distance": 100, "fov": 0.6});
+    let perspective = run(&mut s, "inspect.silhouette", json!({"camera": camera, "rows": 60}));
+    assert_eq!(perspective["projection"], "perspective");
+    assert_eq!(perspective["box_mm"], json!([[-0.5263, -0.7895], [20.5263, 30.7895]]));
+    let flat = json!({"target": [10, 5, 15], "yaw": 0, "pitch": 0, "distance": 100});
+    let parallel = run(&mut s, "inspect.silhouette", json!({"camera": flat, "rows": 60}));
+    assert_eq!(parallel["projection"], "parallel");
+    assert_eq!(parallel["box_mm"], json!([[0.0, 0.0], [20.0, 30.0]]));
+    let inside = json!({"target": [10, 5, 15], "yaw": 0, "pitch": 0, "distance": 1, "fov": 0.6});
+    assert!(s.execute("inspect.silhouette", &json!({"camera": inside})).unwrap_err().to_string().contains("behind the camera"));
+    // Between two bodies, looking -X from X 28: Short (X 30..40) is behind the eye.
+    silhouette_box(&mut s, "Short", 30.0, 40.0, 10.0);
+    let between = json!({"target": [25, 5, 15], "yaw": -std::f64::consts::FRAC_PI_2, "pitch": 0, "distance": 3, "fov": 0.6});
+    assert!(s.execute("inspect.silhouette", &json!({"camera": between})).unwrap_err().to_string().contains("behind the camera"));
+    assert_eq!(run(&mut s, "inspect.silhouette", json!({"camera": between, "bodies": ["Box"]}))["bodies"], 1);
+}
+
+#[test]
+fn silhouette_is_an_agent_command_not_a_toolbar_button() {
+    let specs = command_specs();
+    let spec = specs.iter().find(|c| c.id == "inspect.silhouette").unwrap();
+    assert!(spec.tab.is_empty(), "{} › {}", spec.tab, spec.panel);
+    assert!(!spec.undoable);
 }
 
 #[test]

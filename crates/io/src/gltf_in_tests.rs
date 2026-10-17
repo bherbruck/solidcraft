@@ -355,6 +355,23 @@ fn assert_no_panic(bytes: &[u8], what: &str) {
     }
 }
 
+/// A primitive whose POSITION names an accessor the file lacks is refused before the glTF crate
+/// sees it: the crate's own check indexes the accessors unchecked and panics, which the guard
+/// catches on the desktop but which aborts the app in the browser (#469, found by mutation).
+#[test]
+fn a_position_naming_a_missing_accessor_is_refused_before_the_gltf_crate() {
+    let mut f = Fixture::default();
+    let m = f.cube_mesh("Cube", 0.01);
+    let n = f.node(json!({"mesh": m}));
+    f.roots = vec![n];
+    let mut j = f.json(None);
+    j["meshes"][0]["primitives"][0]["attributes"]["POSITION"] = json!(99);
+    let glb = glb_container(j.to_string().as_bytes(), &f.bin);
+    let e = read(&glb).err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(e.contains("POSITION names accessor 99, but the file has 2"), "{e}");
+    assert!(!solidcraft_kernel::guarded(), "no guard left open");
+}
+
 #[test]
 fn hostile_gltf_never_panics() {
     let mut f = Fixture::default();

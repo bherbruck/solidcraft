@@ -26,8 +26,39 @@ fn place(h: &mut Harness, picks: &[[f64; 2]], at: [f64; 2]) {
 }
 fn type_value(h: &mut Harness, text: &str) {
     h.step(&json!({"key":"A","cmd":true})).unwrap();
-    h.step(&json!({"text":text})).unwrap();
+    if text.is_empty() {
+        h.step(&json!({"key":"Backspace"})).unwrap();
+    } else {
+        h.step(&json!({"text":text})).unwrap();
+    }
 }
+#[test]
+fn dimension_parameters_use_typing_and_ctrl_space_completion() {
+    for (prefix, expected) in [("wid", "width"), ("", "width"), ("d", "d1")] {
+        let mut h = line([20., 0.]);
+        h.app.run("parameters.add", json!({"name":"width","expression":"25 mm"})).unwrap();
+        if prefix == "d" {
+            h.app.run("sketch.line", json!({"points":[[0,-10],[12,-10]],"infer":false})).unwrap();
+            h.app.run("sketch.dimension", json!({"entities":["l2"],"value":12,"text_at":[6,-16]})).unwrap();
+            h.settle();
+        }
+        place(&mut h, &[[10., 0.]], [10., 6.]);
+        let baseline = h.app.session.doc.to_json();
+        type_value(&mut h, prefix);
+        if prefix.is_empty() {
+            h.step(&json!({"key":"Space","cmd":true})).unwrap();
+        }
+        assert!(h.widget(expected).is_some(), "parameter completion is available for {prefix:?}: {}", h.call("ui.inspect", json!({})));
+        h.step(&json!({"key":"Tab"})).unwrap();
+        assert!(crate::dim_view::editing(), "accepting completion does not apply the dimension");
+        assert_eq!(h.app.session.doc.to_json(), baseline);
+        h.step(&json!({"key":"Enter"})).unwrap();
+        assert!(!crate::dim_view::editing());
+        assert_eq!(h.app.session.doc.params.iter().rev().find(|p| p.model).unwrap().expr, expected);
+        crate::dim_view::cancel();
+    }
+}
+
 #[test]
 fn edge_and_endpoint_creation_commit_once_and_undo_restores_exact_design() {
     for (end, picks, at) in [

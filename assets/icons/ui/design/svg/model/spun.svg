@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Spun profile</title>
+  <path d="M32 4L32 60" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="4 5"/>
+  <path d="M37 8L51 8C60 18 47 30 57 44L37 44Z" fill="#b9ddf8" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M54 50A22 8 0 0 1 25.38 57.63" fill="none" stroke="#ffffff" stroke-width="7.85" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M14.66 54.93L26.85 51.81L23.92 63.45Z" fill="#ffffff" stroke="#ffffff" stroke-width="3.6" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M54 50A22 8 0 0 1 25.38 57.63" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M14.66 54.93L26.85 51.81L23.92 63.45Z" fill="#236ead"/>
+</svg>

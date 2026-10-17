@@ -286,8 +286,7 @@ pub(super) fn eval(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, 
             }
             Ok(())
         }
-        FeatureKind::SurfaceSweep { sketch, profiles, curves, path_sketch, path, orientation, twist, scale } => {
-            let ctl = crate::eval::sweep_control(vals, orientation, twist, scale)?;
+        FeatureKind::SurfaceSweep { sketch, profiles, curves, path_sketch, path, orientation, twist, scale, rails, rail_fit } => {
             let ss = st.sketch(sketch.0).ok_or_else(|| DocError::Unknown(format!("sketch {sketch} (it must come earlier in the timeline)")))?;
             let ps =
                 st.sketch(path_sketch.0).ok_or_else(|| DocError::Unknown(format!("sketch {path_sketch} (it must come earlier in the timeline)")))?;
@@ -306,8 +305,21 @@ pub(super) fn eval(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, 
             let pts: Vec<Vec2> = chains.iter().flatten().flat_map(|s| s.polyline(1e-2)).collect();
             let start = ss.plane.to_world(pts.iter().fold(Vec2::default(), |a, p| a + *p) * (1.0 / pts.len().max(1) as f64));
             let body = match path_points(ps, path, start)? {
-                Some(pts) => kernel::sweep_sheet_points_with(&ss.plane, &chains, &pts, &ctl)?,
-                None => kernel::sweep_sheet_with(&ss.plane, &chains, &path_segments(ps, path, start)?, &ctl)?,
+                Some(pts) => {
+                    let rails = crate::eval::rail_polylines(doc, st, rails, f.component, pts.first().copied().unwrap_or(start))?;
+                    let ctl = crate::eval::sweep_control(vals, orientation, twist, scale, rails, *rail_fit)?;
+                    kernel::sweep_sheet_points_with(&ss.plane, &chains, &pts, &ctl)?
+                }
+                None => {
+                    let segs = path_segments(ps, path, start)?;
+                    let path_start = match segs.first() {
+                        Some(kernel::PathSeg::Line { a, .. } | kernel::PathSeg::Arc { a, .. }) => *a,
+                        None => start,
+                    };
+                    let rails = crate::eval::rail_polylines(doc, st, rails, f.component, path_start)?;
+                    let ctl = crate::eval::sweep_control(vals, orientation, twist, scale, rails, *rail_fit)?;
+                    kernel::sweep_sheet_with(&ss.plane, &chains, &segs, &ctl)?
+                }
             };
             let traced = crate::lineage::ChainRoles { sketch: ss, chains: &chains }.tool(body);
             push_sheet(st, f, traced);

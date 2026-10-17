@@ -67,6 +67,18 @@ fn prim(c: impl Strategy<Value = f64> + Clone, s: impl Strategy<Value = f64> + C
 fn grid_prim() -> impl Strategy<Value = Prim> {
     prim(grid(), grid_size())
 }
+
+/// A union across only a box edge or corner is non-manifold, so the kernel may
+/// refuse it. This is the same analytic boundary case allowed by box_box_exact.
+fn edge_only_boxes(a: &Prim, b: &Prim) -> bool {
+    let (Prim::Box { at: a, size: sa }, Prim::Box { at: b, size: sb }) = (a, b) else { return false };
+    let gap = [0, 1, 2].map(|i| a[i].max(b[i]) - (a[i] + sa[i]).min(b[i] + sb[i]));
+    gap.iter().all(|g| *g <= 0.0) && gap.iter().filter(|g| **g == 0.0).count() >= 2
+}
+
+fn edge_contact_refusal(a: &Prim, b: &Prim, op: BoolOp, result: &Result<f64, TestCaseError>) -> bool {
+    op == BoolOp::Union && edge_only_boxes(a, b) && result.as_ref().is_err_and(|e| e.to_string().contains("zero-thickness edge contact"))
+}
 fn free_prim() -> impl Strategy<Value = Prim> {
     prim(free(), free_size())
 }
@@ -95,8 +107,13 @@ fn close(x: f64, y: f64, scale: f64) -> bool {
 fn identity(a: &Prim, b: &Prim) -> Result<(), TestCaseError> {
     let (ba, bb) = (a.body(), b.body());
     let (va, vb) = (vol(&ba), vol(&bb));
-    let (vu, vi, vc) = (run(&ba, &bb, BoolOp::Union)?, run(&ba, &bb, BoolOp::Intersect)?, run(&ba, &bb, BoolOp::Cut)?);
-    prop_assert!(close(vu + vi, va + vb, va + vb), "union+intersect {} != A+B {} (A {va:.3}, B {vb:.3}, U {vu:.3}, I {vi:.3})", vu + vi, va + vb);
+    let (vu, vi, vc) = (run(&ba, &bb, BoolOp::Union), run(&ba, &bb, BoolOp::Intersect)?, run(&ba, &bb, BoolOp::Cut)?);
+    if edge_contact_refusal(a, b, BoolOp::Union, &vu) {
+        prop_assert!(close(vi, 0.0, va + vb), "edge-only contact must have no intersection volume");
+    } else {
+        let vu = vu?;
+        prop_assert!(close(vu + vi, va + vb, va + vb), "union+intersect {} != A+B {} (A {va:.3}, B {vb:.3}, U {vu:.3}, I {vi:.3})", vu + vi, va + vb);
+    }
     prop_assert!(close(vc, va - vi, va + vb), "cut {vc:.3} != A-I {:.3}", va - vi);
     Ok(())
 }
@@ -137,7 +154,11 @@ proptest! {
         let (ba, bb) = (a.body(), b.body());
         let s = vol(&ba) + vol(&bb);
         for op in [BoolOp::Union, BoolOp::Intersect] {
-            let (ab, ba_) = (run(&ba, &bb, op)?, run(&bb, &ba, op)?);
+            let (ab, ba_) = (run(&ba, &bb, op), run(&bb, &ba, op));
+            if edge_contact_refusal(&a, &b, op, &ab) && edge_contact_refusal(&a, &b, op, &ba_) {
+                continue;
+            }
+            let (ab, ba_) = (ab?, ba_?);
             prop_assert!(close(ab, ba_, s), "{op:?}: A,B gives {ab:.4} but B,A gives {ba_:.4}");
         }
     }
@@ -152,7 +173,11 @@ proptest! {
         let (ta, tb) = (mv(&ba), mv(&bb));
         let s = vol(&ba) + vol(&bb);
         for op in [BoolOp::Union, BoolOp::Intersect, BoolOp::Cut] {
-            let (here, there) = (run(&ba, &bb, op)?, run(&ta, &tb, op)?);
+            let (here, there) = (run(&ba, &bb, op), run(&ta, &tb, op));
+            if edge_contact_refusal(&a, &b, op, &here) && edge_contact_refusal(&a, &b, op, &there) {
+                continue;
+            }
+            let (here, there) = (here?, there?);
             prop_assert!(close(here, there, s), "{op:?} at origin {here:.4}, moved by {off} gives {there:.4}");
         }
     }
@@ -169,7 +194,11 @@ proptest! {
         let (ba, bb, ka, kb) = (a.body(), b.body(), sc(&a).body(), sc(&b).body());
         let s = vol(&ba) + vol(&bb);
         for op in [BoolOp::Union, BoolOp::Intersect, BoolOp::Cut] {
-            let (one, big) = (run(&ba, &bb, op)?, run(&ka, &kb, op)? / (k * k * k));
+            let (one, big) = (run(&ba, &bb, op), run(&ka, &kb, op));
+            if edge_contact_refusal(&a, &b, op, &one) && edge_contact_refusal(&a, &b, op, &big) {
+                continue;
+            }
+            let (one, big) = (one?, big? / (k * k * k));
             prop_assert!(close(one, big, s), "{op:?} at scale 1 gives {one:.4}, at scale {k} gives {big:.4} (normalised)");
         }
     }
@@ -233,15 +262,32 @@ proptest! {
 // Cases the property tests found, as plain tests. Ignored until the kernel bug is fixed: run them
 // with `cargo test -p solidcraft-kernel --test boolean_props -- --ignored`.
 
+/// The saved commutativity case is an intentional non-manifold join refusal,
+/// not a failure to join overlapping volumes. Intersection and cut remain valid.
+#[test]
+fn edge_only_box_join_is_refused_in_both_orders() {
+    let a = Prim::Box { at: [15.0, 22.5, 0.0], size: [5.0, 5.0, 17.5] };
+    let b = Prim::Box { at: [2.5, 12.5, 0.0], size: [12.5, 10.0, 5.0] };
+    assert!(edge_only_boxes(&a, &b));
+    assert!(!edge_only_boxes(&a, &Prim::Box { at: [15.0, 22.5, 0.0], size: [5.0, 5.0, 5.0] }));
+    let (a, b) = (a.body(), b.body());
+    for (left, right) in [(&a, &b), (&b, &a)] {
+        let error = run(left, right, BoolOp::Union).expect_err("an edge-only join is non-manifold");
+        assert!(error.to_string().contains("zero-thickness edge contact"), "{error}");
+        assert_eq!(run(left, right, BoolOp::Intersect).unwrap(), 0.0);
+        assert!(close(run(left, right, BoolOp::Cut).unwrap(), vol(left), vol(left)));
+    }
+}
+
 fn check(r: Result<(), TestCaseError>) {
     if let Err(e) = r {
         panic!("{e}");
     }
 }
 
-/// A box and a cylinder in general position: the intersect is refused as an implausible volume.
+/// A box and a cylinder in general position: the intersect is a sliver 0.5 mm thick. It was
+/// refused as an implausible volume, because the meshes of the check were faceted at 0.017 mm.
 #[test]
-#[ignore = "kernel bug, #1647"]
 fn generic_box_cylinder_intersect() {
     let a = Prim::Box { at: [11.483767761089219, 4.801612107504224, 3.6313476467611787], size: [4.789088988834864, 3.0, 10.419335961063835] };
     let b = Prim::Cyl { at: [29.2480632732879, 8.3683289461485, 6.947922225984966], axis: 2, r: 13.502884497756853, h: 19.719218725477496 };

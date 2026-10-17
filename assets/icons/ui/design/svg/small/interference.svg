@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Interference</title>
+  <path d="M6.92 19.45L23.64 29.1L23.64 48.41L6.92 38.76Z" fill="#b8c3cf"/>
+  <path d="M40.36 19.45L23.64 29.1L23.64 48.41L40.36 38.76Z" fill="#8e9faf"/>
+  <path d="M23.64 9.79L40.36 19.45L23.64 29.1L6.92 19.45Z" fill="#e2e8ef"/>
+  <path d="M23.64 9.79L40.36 19.45L40.36 38.76L23.64 48.41L6.92 38.76L6.92 19.45Z" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M28.66 20.41L47.05 31.03L47.05 50.34L28.66 39.72Z" fill="#b8c3cf"/>
+  <path d="M63.77 21.38L47.05 31.03L47.05 50.34L63.77 40.69Z" fill="#8e9faf"/>
+  <path d="M45.38 10.76L63.77 21.38L47.05 31.03L28.66 20.41Z" fill="#e2e8ef"/>
+  <path d="M45.38 10.76L63.77 21.38L63.77 40.69L47.05 50.34L28.66 39.72L28.66 20.41Z" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M35.34 16.55L40.36 19.45L33.67 23.31L28.66 20.41Z" fill="#328bd3"/>
+  <path d="M35.34 16.55L40.36 19.45L33.67 23.31L28.66 20.41Z" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

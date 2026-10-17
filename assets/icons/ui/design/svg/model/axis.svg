@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Axis</title>
+  <path d="M12 52L12 12" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M12 52L52 52" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M12 8L16.5 17L7.5 17Z" fill="#236ead"/>
+  <path d="M56 52L47 56.5L47 47.5Z" fill="#236ead"/>
+  <circle cx="12" cy="52" r="4" fill="#34465b"/>
+</svg>

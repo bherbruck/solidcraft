@@ -21,6 +21,7 @@ macro_rules! planned {
 }
 
 mod browser;
+mod clearance;
 mod clipboard;
 mod compare;
 mod component;
@@ -59,6 +60,7 @@ mod render;
 #[cfg(test)]
 mod script_tests;
 mod sheet;
+mod silhouette;
 mod sketch;
 pub(crate) use sketch::author_path_for_rebind;
 pub(crate) use sketch::created as sketch_created;
@@ -251,6 +253,7 @@ pub fn command_specs() -> Vec<&'static CommandSpec> {
     v.extend(component::COMMANDS.iter());
     v.extend(component_link::COMMANDS.iter());
     v.extend(joints::COMMANDS.iter());
+    v.extend(clearance::COMMANDS.iter());
     v.extend(motion::COMMANDS.iter());
     v.extend(config::COMMANDS.iter());
     v.extend(parts::COMMANDS.iter());
@@ -265,6 +268,7 @@ pub fn command_specs() -> Vec<&'static CommandSpec> {
     v.extend(metadata::COMMANDS.iter());
     v.extend(inspect::COMMANDS.iter());
     v.extend(compare::COMMANDS.iter());
+    v.extend(silhouette::COMMANDS.iter());
     v.extend(materials::COMMANDS.iter());
     v.extend(material_properties::COMMANDS.iter());
     v.extend(libraries::COMMANDS.iter());

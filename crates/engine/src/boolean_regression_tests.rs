@@ -312,3 +312,166 @@ fn joined_loft_frames_plan_their_display_at_every_quality() {
         }
     }
 }
+
+/// A chamfered 240° ring cut by two prisms whose outlines have a corner exactly on its bore and
+/// one in its end face, then notched into its top outer chamfer: each cut is exact (no retry
+/// moved the tool), the two mirrored cuts take the same material, the notch takes what its
+/// integral says, and the result meshes to its volume at a coarse tolerance too. The prism cuts
+/// went to the last-resort nudge (seconds each, a face of no width left at each corner) and the
+/// notch was refused for its volume: its hole in the chamfer meshed several mm² too large.
+#[test]
+fn oblique_cuts_through_a_chamfered_ring_are_exact() {
+    let script: Value = serde_json::from_str(include_str!("../../../examples/regressions/oblique_cuts_through_chamfered_ring.json")).unwrap();
+    let steps = script.get("commands").and_then(Value::as_array).unwrap();
+    let mut s = Session::default();
+    let mut volumes = Vec::new();
+    for step in steps {
+        let reply = s.execute(step["command"].as_str().unwrap(), &step["params"]).unwrap();
+        if step["command"] == "solid.extrude" {
+            assert!(reply["warning"].is_null(), "{reply}");
+        }
+        if matches!(step["command"].as_str(), Some("solid.move" | "solid.extrude")) {
+            volumes.push(s.model.state().body("R").unwrap().body.tessellate(1e-5).unwrap().measure().volume);
+        }
+    }
+    // Pappus: the profile's moment about the axis turned through 240°.
+    let profile = [(16.6, 0.0), (17.5, 0.0), (18.5, 1.0), (18.5, 7.0), (17.5, 8.0), (16.6, 8.0), (16.4, 7.8), (16.4, 0.2)];
+    let moment: f64 = (0..profile.len())
+        .map(|i| {
+            let ((x0, y0), (x1, y1)) = (profile[i], profile[(i + 1) % profile.len()]);
+            (x0 * y1 - x1 * y0) * (x0 + x1) / 6.0
+        })
+        .sum();
+    let ring = moment.abs() * 4.0 * std::f64::consts::PI / 3.0;
+    let [whole, first, second, notched] = volumes[..] else { panic!("{volumes:?}") };
+    // Volumes from meshes at 1e-5 mm: within a few millionths of the ring's.
+    assert!((whole - ring).abs() < 1e-5 * ring, "{whole} vs {ring}");
+    // The ring and the two prisms are mirror images across XZ.
+    let (cut1, cut2) = (whole - first, first - second);
+    assert!(cut1 > 5.0 && (cut1 - cut2).abs() < 1e-6, "{cut1} vs {cut2}");
+    let notch = ring_notch();
+    assert!(((second - notched) - notch).abs() < 1e-4, "{} vs {notch}", second - notched);
+    let state = s.model.state();
+    let body = &state.body("R").unwrap().body;
+    assert!(body.validity().is_empty(), "{:?}", body.validity());
+    // Faces meshed coarsely keep to their surfaces: chords cut a little area off round faces,
+    // and nothing adds any (triangles fanning across a chamfer from the notch's hole or from the
+    // cuts' trims, folded over each other, added a few mm² each).
+    let (coarse, fine) = (body.tessellate(0.05).unwrap().measure().area, body.tessellate(1e-5).unwrap().measure().area);
+    assert!(coarse < fine && coarse > fine - 2.0, "area meshed at 0.05: {coarse} vs {fine}");
+    println!(
+        "ring {whole:.6} / {ring:.6} mm³; cuts {cut1:.6}, {cut2:.6}; notch {:.6} / {notch:.6}; area meshed at 0.05 {coarse:.4} / {fine:.4}",
+        second - notched
+    );
+}
+
+/// The ring's notch alone: its hole in the top outer chamfer meshed several mm² too large, and
+/// the cut was refused for an implausible volume after more than a minute; it takes what its
+/// integral says.
+#[test]
+fn notch_into_a_ring_chamfer_is_cut_exactly() {
+    let script: Value = serde_json::from_str(include_str!("../../../examples/regressions/oblique_cuts_through_chamfered_ring.json")).unwrap();
+    let steps = script.get("commands").and_then(Value::as_array).unwrap();
+    let mut s = Session::default();
+    let measure = |s: &Session| s.model.state().body("R").unwrap().body.tessellate(1e-5).unwrap().measure().volume;
+    s.run_script(&Value::Array(steps[..5].to_vec())).unwrap();
+    let before = measure(&s);
+    // The notch's sketch and its cut.
+    for step in &steps[steps.len() - 4..] {
+        let reply = s.execute(step["command"].as_str().unwrap(), &step["params"]).unwrap();
+        assert!(reply["warning"].is_null(), "{reply}");
+    }
+    let (got, want) = (before - measure(&s), ring_notch());
+    assert!((got - want).abs() < 1e-4, "{got} vs {want}");
+}
+
+/// What the ring's notch takes: a band 0.9 wide about a radius, from 17.6 out along it, and from
+/// z 7.1 up to the top outer chamfer (r = 25.5 - z). Across the band (s), along it from 17.6 to
+/// where r = 18.4, the height 18.4 - r: along it in closed form, across by Simpson's rule.
+fn ring_notch() -> f64 {
+    let along = |s: f64| {
+        let x1 = (18.4f64 * 18.4 - s * s).sqrt();
+        let g = |x: f64| {
+            let r = (x * x + s * s).sqrt();
+            18.4 * x - 0.5 * (x * r + s * s * (x + r).ln())
+        };
+        g(x1) - g(17.6)
+    };
+    let n = 2000;
+    let h = 0.9 / n as f64;
+    let weight = |i: usize| {
+        if i == 0 || i == n {
+            1.0
+        } else if i % 2 == 1 {
+            4.0
+        } else {
+            2.0
+        }
+    };
+    (0..=n).map(|i| weight(i) * along(-0.45 + i as f64 * h)).sum::<f64>() * h / 3.0
+}
+
+/// The wedge of #1617: a side profile in (y, z) extruded 138 mm along x, its back face leaning
+/// by `lean` (the tangent of its angle), with the issue's rounds. The last one runs along the
+/// outline of both ends. The issue asked for R1 with `fit: reduce`, which reduces it to 0.854 mm;
+/// that radius is asked for here directly, which builds the same body without the fit's search
+/// (about a minute).
+fn raked_wedge(lean: f64) -> Session {
+    let mut s = Session::default();
+    let top = 60.0 - 60.0 * lean;
+    let profile = [[-60.0, 0.0], [60.0, 0.0], [top, 60.0], [38.0, 60.0], [-22.0, 22.0], [-60.0, 22.0]];
+    let back = (60.0 + top) / 2.0;
+    let ends: Vec<[f64; 3]> = [-69.0, 69.0].iter().flat_map(|&x| [[x, -41.0, 22.0], [x, 8.0, 41.0], [x, (38.0 + top) / 2.0, 60.0]]).collect();
+    let steps = [
+        ("sketch.create", json!({"plane": {"origin": [0, 0, 0], "x_dir": [0, 1, 0], "y_dir": [0, 0, 1]}, "name": "Profile"})),
+        ("sketch.line", json!({"points": profile, "closed": true})),
+        ("sketch.finish", json!({})),
+        ("solid.extrude", json!({"distance": 138, "direction": "symmetric", "operation": "new", "body_name": "Wedge"})),
+        ("solid.fillet", json!({"body": "Wedge", "radius": 1.2, "edges": [[0, -60, 22]]})),
+        ("solid.fillet", json!({"body": "Wedge", "radius": 1.5, "edges": [[0, -22, 22]]})),
+        ("solid.fillet", json!({"body": "Wedge", "radius": 1.5, "edges": [[0, 38, 60]]})),
+        ("solid.fillet", json!({"body": "Wedge", "radius": 4, "edges": [[-69, -60, 12], [69, -60, 12], [-69, back, 30], [69, back, 30]]})),
+        ("solid.fillet", json!({"body": "Wedge", "radius": 0.854, "edges": ends})),
+    ];
+    for (command, params) in steps {
+        s.execute(command, &params).unwrap_or_else(|e| panic!("{command}: {e}"));
+    }
+    s
+}
+
+/// A box intersect taking the end slice x >= 55 off the wedge of #1617 failed with "no result"
+/// once its ends were rounded, when its back face leaned 10 degrees (a vertical one worked).
+/// The leaning back shortens the top edge the end round runs along to 11.4 mm. Its strip there
+/// borrowed sections from that short neighbour and folded back on itself past the joint, and
+/// the boolean could not intersect the folded faces (fixed with #1667). The slice and the
+/// rest, cut off by the same box, are sound and add up to the wedge, with the cut plane where
+/// the issue had it and moved by 0.02 mm, as it also tried.
+#[test]
+fn box_intersect_splits_the_end_off_a_raked_wedge_after_its_end_rounds() {
+    for lean in [10f64.to_radians().tan(), 0.0] {
+        let mut s = raked_wedge(lean);
+        let whole = volume(&s, "Wedge");
+        for (i, x0) in [55.0, 55.02].into_iter().enumerate() {
+            let mut piece = |op: &str| -> (f64, solidcraft_geom::Aabb3) {
+                let copy = s.execute("solid.move", &json!({"bodies": ["Wedge"], "translate": [0, 0, 0], "copy": true})).unwrap();
+                let copy = copy["created_bodies"][0].as_str().unwrap().to_string();
+                let cap = format!("Cap{i}{op}");
+                let length = 80.0 - x0;
+                let cap_box = json!({"center": [x0 + length / 2.0, 0, 40], "length": length, "width": 160, "height": 120, "operation": "new", "body_name": cap});
+                s.execute("solid.box", &cap_box).unwrap();
+                let (target, tool) = if op == "intersect" { (cap, copy) } else { (copy, cap) };
+                s.execute("solid.combine", &json!({"target": target, "tools": [tool], "operation": op}))
+                    .unwrap_or_else(|e| panic!("lean {lean}, x >= {x0}, {op}: {e}"));
+                let state = s.model.state();
+                let body = &state.body(&target).unwrap().body;
+                assert!(body.validity().is_empty(), "lean {lean}, x >= {x0}, {op}: {:?}", body.validity());
+                (solidcraft_kernel::measure(body).unwrap().volume, body.tessellate(1e-3).unwrap().bounds())
+            };
+            let (slice, at) = piece("intersect");
+            let (rest, _) = piece("cut");
+            println!("#1617 lean {lean:.4}, x >= {x0}: slice {slice:.6} + rest {rest:.6} = {:.6}, wedge {whole:.6} mm³", slice + rest);
+            assert!((slice + rest - whole).abs() < 1e-6 * whole, "{slice} + {rest} vs {whole}");
+            assert!((at.min.x - x0).abs() < 1e-6 && (at.max.x - 69.0).abs() < 1e-3, "slice spans x {} to {}", at.min.x, at.max.x);
+        }
+    }
+}

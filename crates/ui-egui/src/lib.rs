@@ -60,6 +60,7 @@ pub mod i18n;
 mod i18n_menu_tests;
 #[cfg(test)]
 mod i18n_ui_tests;
+pub mod icon_svg;
 pub mod icons;
 pub mod inference;
 pub mod install;
@@ -981,6 +982,12 @@ impl SolveApp {
         self.dialog.as_ref().is_some_and(|d| matches!(d.kind, dialogs::Kind::Sketch))
     }
 
+    /// Is the view drawn in perspective? The perspective preference, except while a sketch is
+    /// open: a sketch is drawn and measured on its plane, so the view is parallel (no foreshortening).
+    pub fn perspective_view(&self) -> bool {
+        self.ui.perspective && self.session.active_sketch.is_none()
+    }
+
     pub fn set_status(&mut self, s: impl Into<String>, error: bool) {
         self.status = Some((s.into(), now_ms(), error));
     }
@@ -1082,7 +1089,7 @@ impl SolveApp {
 
     fn fitted_bounds(&self, mut cam: Camera, bounds: &solidcraft_engine::geom::Aabb3) -> Camera {
         if let Some(layout) = &self.viewport.layout {
-            return viewport_layout::fit_bounds(cam, bounds, layout, self.ui.perspective).unwrap_or(cam);
+            return viewport_layout::fit_bounds(cam, bounds, layout, self.perspective_view()).unwrap_or(cam);
         }
         let previous = cam;
         cam.fit(bounds);

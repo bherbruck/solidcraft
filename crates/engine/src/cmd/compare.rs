@@ -12,7 +12,7 @@ use super::CommandSpec;
 use crate::params::bad;
 use crate::{Result, Sel, Session};
 
-pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new("inspect.compare", "Compare Bodies", compare_bodies).params(
+pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new("inspect.compare", "Compare Bodies", compare_bodies).icon("compare").params(
     "a, b: body names (default: the two selected bodies, or the design's only two), in world placement; tolerance?: mm (0.001 to 10, default 0.01): \
      surfaces closer than this agree; spacing?: mm (default 0.5): the largest piece of a face sampled as one point, coarser for a body that would need \
      more than max_points? (default 8 million, up to 50 million) samples; max_regions? (default 50); color?: true | {only_in_a?, only_in_b?: \"#rrggbb\"} \

@@ -1649,3 +1649,26 @@ fn patch_dialog_rows_are_translated() {
         assert!(h.widget(through).is_some(), "{lang}: the points input must show {through:?}");
     }
 }
+
+/// Midplane opens a two-plane dialog. Starting it with nothing selected used to run the
+/// command and report that `a` is required.
+#[test]
+fn midplane_asks_for_two_planes_then_builds_the_one_between_them() {
+    let mut h = crate::scenario::Harness::new();
+    h.app.run("construct.plane.offset", json!({"base":"XY","offset":"20 mm","name":"Shelf"})).unwrap();
+    h.app.start("construct.plane.midplane");
+    h.frames(2);
+    let d = h.app.dialog.as_ref().unwrap();
+    assert!(matches!(d.kind, Kind::Midplane));
+    assert_eq!(d.inputs.len(), 2);
+    let status = h.app.status.as_ref().map(|s| s.0.clone()).unwrap_or_default();
+    assert!(!status.contains("is required"), "{status}");
+    h.app.dialog.as_mut().unwrap().inputs[0].items = vec![Sel::Plane { name: "XY".into() }];
+    h.app.dialog.as_mut().unwrap().inputs[1].items = vec![Sel::Plane { name: "Shelf".into() }];
+    h.step(&json!({"key":"Enter"})).unwrap();
+    assert!(h.app.dialog.is_none(), "{:?}", h.app.dialog.as_ref().and_then(|d| d.error.clone()));
+    let (_, _, pl) =
+        solidcraft_engine::view::construction_planes(&h.app.session).into_iter().find(|(_, name, _)| name != "Shelf").expect("the midplane");
+    assert!(pl.normal().cross(Vec3::Z).len() < 1e-6, "{pl:?}");
+    assert!((pl.origin.z - 10.0).abs() < 1e-6, "{pl:?}");
+}

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Draft analysis</title>
+  <path d="M8 56L8 8L56 8L56 56" fill="none" stroke="#8e9faf" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5.5"/>
+  <path d="M8 56L56 56L44 8L20 8Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

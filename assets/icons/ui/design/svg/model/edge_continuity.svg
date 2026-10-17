@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Continuity</title>
+  <path d="M28.22 15.26L44.61 24.72L19.39 39.28L3 29.82Z" fill="#e2e8ef"/>
+  <path d="M28.22 15.26L44.61 24.72L19.39 39.28L3 29.82Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44.61 24.72L61 34.18L35.78 48.74L19.39 39.28Z" fill="#b8c3cf"/>
+  <path d="M44.61 24.72L61 34.18L35.78 48.74L19.39 39.28Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44.61 24.72L19.39 39.28" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M38.3 24.72L44.61 28.36" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M30.74 26.18L42.09 32.73" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M23.8 28L38.93 36.73" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.65 32L32 38.55" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M18.13 36.37L24.43 40.01" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

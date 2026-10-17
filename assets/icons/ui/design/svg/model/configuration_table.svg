@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Configuration table</title>
+  <path d="M12 12.5L52 12.5A4 4 0 0 1 56 16.5L56 51.5A4 4 0 0 1 52 55.5L12 55.5A4 4 0 0 1 8 51.5L8 16.5A4 4 0 0 1 12 12.5Z" fill="#8e9faf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M12 8.5L52 8.5A4 4 0 0 1 56 12.5L56 47.5A4 4 0 0 1 52 51.5L12 51.5A4 4 0 0 1 8 47.5L8 12.5A4 4 0 0 1 12 8.5Z" fill="#e2e8ef"/>
+  <defs><clipPath id="table-face"><path d="M12 8.5L52 8.5A4 4 0 0 1 56 12.5L56 47.5A4 4 0 0 1 52 51.5L12 51.5A4 4 0 0 1 8 47.5L8 12.5A4 4 0 0 1 12 8.5Z" fill="none"/></clipPath></defs>
+  <g clip-path="url(#table-face)">
+  <path d="M8 8.5L56 8.5L56 21.5L8 21.5Z" fill="#328bd3"/>
+  <path d="M39 21.5L56 21.5L56 51.5L39 51.5Z" fill="#b9ddf8"/>
+  </g>
+  <path d="M12 8.5L52 8.5A4 4 0 0 1 56 12.5L56 47.5A4 4 0 0 1 52 51.5L12 51.5A4 4 0 0 1 8 47.5L8 12.5A4 4 0 0 1 12 8.5Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8 21.5L56 21.5M8 36.5L56 36.5M24 21.5L24 51.5M40 21.5L40 51.5" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M45 28.5L50 28.5M45 44.5L50 44.5" fill="none" stroke="#236ead" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

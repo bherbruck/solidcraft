@@ -5,6 +5,9 @@ use solidcraft_geom::{Plane, Seg2, Vec2};
 use truck_modeling::{self as mt, BoundedCurve, Invertible, ParametricCurve};
 
 const MAX_DEGREE: usize = 32;
+/// How far an arc read off a curve may end from the curve's end (mm): half the gap a profile
+/// loop may have between segments and still close (`crate::build`).
+const ARC_END_TOL: f64 = 5e-7;
 const MAX_CONTROLS: usize = 4096;
 type H = [f64; 3];
 
@@ -353,7 +356,10 @@ fn arc(c: &mt::Curve, spans: &[Vec<H>], plane: &Plane, a: Vec2, b: Vec2, tol: f6
     }
     let start = (a - center).angle();
     let end = center + Vec2::new((start + sweep).cos(), (start + sweep).sin()) * radius;
-    if end.dist(b) + error > tol {
+    // The arc ends where the curve does, as closely as a profile loop must close: within `tol`
+    // only (which grows with the model), a curve that is merely near a circle (a font's) would
+    // come back as an arc ending off the next segment's start, and the loop would not close.
+    if end.dist(b) + error > tol.min(ARC_END_TOL) {
         return None;
     }
     let closed = a.dist(b) < tol;
@@ -469,6 +475,29 @@ mod tests {
         assert!(backtrack.curve().der(1. / 3.).x < -1.);
         assert!(segment(&backtrack, &Plane::XY, 1e-5, &mut 2_000_000).is_none());
         assert!(segment(&arc, &Plane::XY, 1e-5, &mut 0).is_none());
+    }
+
+    /// A curve read as an arc ends where the curve does, however large the tolerance (it grows
+    /// with the part): a font's quadratic that is within a micron of a circle, not on one, is
+    /// kept as the curve it is. Read as an arc whose end is a micron off, the outline of a letter
+    /// cut into a 2 m plate did not close.
+    #[test]
+    fn a_curve_near_a_circle_is_not_an_arc_ending_off_it() {
+        // A parabola within a micron of the circle through its ends and middle.
+        let e = edge(&[0., 2., 0.], &[0., 0., 0.2], &[1.], 2);
+        let (a, b) = (Vec2::new(0., 0.), Vec2::new(2., 0.2));
+        assert!(from_p3(e.back().point()).dist(solidcraft_geom::Vec3::new(2., 0.2, 0.)) < 1e-12);
+        for tol in [1e-5, 2e-3] {
+            let segs = segment(&e, &Plane::XY, tol, &mut 2_000_000).unwrap();
+            let (first, last) = (segs.first().unwrap(), segs.last().unwrap());
+            assert!(first.start().dist(a) < 1e-9 && last.end().dist(b) < 1e-9, "{tol}: {segs:?}");
+        }
+        // A true arc is still one at either tolerance.
+        let (p, q) = (mt::Vertex::new(mt::Point3::new(10., 0., 0.)), mt::Vertex::new(mt::Point3::new(0., 10., 0.)));
+        let arc = builder::circle_arc(&p, &q, mt::Point3::new(10. / 2f64.sqrt(), 10. / 2f64.sqrt(), 0.));
+        for tol in [1e-5, 2e-3] {
+            assert!(matches!(segment(&arc, &Plane::XY, tol, &mut 2_000_000).unwrap()[..], [Seg2::Arc { .. }]));
+        }
     }
 
     #[test]

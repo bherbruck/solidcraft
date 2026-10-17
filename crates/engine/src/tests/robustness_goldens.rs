@@ -5,12 +5,14 @@
 //! volume and area (within a relative 1e-6) and their face, edge and shell counts (exact). Any
 //! change fails, the better and the worse alike: a seed that used to be refused and now builds
 //! is recorded on purpose, with the reason. To record: `ROBUSTNESS_GOLDENS_BLESS="why" cargo
-//! test --profile ci -p solidcraft-engine --lib robustness_goldens:: -- --include-ignored`
-//! (docs/robustness.md). The reason goes into the file's `notes` with the seeds it changed.
+//! test --profile ci -p solidcraft-engine --lib robustness_goldens::` (docs/robustness.md); run
+//! it with `cargo test`, whose tests share one process and so one lock on the file, not with
+//! nextest. The reason goes into the file's `notes` with the seeds it changed.
 //!
-//! Pull requests that touch `crates/kernel` run a sample (`sample_0` … `sample_3`, every 8th
-//! seed, split so the shards share them); pushes to main and the nightly run every seed
-//! (`all_0` … `all_3`).
+//! Each seed is its own test (`seed_00` … `seed_95`), so the runner spreads them over the CI
+//! shards and their cores: a few seeds take minutes, and grouped four ways they made one test
+//! of half an hour. Pull requests that touch `crates/kernel` run every 8th seed (ci.yml);
+//! pushes to main and the nightly run every seed.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -52,9 +54,8 @@ fn differs(want: &Value, got: &Value) -> Option<String> {
     (!out.is_empty()).then(|| out.join("; "))
 }
 
-fn check(part: u64, parts: u64, every: u64) {
-    let seeds: Vec<u64> = (0..SEEDS).filter(|s| s % every == 0 && (s / every) % parts == part).collect();
-    let got: BTreeMap<u64, Value> = seeds.iter().map(|s| (*s, fuzz::golden(*s, MAX_STEPS))).collect();
+fn check(seed: u64) {
+    let got: BTreeMap<u64, Value> = BTreeMap::from([(seed, fuzz::golden(seed, MAX_STEPS))]);
     let _lock = FILE.lock().unwrap_or_else(|e| e.into_inner());
     let mut file = load();
     let changed: Vec<(u64, String)> = got
@@ -111,42 +112,123 @@ fn check(part: u64, parts: u64, every: u64) {
     );
 }
 
-#[test]
-fn sample_0() {
-    check(0, 4, 8);
+/// One test per seed, and the list of them.
+macro_rules! seeds {
+    ($($name:ident = $seed:literal),* $(,)?) => {
+        $(
+            #[test]
+            fn $name() {
+                check($seed);
+            }
+        )*
+        const LISTED: &[u64] = &[$($seed),*];
+    };
 }
 
-#[test]
-fn sample_1() {
-    check(1, 4, 8);
-}
+seeds!(
+    seed_00 = 0,
+    seed_01 = 1,
+    seed_02 = 2,
+    seed_03 = 3,
+    seed_04 = 4,
+    seed_05 = 5,
+    seed_06 = 6,
+    seed_07 = 7,
+    seed_08 = 8,
+    seed_09 = 9,
+    seed_10 = 10,
+    seed_11 = 11,
+    seed_12 = 12,
+    seed_13 = 13,
+    seed_14 = 14,
+    seed_15 = 15,
+    seed_16 = 16,
+    seed_17 = 17,
+    seed_18 = 18,
+    seed_19 = 19,
+    seed_20 = 20,
+    seed_21 = 21,
+    seed_22 = 22,
+    seed_23 = 23,
+    seed_24 = 24,
+    seed_25 = 25,
+    seed_26 = 26,
+    seed_27 = 27,
+    seed_28 = 28,
+    seed_29 = 29,
+    seed_30 = 30,
+    seed_31 = 31,
+    seed_32 = 32,
+    seed_33 = 33,
+    seed_34 = 34,
+    seed_35 = 35,
+    seed_36 = 36,
+    seed_37 = 37,
+    seed_38 = 38,
+    seed_39 = 39,
+    seed_40 = 40,
+    seed_41 = 41,
+    seed_42 = 42,
+    seed_43 = 43,
+    seed_44 = 44,
+    seed_45 = 45,
+    seed_46 = 46,
+    seed_47 = 47,
+    seed_48 = 48,
+    seed_49 = 49,
+    seed_50 = 50,
+    seed_51 = 51,
+    seed_52 = 52,
+    seed_53 = 53,
+    seed_54 = 54,
+    seed_55 = 55,
+    seed_56 = 56,
+    seed_57 = 57,
+    seed_58 = 58,
+    seed_59 = 59,
+    seed_60 = 60,
+    seed_61 = 61,
+    seed_62 = 62,
+    seed_63 = 63,
+    seed_64 = 64,
+    seed_65 = 65,
+    seed_66 = 66,
+    seed_67 = 67,
+    seed_68 = 68,
+    seed_69 = 69,
+    seed_70 = 70,
+    seed_71 = 71,
+    seed_72 = 72,
+    seed_73 = 73,
+    seed_74 = 74,
+    seed_75 = 75,
+    seed_76 = 76,
+    seed_77 = 77,
+    seed_78 = 78,
+    seed_79 = 79,
+    seed_80 = 80,
+    seed_81 = 81,
+    seed_82 = 82,
+    seed_83 = 83,
+    seed_84 = 84,
+    seed_85 = 85,
+    seed_86 = 86,
+    seed_87 = 87,
+    seed_88 = 88,
+    seed_89 = 89,
+    seed_90 = 90,
+    seed_91 = 91,
+    seed_92 = 92,
+    seed_93 = 93,
+    seed_94 = 94,
+    seed_95 = 95,
+);
 
+/// Every seed in 0..SEEDS has its test, once, and every recorded seed is one of them.
 #[test]
-fn sample_2() {
-    check(2, 4, 8);
-}
-
-#[test]
-fn sample_3() {
-    check(3, 4, 8);
-}
-
-#[test]
-fn all_0() {
-    check(0, 4, 1);
-}
-
-#[test]
-fn all_1() {
-    check(1, 4, 1);
-}
-
-#[test]
-fn all_2() {
-    check(2, 4, 1);
-}
-
-#[test]
-fn all_3() {
-    check(3, 4, 1);
+fn every_seed_has_a_test() {
+    assert_eq!(LISTED, (0..SEEDS).collect::<Vec<_>>().as_slice());
+    let file = load();
+    let recorded: Vec<u64> = file["seeds"].as_object().into_iter().flatten().filter_map(|(k, _)| k.parse().ok()).collect();
+    assert!(recorded.iter().all(|s| *s < SEEDS), "{recorded:?}");
 }

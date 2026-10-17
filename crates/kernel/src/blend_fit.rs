@@ -360,11 +360,14 @@ enum Clash {
     Blend,
 }
 
-fn first_clash(sel: &Selection, size: Size) -> Option<Clash> {
+/// What a blend at `size` runs into first, if anything. Curved faces are meshed to within the
+/// chord: they count when their mesh reaches into a wedge by more than twice the chord, or, when
+/// `strict`, when it comes within the chord of one (the surface may then be inside it).
+fn first_clash(sel: &Selection, size: Size, strict: bool) -> Option<Clash> {
     let wedges: Vec<Option<Wedge>> = sel.frames.iter().map(|f| f.as_ref().and_then(|f| f.wedge(size))).collect();
     // Planar faces are exact in the mesh; curved ones are within the chord.
     let flat = (sel.size * 1e-7).max(1e-9);
-    let curved = sel.chord * 2.0;
+    let curved = if strict { -sel.chord } else { sel.chord * 2.0 };
     // Planar faces beside an edge lie in its wedge's side planes: outside it means further.
     let out = (sel.size * 1e-6).max(1e-8);
     for (i, (f, w)) in sel.frames.iter().zip(&wedges).enumerate() {
@@ -433,8 +436,10 @@ fn misfit_in(sel: &Selection, size: Size) -> Result<Option<(Clash, Option<f64>)>
     if sel.frames.iter().all(Option::is_none) || !size.value().is_finite() || size.value() <= 0.0 {
         return Ok(None);
     }
-    let Some(clash) = first_clash(sel, size) else { return Ok(None) };
-    // Bisection on the size's steps: `hi` doesn't fit, `lo` does (or is 0).
+    let Some(clash) = first_clash(sel, size, false) else { return Ok(None) };
+    // Bisection on the size's steps: `hi` doesn't fit, `lo` does (or is 0). Strictly: a size
+    // offered as fitting must fit, though a curved face that only touches the wedge at it would
+    // not be refused (a hole whose rim the round's band just reaches, #324).
     let asked = size.value();
     let q = step(asked);
     let (mut lo, mut hi) = (0u64, (asked / q).ceil() as u64);
@@ -443,7 +448,7 @@ fn misfit_in(sel: &Selection, size: Size) -> Result<Option<(Clash, Option<f64>)>
             break;
         }
         let mid = lo + (hi - lo) / 2;
-        if first_clash(sel, size.scaled(mid as f64 * q / asked)).is_none() {
+        if first_clash(sel, size.scaled(mid as f64 * q / asked), true).is_none() {
             lo = mid;
         } else {
             hi = mid;

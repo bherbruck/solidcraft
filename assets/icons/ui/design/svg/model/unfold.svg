@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Unfold</title>
+  <path d="M29.11 42.09L43.11 18.09" fill="none" stroke="#8e9faf" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5.2"/>
+  <path d="M7.11 42.09L29.11 42.09L56.89 42.09" fill="none" stroke="#34465b" stroke-width="11.4" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M7.11 42.09L29.11 42.09" fill="none" stroke="#b8c3cf" stroke-width="6.3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M29.11 42.09L56.89 42.09" fill="none" stroke="#328bd3" stroke-width="6.3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M45.57 19.44A28 28 0 0 1 53.83 28.94" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M56.03 34.37L51.01 29.57L57.74 27.64Z" fill="#ffffff" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M45.57 19.44A28 28 0 0 1 53.83 28.94" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M56.03 34.37L51.01 29.57L57.74 27.64Z" fill="#236ead"/>
+</svg>
