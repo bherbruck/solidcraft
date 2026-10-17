@@ -22,17 +22,55 @@ pub struct BodyMeasure {
     pub merged: TopoCounts,
 }
 
-/// Per-face sums: area, 6 × signed volume and 24 × first moments (divergence theorem, origin 0).
-fn face_sums(m: &Mesh, nf: usize) -> Vec<(f64, f64, Vec3)> {
-    let mut out = vec![(0.0, 0.0, Vec3::ZERO); nf];
+/// Per-face sums: area, 6 × signed volume and 24 × first moments (divergence theorem, origin 0),
+/// and the sum of the area vectors (zero over a closed surface).
+fn face_sums(m: &Mesh, nf: usize) -> Vec<(f64, f64, Vec3, Vec3)> {
+    let mut out = vec![(0.0, 0.0, Vec3::ZERO, Vec3::ZERO); nf];
     for (t, f) in m.triangles.iter().zip(&m.tri_face) {
         let (Some([a, b, c]), Some(slot)) = (m.tri(t), out.get_mut(*f as usize)) else { continue };
         let d = a.dot(b.cross(c));
-        slot.0 += (b - a).cross(c - a).len() * 0.5;
+        let n = (b - a).cross(c - a) * 0.5;
+        slot.0 += n.len();
         slot.1 += d;
         slot.2 += (a + b + c) * d;
+        slot.3 += n;
     }
     out
+}
+
+/// Whether the mesh is closed: every edge, its ends matched by position to within `quantum`,
+/// is crossed as often one way as the other.
+fn is_closed(m: &Mesh, quantum: f64) -> bool {
+    let key = |p: Vec3| [p.x, p.y, p.z].map(|x| (x / quantum).round() as i64);
+    let mut net: std::collections::HashMap<([i64; 3], [i64; 3]), i32> = std::collections::HashMap::new();
+    for t in &m.triangles {
+        let Some([a, b, c]) = m.tri(t) else { return false };
+        for (p, q) in [(a, b), (b, c), (c, a)] {
+            let (p, q) = (key(p), key(q));
+            if p < q {
+                *net.entry((p, q)).or_insert(0) += 1;
+            } else if q < p {
+                *net.entry((q, p)).or_insert(0) -= 1;
+            }
+        }
+    }
+    !m.triangles.is_empty() && net.values().all(|n| *n == 0)
+}
+
+/// Area, 6 × volume and 24 × first moments of a closed mesh, taken about `o` (near the body,
+/// so that a body far from the origin does not cancel its terms in rounding) and returned about
+/// the origin.
+fn closed_sums(m: &Mesh, o: Vec3) -> (f64, f64, Vec3) {
+    let (mut area, mut v6, mut mom) = (0.0, 0.0, Vec3::ZERO);
+    for t in &m.triangles {
+        let Some([a, b, c]) = m.tri(t) else { continue };
+        area += (b - a).cross(c - a).len() * 0.5;
+        let (a, b, c) = (a - o, b - o, c - o);
+        let d = a.dot(b.cross(c));
+        v6 += d;
+        mom += (a + b + c) * d;
+    }
+    (area, v6, o * (4.0 * v6) + mom)
 }
 
 /// Smallest radius of curvature along the mesh's edge polylines (straight edges ignored).
@@ -89,7 +127,7 @@ pub fn measure(b: &Body) -> Result<BodyMeasure> {
     let nf = b.face_count();
     let (sf, sm, sc) = (face_sums(&fine, nf), face_sums(&medium, nf), face_sums(&coarse, nf));
     let close = |x: f64, y: f64| (x - y).abs() <= 0.01 * x.abs().max(y.abs()) + 1e-9;
-    let (mut area, mut v6, mut mom) = (0.0, 0.0, Vec3::ZERO);
+    let (mut area, mut v6, mut mom, mut normal) = (0.0, 0.0, Vec3::ZERO, Vec3::ZERO);
     for ((f, m), c) in sf.iter().zip(&sm).zip(&sc) {
         // Trust the finest tessellation that agrees with the next coarser one.
         let pick = if close(f.0, m.0) {
@@ -102,6 +140,19 @@ pub fn measure(b: &Body) -> Result<BodyMeasure> {
         area += pick.0;
         v6 += pick.1;
         mom += pick.2;
+        normal += pick.3;
+    }
+    // A closed surface's area vectors sum to zero. Where they don't, the meshes leave a gap: the
+    // reference mesher can leave a crack where a trimmed face meets a hole cut into it (a notch
+    // through a cone). The volume beside the gap is then left out, and the sums close the gap by
+    // a cone to the origin instead, which moves the volume with the body's distance from the
+    // origin (a crack of 0.3 mm² moved a part ring's volume by 7 % 1000 mm away). When the gap
+    // could move the volume by more than 1e-5 of it within the body's size, and the display
+    // plan, which shares every edge's nodes between its faces, is closed, measure that.
+    if normal.len() * size * 2.0 > 1e-5 * v6.abs()
+        && let Some(plan) = b.display_plan(fine_tol).ok().map(|p| p.evaluate()).filter(|m| is_closed(m, (size * 1e-9).max(1e-12)))
+    {
+        (area, v6, mom) = closed_sums(&plan, plan.bounds().center());
     }
     let volume = v6 / 6.0;
     let centroid = if v6.abs() > 1e-12 { mom / (4.0 * v6) } else { fine.bounds().center() };
