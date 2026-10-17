@@ -400,6 +400,12 @@ pub fn parse(text: &str) -> Result<Exchange, String> {
     lx.expect(b';')?;
     let mut ex = Exchange::default();
     let watch = crate::watch::current();
+    if let Some(w) = &watch {
+        if w.cancelled() {
+            return err("STEP import cancelled");
+        }
+        w.progress("parsing", 0, text.len());
+    }
     loop {
         lx.ws()?;
         if lx.peek().is_none() {
@@ -476,7 +482,7 @@ pub fn parse(text: &str) -> Result<Exchange, String> {
                         if w.cancelled() {
                             return err("STEP import cancelled");
                         }
-                        w.progress("reading", lx.i, lx.s.len());
+                        w.progress("parsing", lx.i, lx.s.len());
                     }
                     if ex.entities.len() >= MAX_ENTITIES {
                         return err(format!("STEP file has more than {MAX_ENTITIES} entities"));
@@ -493,6 +499,12 @@ pub fn parse(text: &str) -> Result<Exchange, String> {
             }
             "END-ISO-10303-21" => {
                 lx.expect(b';')?;
+                if let Some(w) = &watch {
+                    if w.cancelled() {
+                        return err("STEP import cancelled");
+                    }
+                    w.progress("parsing", text.len(), text.len());
+                }
                 return Ok(ex);
             }
             // ANCHOR / REFERENCE / SIGNATURE sections (Part 21 edition 3): skip to ENDSEC.

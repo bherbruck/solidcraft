@@ -856,7 +856,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     let (done, total) = r.progress.features();
     // Long work inside one feature (a large STEP file) has progress of its own.
     let export = r.request.kind == Kind::ExportDxf;
-    let work = r.progress.work().filter(|(_, d, t)| export || (phase == 0 && d < t));
+    let work = r.progress.work().filter(|_| export || phase == 0);
     let screen = ctx.content_rect();
     // Leave the title bar to the window. The resize edges are a foreground layer above this.
     let cover = egui::Rect::from_min_max(egui::pos2(screen.left(), screen.top() + crate::toolbar::APP_BAR_HEIGHT), screen.max);
@@ -932,8 +932,15 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
                 } else {
                     match (phase, work) {
                         (_, work) if r.request.kind == Kind::ExportDxf => crate::dialogs_view_dxf::progress_text(work),
-                        (_, Some(("reading", d, t))) => format!("Reading the file... {}%", d * 100 / t.max(1)),
-                        (_, Some((_, d, t))) => format!("Converting solid {} of {t}", d + 1),
+                        (_, Some(("reading", d, t))) => format!(
+                            "Reading the file... {:.0}% ({:.1} / {:.1} MB)",
+                            d as f64 * 100.0 / t.max(1) as f64,
+                            d as f64 / 1_000_000.0,
+                            t as f64 / 1_000_000.0
+                        ),
+                        (_, Some(("parsing", d, t))) => format!("Parsing STEP... {:.0}%", d as f64 * 100.0 / t.max(1) as f64),
+                        (_, Some((_, d, t))) if d < t => format!("Converting solid {} of {t}", d + 1),
+                        (_, Some(_)) => "Preparing the assembly...".into(),
                         (1, _) => "Preparing the view...".into(),
                         (2, _) => "Preparing the thumbnail...".into(),
                         _ if total > 0 => format!("Rebuilding feature {} of {total}", (done + 1).min(total)),
@@ -1038,6 +1045,54 @@ mod tests {
         assert!(Arc::ptr_eq(&base, &h.app.session.doc));
         assert_eq!(h.app.session.undo.len(), undo);
         assert_eq!(h.app.cam, cam);
+    }
+
+    #[test]
+    fn the_overlay_shows_byte_progress_and_keeps_completed_stages_until_the_next_one() {
+        let mut h = crate::scenario::Harness::new();
+        let (_tx, rx) = std::sync::mpsc::channel();
+        let progress = Arc::new(Progress::default());
+        let phase = Arc::new(AtomicU8::new(0));
+        h.app.file_load.running = Some(Running {
+            request: Request::new("assembly.step", Kind::Open),
+            base: h.app.session.doc.clone(),
+            base_revision: h.app.session.revision,
+            before: Vec::new(),
+            rx,
+            phase: phase.clone(),
+            progress: progress.clone(),
+            preview_rx: None,
+            preview: None,
+            partial_rx: None,
+            built: None,
+            staged: None,
+        });
+        for (stage, done, total, label) in [
+            ("reading", 16_000_000, 64_000_000, "Reading the file... 25% (16.0 / 64.0 MB)"),
+            ("reading", 64_000_000, 64_000_000, "Reading the file... 100% (64.0 / 64.0 MB)"),
+            ("parsing", 32_000_000, 64_000_000, "Parsing STEP... 50%"),
+            ("parsing", 64_000_000, 64_000_000, "Parsing STEP... 100%"),
+            ("converting", 3, 10, "Converting solid 4 of 10"),
+            ("converting", 10, 10, "Preparing the assembly..."),
+        ] {
+            solidcraft_engine::doc::progress::watch(progress.clone(), || {
+                solidcraft_engine::doc::progress::work_step(stage, done, total);
+            });
+            h.frames(3);
+            assert!(h.widget(label).is_some(), "the overlay must show {label:?}");
+        }
+        solidcraft_engine::doc::progress::watch(progress.clone(), || {
+            let mut session = Session::default();
+            session.execute("solid.box", &json!({"length": 2, "width": 3, "height": 4})).unwrap();
+        });
+        h.frames(3);
+        assert!(h.widget("Rebuilding feature 1 of 1").is_some(), "a later feature must replace the previous file's progress");
+        solidcraft_engine::doc::progress::watch(progress, || {
+            solidcraft_engine::doc::progress::work_step("converting", 10, 10);
+        });
+        phase.store(1, Ordering::Relaxed);
+        h.frames(3);
+        assert!(h.widget("Preparing the view...").is_some(), "view preparation replaces the import stage");
     }
 
     #[test]

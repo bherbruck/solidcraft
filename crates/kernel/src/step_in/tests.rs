@@ -1280,7 +1280,7 @@ fn boxes_step(count: usize, name: &str) -> String {
 struct TestWatch {
     cancel_after: usize,
     reports: std::sync::atomic::AtomicUsize,
-    last: std::sync::Mutex<(&'static str, usize, usize)>,
+    history: std::sync::Mutex<Vec<(&'static str, usize, usize)>>,
 }
 
 impl crate::watch::Watch for TestWatch {
@@ -1289,27 +1289,35 @@ impl crate::watch::Watch for TestWatch {
     }
     fn progress(&self, stage: &'static str, done: usize, total: usize) {
         self.reports.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        *self.last.lock().unwrap() = (stage, done, total);
+        self.history.lock().unwrap().push((stage, done, total));
     }
 }
 
 #[test]
 fn watched_import_reports_progress_and_stops_on_cancel_without_caching() {
     let text = boxes_step(40, "watched import");
-    let watch = Arc::new(TestWatch { cancel_after: usize::MAX, reports: Default::default(), last: std::sync::Mutex::new(("", 0, 0)) });
+    let watch = Arc::new(TestWatch { cancel_after: usize::MAX, reports: Default::default(), history: Default::default() });
     let imp = crate::watch::watching(watch.clone(), || step_import(&text)).unwrap();
     assert_eq!(imp.bodies.len(), 40);
-    let (stage, done, total) = *watch.last.lock().unwrap();
+    let history = watch.history.lock().unwrap();
+    let parsing_end = history.iter().take_while(|(stage, _, _)| *stage == "parsing").count();
+    let (parsing, converting) = history.split_at(parsing_end);
+    assert_eq!(parsing.first(), Some(&("parsing", 0, text.len())));
+    assert_eq!(parsing.last(), Some(&("parsing", text.len(), text.len())));
+    assert!(parsing.iter().any(|&(_, done, total)| done > 0 && done < total), "parsing reports bytes before it finishes");
+    assert!(parsing.windows(2).all(|p| p[0].1 < p[1].1));
+    assert_eq!(converting.first(), Some(&("converting", 0, 40)), "conversion starts after parsing completes");
+    let (stage, done, total) = *history.last().unwrap();
     assert_eq!((stage, total), ("converting", 40));
-    assert!(done <= total && watch.reports.load(std::sync::atomic::Ordering::Relaxed) > 1);
+    assert!(done <= total);
 
     // Cancelled part way: an error, no partial result, and nothing cached for the text.
     let text = boxes_step(41, "cancelled import");
-    let watch = Arc::new(TestWatch { cancel_after: 3, reports: Default::default(), last: std::sync::Mutex::new(("", 0, 0)) });
+    let watch = Arc::new(TestWatch { cancel_after: 2, reports: Default::default(), history: Default::default() });
     let err = crate::watch::watching(watch.clone(), || step_import_shared(&text).map(|_| ())).unwrap_err();
     assert!(err.to_string().contains("cancelled"), "{err}");
-    let (_, done, _) = *watch.last.lock().unwrap();
-    assert!(done < 41, "stopped before converting everything ({done})");
+    let (_, done, total) = *watch.history.lock().unwrap().last().unwrap();
+    assert!(done < total, "stopped part way ({done} of {total})");
     // Unwatched, the same text imports in full (no cached failure or partial import).
     assert_eq!(step_import_shared(&text).unwrap().bodies.len(), 41);
     // Without a watch nothing is reported or stopped.
