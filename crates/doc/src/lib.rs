@@ -17,6 +17,7 @@ pub use clipboard::{clone_expression, remap_topology};
 pub mod config;
 pub mod construct;
 pub mod display_quality;
+pub mod display_units;
 mod document;
 mod eval;
 pub mod expr;

@@ -11,6 +11,7 @@
 use egui::{Modifiers, Pos2, RichText};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+pub use solidcraft_engine::doc::display_units::{format_length, length_number, length_precision, unit_scale};
 use solidcraft_engine::geom::Vec3;
 
 /// The key the apps keep the preferences under in eframe's storage.
@@ -748,32 +749,6 @@ pub(crate) fn pivot_under(app: &SolveApp, proj: &crate::viewport::Proj, at: Pos2
     if b.is_empty() { app.cam.target } else { b.center() }
 }
 
-/// Units per millimetre and the unit's name.
-pub fn unit_scale(units: &str) -> (f64, &'static str) {
-    match units {
-        "cm" => (0.1, "cm"),
-        "m" => (0.001, "m"),
-        "in" => (1.0 / 25.4, "in"),
-        "ft" => (1.0 / 304.8, "ft"),
-        _ => (1.0, "mm"),
-    }
-}
-
-/// Inch labels retain a meaningful fourth digit without promoting floating-point noise.
-pub fn length_precision(value: f64, units: &str, decimals: u8) -> usize {
-    let base = usize::from(decimals.min(8));
-    if units != "in" {
-        return base;
-    }
-    let needs_four = ((value * 10_000.0).round() - (value * 1000.0).round() * 10.0).abs() >= 0.5;
-    base.max(if needs_four { 4 } else { 3 })
-}
-
-pub fn length_number(mm: f64, units: &str, decimals: u8) -> String {
-    let value = mm * unit_scale(units).0;
-    format!("{:.*}", length_precision(value, units, decimals), value)
-}
-
 /// A plain number typed into a field, with a decimal point or a decimal comma (#1347): "2.5"
 /// and "2,5" are both 2.5, as a numeric keypad types either depending on the locale. Spaces are
 /// ignored and "−" is a minus, as in egui's own parser. A comma beside a point ("1.234,5") or a
@@ -806,12 +781,6 @@ pub fn parse_length_mm(text: &str, scale: f64) -> Option<f64> {
     let no_params = |n: &str| Err(solidcraft_engine::doc::DocError::Expr(format!("unknown parameter `{n}`")));
     let value = expr::eval_with_defaults(text.trim(), &no_params, defaults).ok()?.to_kind_in(expr::Kind::Length, defaults).ok()?;
     value.is_finite().then_some(value)
-}
-
-/// A length in millimetres in `units`, with `decimals` (for display).
-pub fn format_length(mm: f64, units: &str, decimals: u8) -> String {
-    let (_, u) = unit_scale(units);
-    format!("{} {u}", length_number(mm, units, decimals))
 }
 
 /// A length, area (`power` 2) or volume (3) given in millimetres, shown in the design's units
