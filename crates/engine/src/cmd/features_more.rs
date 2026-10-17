@@ -25,11 +25,11 @@ pub static COMMANDS: &[CommandSpec] = &[
     CommandSpec::new("solid.rib", "Rib", rib)
         .at("SOLID", "CREATE")
         .icon("rib")
-        .params("sketch, curves: [open curve ids, in order]; thickness (across the sketch plane); depth? (default: to the next face); flip?: bool (fill to the other side)"),
+        .params("sketch, curves: [open curve ids, in order]; thickness (across the sketch plane, or across the curves when normal); depth? (default: to the next face); flip?: bool (fill to the other side); direction?: in_plane|normal (grow across the sketch plane, the default, or along its normal)"),
     CommandSpec::new("solid.web", "Web", web)
         .at("SOLID", "CREATE")
         .icon("web")
-        .params("sketch, curves: [open curve ids] (one wall each); thickness; depth? (default: to the next face); flip?: bool"),
+        .params("sketch, curves: [open curve ids] (one wall each); thickness; depth? (default: to the next face); flip?: bool; direction?: in_plane|normal"),
     CommandSpec::new("solid.emboss", "Emboss", emboss)
         .at("SOLID", "CREATE")
         .icon("emboss")
@@ -133,7 +133,12 @@ fn rib_like(s: &mut Session, p: &Value, cmd: &str, web: bool) -> Result<Value> {
         check_expr(s, d, Kind::Length, cmd, "depth")?;
     }
     let flip = bool_(p, "flip").unwrap_or(false);
-    add_feature(s, p, FeatureKind::Rib { sketch: SketchId(sketch), curves, thickness, depth, flip, web })
+    let normal = match str_(p, "direction").map(str::to_ascii_lowercase).as_deref() {
+        None | Some("in_plane" | "plane") => false,
+        Some("normal") => true,
+        Some(o) => return Err(bad(cmd, format!("unknown direction `{o}` (in_plane or normal)"))),
+    };
+    add_feature(s, p, FeatureKind::Rib { sketch: SketchId(sketch), curves, thickness, depth, flip, web, normal })
 }
 
 fn rib(s: &mut Session, p: &Value) -> Result<Value> {

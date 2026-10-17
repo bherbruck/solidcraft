@@ -1,0 +1,105 @@
+# The web app as a container image on GitHub's container registry, for self-hosting
+# (packaging/docker; the book's "Self-hosting with Docker"):
+#
+#   ghcr.io/<owner>/solidcraft-web:latest   the latest published release
+#   ghcr.io/<owner>/solidcraft-web:0.14.0   a release (also 0.14); pre-releases get only their version
+#   ghcr.io/<owner>/solidcraft-web:edge     main
+#
+# For linux/amd64 and linux/arm64. The site is built here, as Pages and Release build it, and
+# passed to the Dockerfile as its `site` stage. Pull requests that touch the image build and
+# smoke-test it without publishing. Releases published by an agent or maintainer trigger this;
+# the nightly pre-releases (made with GITHUB_TOKEN) do not.
+name: Docker
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  pull_request:
+    paths: ["packaging/docker/**", ".github/workflows/docker.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  TRUNK_VERSION: v0.21.14
+
+jobs:
+  image:
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: docker-web
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install trunk
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://github.com/trunk-rs/trunk/releases/download/${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Build the web app
+        working-directory: apps/solidcraft-web
+        run: trunk build --release
+      - name: Image name
+        id: image
+        # Registry names are lower case; a fork's owner may not be.
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/solidcraft-web" >> "$GITHUB_OUTPUT"
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        id: meta
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=edge,branch=main
+            type=ref,event=pr
+          labels: |
+            org.opencontainers.image.title=SolidCraft (web)
+            org.opencontainers.image.description=SolidCraft, open-source parametric CAD, in the browser: the web app served by nginx on port 8080
+            org.opencontainers.image.licenses=MIT OR Apache-2.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build for the smoke test
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: packaging/docker/Dockerfile
+          build-contexts: site=dist/web
+          platforms: linux/amd64
+          load: true
+          tags: solidcraft-web:test
+      - name: Smoke test
+        run: bash packaging/docker/smoke-test.sh solidcraft-web:test
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: packaging/docker/Dockerfile
+          build-contexts: site=dist/web
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}

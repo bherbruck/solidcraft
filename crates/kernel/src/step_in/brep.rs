@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use mt::{BoundedCurve, InnerSpace, MetricSpace, ParametricCurve};
+use mt::{BoundedCurve, InnerSpace, MetricSpace, ParametricCurve, ParametricSurface};
 use truck_modeling as mt;
 
 use super::Ctx;
@@ -48,6 +48,62 @@ fn refs(p: Option<&Param>) -> Vec<u64> {
 
 fn rid(p: Option<&Param>, what: &str) -> R<u64> {
     p.and_then(Param::as_ref_id).ok_or_else(|| format!("{what}: expected a reference"))
+}
+
+/// A contractible outer loop whose winding opposes the surface's parameter normal.
+/// Samples follow the wire through periodic seams; a loop that winds around a surface is
+/// not a disk in parameter space and must retain the file's sense.
+fn reversed_outer(surface: &mt::Surface, wire: &mt::Wire, tol: f64) -> bool {
+    if let mt::Surface::RevolutedCurve(proc) = surface {
+        let rc = proc.entity();
+        let curve = rc.entity_curve();
+        let on_axis = |p: mt::Point3| (p - rc.origin()).cross(rc.axis()).magnitude() <= tol;
+        // A compact support has two legitimate sides of a closed trim (a sphere's
+        // hemispheres, for example); its winding must choose the side, not repair it.
+        if (on_axis(curve.front()) && on_axis(curve.back())) || curve.front().distance(curve.back()) <= tol {
+            return false;
+        }
+    }
+    let periods = truck_meshalgo::tessellation::surface_periods(surface);
+    let mut first = None::<[f64; 2]>;
+    let mut previous = None::<[f64; 2]>;
+    let (mut area, mut magnitude) = (0.0, 0.0);
+    for edge in wire.edge_iter() {
+        let curve = edge.oriented_curve();
+        let (a, b) = curve.range_tuple();
+        for k in 0..8 {
+            let point = curve.subs(a + (b - a) * f64::from(k) / 8.0);
+            let hint = previous.map(|p| (p[0], p[1]));
+            let valid = |&(u, v): &(f64, f64)| u.is_finite() && v.is_finite() && surface.subs(u, v).distance(point) <= tol;
+            let Some((u, v)) = truck_meshalgo::tessellation::project_trim_point(surface, point, hint, tol).filter(valid) else {
+                return false;
+            };
+            // A pole has no unique parameter in its collapsed direction. Its arbitrary
+            // search result cannot determine the winding of an outer loop.
+            let (du, dv) = (surface.uder(u, v), surface.vder(u, v));
+            if du.cross(dv).magnitude2() <= 1e-12 * (du.magnitude2() + dv.magnitude2()).powi(2) {
+                return false;
+            }
+            let mut p = [u, v];
+            let origin = *first.get_or_insert(p);
+            if let Some(prev) = previous {
+                for (d, x) in p.iter_mut().enumerate() {
+                    if let Some(period) = periods.get(d).copied().flatten().filter(|p| *p > 0.0) {
+                        *x -= ((*x - prev[d]) / period).round() * period;
+                    }
+                }
+                let cross = (prev[0] - origin[0]) * (p[1] - origin[1]) - (p[0] - origin[0]) * (prev[1] - origin[1]);
+                area += cross;
+                magnitude += cross.abs();
+            }
+            previous = Some(p);
+        }
+    }
+    let (Some(first), Some(last)) = (first, previous) else { return false };
+    if periods.iter().enumerate().any(|(d, p)| p.is_some_and(|p| (first[d] - last[d]).abs() > p * 0.5)) {
+        return false;
+    }
+    area < -16.0 * f64::EPSILON * magnitude
 }
 
 impl Builder {
@@ -205,9 +261,13 @@ impl Builder {
             return Err(format!("a face with more than {MAX_BOUNDS} boundary loops"));
         }
         let mut wires = Vec::new();
+        let mut outer = None;
         let mut edges = 0usize;
         for b in bounds {
             if let Some(w) = self.bound(cx, b)? {
+                if entity(cx, b)?.name() == "FACE_OUTER_BOUND" {
+                    outer = Some(wires.len());
+                }
                 edges = edges.saturating_add(w.len());
                 if edges > MAX_LOOP {
                     return Err(format!("a face with more than {MAX_LOOP} boundary edges"));
@@ -243,7 +303,7 @@ impl Builder {
                 (0..=8).map(move |i| c.subs(t0 + (t1 - t0) * i as f64 / 8.0)).collect::<Vec<_>>()
             })
             .collect();
-        let surface = if e.name() == "FACE" {
+        let mut surface = if e.name() == "FACE" {
             crate::plane_fit::plane_through(&extent).map(mt::Surface::Plane).ok_or("polygonal face without a plane")?
         } else {
             let sid = rid(p.get(2), "face geometry")?;
@@ -251,6 +311,16 @@ impl Builder {
             guard("step surface", || geom::surface(cx, sid, &extent, &seam, sense, 0).map_err(crate::KernelError::Failed))
                 .map_err(|e| e.to_string())?
         };
+        // An explicit outer bound encloses the face. Some exporters give its surface the
+        // opposite sense; treating that loop as a hole meshes the rest of the supporting
+        // cylinder instead. Match the surface to the outer loop without reversing
+        // shared topological edges. Winding loops (bands and pole seams) are left alone.
+        if e.name() != "FACE" && seam.is_empty() && outer.and_then(|i| wires.get(i)).is_some_and(|w| reversed_outer(&surface, w, cx.tol)) {
+            let sid = rid(p.get(2), "face geometry")?;
+            let sense = p.get(3).and_then(Param::as_bool).unwrap_or(true);
+            surface = guard("step surface orientation", || geom::surface(cx, sid, &extent, &seam, !sense, 0).map_err(crate::KernelError::Failed))
+                .map_err(|e| e.to_string())?;
+        }
         // Loops on a surface of revolution start away from the axis: a pole (cone apex, sphere
         // pole) has no definite rotation parameter, and the mesher takes the first point's
         // parameter as the anchor for the rest of the loop.
