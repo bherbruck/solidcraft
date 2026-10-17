@@ -84,6 +84,10 @@ type FacePick = (std::sync::Arc<Mesh>, u32, f64, String);
 /// equally near (bodies touching flush), the pick is ambiguous: `Err` names those bodies.
 fn face_at_in(s: &Session, p: Vec3, only: Option<&str>) -> std::result::Result<Option<FacePick>, Vec<String>> {
     let st = s.model.state();
+    face_at_state(&st, p, only)
+}
+
+pub(super) fn face_at_state(st: &solidcraft_doc::ModelState, p: Vec3, only: Option<&str>) -> std::result::Result<Option<FacePick>, Vec<String>> {
     let mut best: Option<FacePick> = None;
     let mut tied: Vec<String> = Vec::new();
     for b in st.bodies.iter().filter(|b| only.is_none_or(|n| b.name == n)) {
@@ -125,6 +129,80 @@ fn circumcircle(a: Vec2, b: Vec2, c: Vec2) -> Option<(Vec2, f64)> {
 
 fn xy(v: Vec2) -> Value {
     json!([v.x, v.y])
+}
+
+/// Coplanar faces share one linked profile sketch and one Extrude feature. Resolve every
+/// pick before editing the document, so later picks never search an already modified body.
+pub(super) fn sketch_of_faces(s: &mut Session, points: &[Vec3], cmd: &str, face_body: Option<&str>) -> Result<(u64, Vec<Vec2>, String)> {
+    let first = points.first().copied().ok_or_else(|| bad(cmd, "faces must not be empty"))?;
+    if points.len() > 1024 {
+        return Err(bad(cmd, "faces exceed the 1024-face limit"));
+    }
+    let state = s.model.state();
+    let mut picked = Vec::new();
+    let mut common: Option<(String, solidcraft_geom::Plane)> = None;
+    for &point in points {
+        if !point.is_finite() {
+            return Err(bad(cmd, "faces must be finite points"));
+        }
+        let (mesh, index, distance, name) = face_at_in(s, point, face_body)
+            .map_err(|_| bad(cmd, "ambiguous face; specify face_body"))?
+            .ok_or_else(|| bad(cmd, "no body face at a selected point"))?;
+        let body = state.body(&name).ok_or_else(|| bad(cmd, "selected body disappeared"))?;
+        let plane = body.body.planar_face(index as usize).ok_or_else(|| bad(cmd, "faces must be planar"))?;
+        let tolerance = (body.body.size() * 1e-9).max(1e-8);
+        if distance > (mesh.bounds().diagonal() * 1e-3).max(1e-3) * 10.0 {
+            return Err(bad(cmd, "no body face at a selected point"));
+        }
+        if let Some((previous, base)) = &common {
+            if *previous != name || base.normal().dot(plane.normal()) < 1.0 - 1e-9 || base.height(plane.origin).abs() > tolerance {
+                return Err(bad(cmd, "faces must be coplanar, equally oriented faces of one body"));
+            }
+        } else {
+            common = Some((name.clone(), plane));
+        }
+        if picked.iter().any(|(face, _)| *face == index as usize) {
+            continue;
+        }
+        let inside = mesh
+            .triangles
+            .iter()
+            .zip(&mesh.tri_face)
+            .filter(|(_, face)| **face == index)
+            .filter_map(|(triangle, _)| mesh.tri(triangle))
+            .max_by(|[a, b, c], [x, y, z]| ((*b - *a).cross(*c - *a).len()).total_cmp(&((*y - *x).cross(*z - *x).len())))
+            .map(|[a, b, c]| (a + b + c) / 3.0)
+            .ok_or_else(|| bad(cmd, "degenerate face"))?;
+        picked.push((index as usize, inside));
+    }
+    let (id, first_inside, _) = sketch_of_face(s, first, cmd, face_body)?;
+    let (body, _) = common.ok_or_else(|| bad(cmd, "no faces selected"))?;
+    let doc = s.placed_document();
+    let source = state.body(&body).ok_or_else(|| bad(cmd, "source body disappeared"))?;
+    let component = doc.model_body_component(source);
+    let path = if component == s.active_component {
+        s.active_occurrence_path.clone().unwrap_or_else(|| doc.first_path(component))
+    } else {
+        let placements = super::component::properties::placements(&doc, cmd)?;
+        if placements.iter().filter(|(owner, _, _)| *owner == component).count() != 1 {
+            return Err(bad(cmd, "activate the selected occurrence before extruding its faces"));
+        }
+        doc.first_path(component)
+    };
+    let placement = EmbossFace::component_frame(&doc, component, &path)?;
+    let placement = doc.model_body_offset(source).map(|offset| mat_mul(&placement, offset)).unwrap_or(placement);
+    let author_path = s.active_occurrence_path.clone().unwrap_or_else(|| doc.first_path(s.active_component));
+    let author = EmbossFace::component_frame(&doc, s.active_component, &author_path)?;
+    let inverse = mat_inverse(&author).ok_or_else(|| bad(cmd, "invalid face profile author frame"))?;
+    let into_author = mat_mul(&inverse, &placement);
+    drop(doc);
+    let indices: Vec<_> = picked.iter().skip(1).map(|(index, _)| *index).collect();
+    super::sketch_project::project_internal_faces(s, id, &body, &indices)?;
+    s.refresh();
+    let plane = s.model.state().sketch(id).map(|sketch| sketch.plane).ok_or_else(|| bad(cmd, "face profile sketch disappeared"))?;
+    let mut selected = vec![first_inside];
+    selected.extend(picked.iter().skip(1).map(|(_, point)| plane.to_local(apply_point(&into_author, *point))));
+    Ok((id, selected, body))
 }
 
 /// Start a sketch on the planar face at `point` holding a copy of the face boundary. Returns
