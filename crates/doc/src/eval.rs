@@ -165,6 +165,8 @@ pub struct SolvedSketch {
     pub sketch: solidcraft_sketch::Sketch,
     pub report: SolveReport,
     pub profiles: Vec<Profile>,
+    /// Open and untied ends of its profile curves (where a profile can fail).
+    pub ends: solidcraft_sketch::EndReport,
 }
 
 /// A cosmetic thread: on which cylinder, its size, and the threaded part of the axis.
@@ -1104,7 +1106,15 @@ impl Model {
         let Some(last) = self.results.get(i).filter(|r| !r.skipped && r.error.is_none()).and_then(|r| r.state.sketch(feature)) else {
             return false;
         };
-        let solved = Arc::new(SolvedSketch { feature, name: last.name.clone(), plane: last.plane, profiles: find_profiles(&sketch), sketch, report });
+        let solved = Arc::new(SolvedSketch {
+            feature,
+            name: last.name.clone(),
+            plane: last.plane,
+            profiles: find_profiles(&sketch),
+            ends: solidcraft_sketch::loose_ends(&sketch),
+            sketch,
+            report,
+        });
         let shown = self.results.iter().rposition(|r| !r.skipped);
         for (k, r) in self.results.iter_mut().enumerate().skip(i) {
             r.stale = true;
@@ -4735,8 +4745,9 @@ fn eval_feature(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, st:
             }
             sk.validate_periodic_splines()?;
             let profiles = find_profiles(&sk);
+            let ends = solidcraft_sketch::loose_ends(&sk);
             st.sketches.retain(|s| s.feature != f.id);
-            st.sketches.push(Arc::new(SolvedSketch { feature: f.id, name: f.name.clone(), plane, sketch: sk, report, profiles }));
+            st.sketches.push(Arc::new(SolvedSketch { feature: f.id, name: f.name.clone(), plane, sketch: sk, report, profiles, ends }));
             Ok(())
         }
         FeatureKind::Extrude { operation, targets, .. }
