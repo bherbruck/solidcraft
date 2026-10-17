@@ -3208,13 +3208,35 @@ impl Document {
         stored: &solidcraft_sketch::DrivingValues,
         moved_from: Option<&Sketch>,
     ) -> Result<solidcraft_sketch::SolveReport> {
+        self.solve_sketch_with_analysis(vals, sk, stored, moved_from, solidcraft_sketch::Analysis::Full)
+    }
+
+    /// [`Self::solve_sketch`] with the diagnostics needed by an internal edit. Parameter
+    /// application, continuation and offset refreshes run regardless of the requested level.
+    /// Model evaluation uses `solve_sketch` so its published report always has full diagnostics.
+    pub fn solve_sketch_with_analysis(
+        &self,
+        vals: &std::collections::BTreeMap<String, expr::Value>,
+        sk: &mut Sketch,
+        stored: &solidcraft_sketch::DrivingValues,
+        moved_from: Option<&Sketch>,
+        analysis: solidcraft_sketch::Analysis,
+    ) -> Result<solidcraft_sketch::SolveReport> {
         self.apply_dimension_values(vals, sk)?;
         let was = |sk: &Sketch| moved_from.and_then(|from| sk.positions_in(from));
-        let mut report = solidcraft_sketch::solve_after_edit(sk, stored, was(sk).as_deref());
-        if !sk.offsets.is_empty() || !sk.freeform_offsets.is_empty() {
+        let offsets = !sk.offsets.is_empty() || !sk.freeform_offsets.is_empty();
+        // Offsets always require another solve after refresh. Only that last report is
+        // published; the first report only decides which state the second solve starts from.
+        let first_analysis = if offsets { solidcraft_sketch::Analysis::StatusOnly } else { analysis };
+        let mut report = solidcraft_sketch::solve_after_edit_with_analysis(sk, stored, was(sk).as_deref(), first_analysis);
+        if offsets {
             // Source dimensions may have moved curves during the solve.
             sk.refresh_offsets()?;
-            report = if report.ok() { solidcraft_sketch::solve(sk) } else { solidcraft_sketch::solve_after_edit(sk, stored, was(sk).as_deref()) };
+            report = if report.ok() {
+                solidcraft_sketch::solve_with(sk, &solidcraft_sketch::Hold::default(), None, analysis, None)
+            } else {
+                solidcraft_sketch::solve_after_edit_with_analysis(sk, stored, was(sk).as_deref(), analysis)
+            };
         }
         Ok(report)
     }

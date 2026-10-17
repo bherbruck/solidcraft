@@ -8,6 +8,21 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+solver-profiling = ["solidcraft-sketch/solver-profiling"]
+
+[[example]]
+name = "sketch_analysis_bench"
+required-features = ["solver-profiling"]
+
+[[example]]
+name = "sketch_drag_bench"
+required-features = ["solver-profiling"]
+
+[[example]]
+name = "sketch_target_bench"
+required-features = ["solver-profiling"]
+
 [dependencies]
 solidcraft-geom = { workspace = true }
 solidcraft-sketch = { workspace = true }

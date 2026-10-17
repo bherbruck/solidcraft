@@ -13,14 +13,20 @@
 use super::{Block, Hold, Layout, State, block_residuals, build_blocks, columns, initial_x, layout, local_system, max_abs, points_on_curves};
 use crate::linalg::{Mat, solve as lin_solve};
 use crate::model::Sketch;
+#[cfg(feature = "solver-profiling")]
+use crate::profiling::{self, Phase};
 use crate::union_find::{find, union};
+
+#[cfg(test)]
+#[path = "redundancy_tests.rs"]
+mod tests;
 
 /// A row is dependent on the rows before it when what is left of it, once their directions are
 /// taken out, is below this share of its length (the rank analysis' pivot tolerance is 1e-7 on
 /// rows of a comparable scale).
 const DEPENDENT: f64 = 1e-6;
 /// Variables in one component past which its constraints are not checked for redundancy: the
-/// check is dense, rows × rank × variables.
+/// worst case is still dense, rows × rank × variables.
 pub(super) const MAX_REDUNDANCY_VARS: usize = 400;
 /// A constraint's residual (mm, or radians for angles) below which it holds.
 pub const CONSISTENT: f64 = 1e-6;
@@ -37,6 +43,43 @@ fn dot(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
+/// Keep exact nonzeros in column order; never drop a small coefficient. Dense directions
+/// retain the contiguous loop when indexing a sparse representation would cost more.
+enum Direction {
+    Dense(Vec<f64>),
+    Sparse(Vec<(usize, f64)>),
+}
+
+impl Direction {
+    fn new(w: &[f64], length: f64) -> Self {
+        let dense: Vec<f64> = w.iter().map(|v| v / length).collect();
+        let nonzero = dense.iter().filter(|v| **v != 0.0).count();
+        if nonzero < dense.len() / 2 { Self::Sparse(dense.into_iter().enumerate().filter(|(_, v)| *v != 0.0).collect()) } else { Self::Dense(dense) }
+    }
+
+    fn remove_from(&self, w: &mut [f64]) {
+        match self {
+            Self::Dense(q) => {
+                let d = dot(q, w);
+                for (wk, qk) in w.iter_mut().zip(q) {
+                    *wk -= d * qk;
+                }
+            }
+            Self::Sparse(q) => {
+                // Same reduction order as the dense dot product, omitting only exact zeros.
+                let d: f64 = q.iter().filter_map(|(i, v)| w.get(*i).map(|wk| v * wk)).sum();
+                if d != 0.0 {
+                    for &(i, v) in q {
+                        if let Some(wk) = w.get_mut(i) {
+                            *wk -= d * v;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Per block of `blocks` (in order, over the variables `vars`): whether every one of its rows
 /// is a combination of the rows before it. With `support`, also for the block at that index
 /// (when redundant) the earlier blocks its rows combine.
@@ -48,28 +91,44 @@ pub(super) fn dependent_blocks(
     x: &mut [f64],
     support: Option<usize>,
 ) -> (Vec<bool>, Vec<usize>) {
+    #[cfg(feature = "solver-profiling")]
+    let _timer = {
+        profiling::count(|c| c.redundancy_checks += 1);
+        profiling::timer(Phase::Redundancy)
+    };
     let mut col = vec![usize::MAX; lay.n];
     columns(&mut col, vars, vars);
-    let (_, j, owner) = local_system(sk, lay, blocks, x, &col, vars.len());
+    let (_, j, owner) = {
+        #[cfg(feature = "solver-profiling")]
+        let _timer = profiling::timer(Phase::RedundancyJacobian);
+        local_system(sk, lay, blocks, x, &col, vars.len())
+    };
+    classify_rows(&j, &owner, blocks.len(), support)
+}
+
+fn classify_rows(j: &Mat, owner: &[usize], block_count: usize, support: Option<usize>) -> (Vec<bool>, Vec<usize>) {
+    #[cfg(feature = "solver-profiling")]
+    let classification_timer = profiling::timer(Phase::RedundancyClassification);
     let n = j.cols;
-    let row = |k: usize| -> Vec<f64> { j.data.get(k * n..(k + 1) * n).map(<[f64]>::to_vec).unwrap_or_default() };
+    let row = |k: usize| -> &[f64] { j.data.get(k * n..(k + 1) * n).unwrap_or_default() };
     // Orthonormal directions of the independent rows so far, and those rows with their block.
-    let mut q: Vec<Vec<f64>> = Vec::new();
+    let mut q: Vec<Direction> = Vec::new();
     let mut basis: Vec<(Vec<f64>, usize)> = Vec::new();
-    let mut has_rows = vec![false; blocks.len()];
-    let mut adds_rank = vec![false; blocks.len()];
+    let mut has_rows = vec![false; block_count];
+    let mut adds_rank = vec![false; block_count];
     let mut target_rows: Vec<Vec<f64>> = Vec::new();
     for k in 0..j.rows {
         let Some(&b) = owner.get(k) else { continue };
         let v = row(k);
-        let norm = dot(&v, &v).sqrt();
-        let mut w = v.clone();
-        // Twice, for the orthogonality lost to rounding.
-        for _ in 0..2 {
-            for qi in &q {
-                let d = dot(qi, &w);
-                for (wk, qk) in w.iter_mut().zip(qi) {
-                    *wk -= d * qk;
+        let norm = dot(v, v).sqrt();
+        let mut w = v.to_vec();
+        // A non-finite or zero norm cannot add rank, regardless of its projections. Skipping
+        // those rows also keeps non-finite inputs out of the exact-zero sparse fast path.
+        if norm.is_finite() && norm > 0.0 {
+            // Twice, for the orthogonality lost to rounding. Preserve row/direction order.
+            for _ in 0..2 {
+                for qi in &q {
+                    qi.remove_from(&mut w);
                 }
             }
         }
@@ -78,16 +137,23 @@ pub(super) fn dependent_blocks(
             *h = true;
         }
         if norm.is_finite() && left.is_finite() && norm > 0.0 && left > DEPENDENT * norm {
-            q.push(w.iter().map(|wk| wk / left).collect());
-            basis.push((v, b));
+            q.push(Direction::new(&w, left));
+            // Original rows are used only by explanation queries, never ordinary reports.
+            if support.is_some() {
+                basis.push((v.to_vec(), b));
+            }
             if let Some(a) = adds_rank.get_mut(b) {
                 *a = true;
             }
         } else if Some(b) == support {
-            target_rows.push(v);
+            target_rows.push(v.to_vec());
         }
     }
     let dependent: Vec<bool> = has_rows.iter().zip(&adds_rank).map(|(h, a)| *h && !*a).collect();
+    #[cfg(feature = "solver-profiling")]
+    drop(classification_timer);
+    #[cfg(feature = "solver-profiling")]
+    let _support_timer = profiling::timer(Phase::RedundancySupport);
     let mut by = Vec::new();
     if let Some(t) = support
         && dependent.get(t).copied().unwrap_or(false)

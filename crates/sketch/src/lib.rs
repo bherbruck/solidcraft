@@ -31,6 +31,8 @@ mod offset_topology;
 mod pattern;
 mod periodic;
 mod profiles;
+#[cfg(feature = "solver-profiling")]
+pub mod profiling;
 mod shape;
 mod solver;
 mod text;
@@ -60,8 +62,8 @@ pub use profiles::{
 };
 pub use shape::{Shape, intersections};
 pub use solver::{
-    Analysis, CONSISTENT, DrivingValues, Hold, SolveReport, SolveStatus, constraint_residual, determined_by, measure_dimension, solve,
-    solve_after_edit, solve_after_value_edit, solve_holding, solve_with,
+    Analysis, CONSISTENT, DrivingValues, Hold, SolveReport, SolveStatus, constraint_residual, determined_by, measure_dimension, move_point_towards,
+    solve, solve_after_edit, solve_after_edit_with_analysis, solve_after_value_edit, solve_holding, solve_with,
 };
 pub use text::{MAX_TEXT_CHARS, TextAlign, TextStyle, text_geometry, text_geometry_in, text_geometry_styled};
 pub use thin::{MAX_THIN_SEGMENTS, thin_wall_regions};

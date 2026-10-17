@@ -470,7 +470,7 @@ fn extend(s: &mut Session, p: &Value) -> Result<Value> {
         pin(sk, end, oi)?;
         let before = sk.points.iter().map(|p| p.pos).collect::<Vec<_>>();
         let hold = solidcraft_sketch::Hold { points: (0..sk.points.len()).filter(|i| *i != end).collect(), radii: (0..sk.curves.len()).collect() };
-        if !solidcraft_sketch::solve_with(sk, &hold, None, solidcraft_sketch::Analysis::Full, None).ok()
+        if !solidcraft_sketch::solve_with(sk, &hold, None, solidcraft_sketch::Analysis::StatusOnly, None).ok()
             || sk.point(end).is_none_or(|point| point.dist(q) > TOL)
             || sk.points.iter().enumerate().any(|(i, point)| i != end && point.pos.dist(before[i]) > TOL)
         {
