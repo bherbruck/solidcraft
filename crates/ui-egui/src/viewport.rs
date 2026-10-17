@@ -733,7 +733,8 @@ fn build_sketch_scene(app: &SolveApp, proj: &Proj) -> GpuScene {
         // The ground plane: XY with Z up, XZ with Y up (laid out in the camera's Z-up frame), or
         // the upright origin plane facing the view when the ground is seen edge-on.
         let tf = app.cam.to_frame(app.cam.target);
-        let (u, v) = grid_plane(app.cam.to_frame(app.cam.back()));
+        // On the ground (XY) unless the Grid follows the view preference is on (#1470).
+        let (u, v) = if app.preferences.grid_follows_view { grid_plane(app.cam.to_frame(app.cam.back())) } else { (Vec3::X, Vec3::Y) };
         let snap = |a: Vec3| a * ((tf.dot(a) / major).round() * major);
         let c = snap(u) + snap(v);
         let w3 = |p: Vec3| app.cam.from_frame(p).to_f32();
