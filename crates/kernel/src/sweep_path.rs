@@ -10,7 +10,7 @@ use solidcraft_geom::{Plane, Region2, Seg2, Vec2, Vec3};
 use truck_modeling as mt;
 
 use crate::body::{Body, p3};
-use crate::build::{cap_and_close, interpolate_cubic, uniform_wire};
+use crate::build::{cap_and_close, close_sweep, interpolate_cubic, smooth_loft_faces, uniform_wire};
 use crate::numbered::{NumberedLoop, NumberedRegion};
 use crate::record::{self, Side};
 use crate::{KernelError, Result, guard};
@@ -169,6 +169,43 @@ fn clean(path: &[Vec3]) -> Result<Vec<Vec3>> {
         return Err(KernelError::Invalid("the sweep path has no length".into()));
     }
     Ok(out)
+}
+
+pub(crate) fn closed_path(pts: &[Vec3]) -> bool {
+    pts.len() > 3 && pts.first().zip(pts.last()).is_some_and(|(a, b)| a.dist(*b) <= 1e-7)
+}
+
+/// The cyclic correspondence of a loop's last section to its first. Matching whole curves
+/// (rather than vertices alone) prevents sewing an incompatible twist or scale shut.
+fn closing_offset(plane: &Plane, profile: &NumberedLoop, st: &[Station]) -> Result<usize> {
+    let fail =
+        || KernelError::Invalid("a sweep along a closed path must return to its starting profile; adjust the twist, end scale or rails".into());
+    let (Some(first), Some(last)) = (st.first(), st.last()) else { return Err(fail()) };
+    let n = profile.lp.segs.len();
+    if n == 0 || n > 4096 {
+        return Err(fail());
+    }
+    let at = |s: &Station, q: Vec2| s.at + s.apply(plane.to_world(q) - first.at);
+    let tol = (profile.lp.signed_area().abs().sqrt() * 1e-7).clamp(1e-8, 1e-5);
+    // Filter offsets by the first corner before comparing all the curve samples.
+    let start = profile.lp.segs.first().map(Seg2::start).ok_or_else(fail)?;
+    (0..n)
+        .filter(|k| profile.lp.segs.get(*k).is_some_and(|s| at(last, start).dist(at(first, s.start())) <= tol))
+        .find(|k| {
+            profile.lp.segs.iter().enumerate().all(|(j, a)| {
+                profile.lp.segs.get((j + k) % n).is_some_and(|b| {
+                    (0..SEG_SAMPLES).all(|i| {
+                        let t = i as f64 / (SEG_SAMPLES - 1) as f64;
+                        at(last, a.point_at(t)).dist(at(first, b.point_at(t))) <= tol
+                    })
+                })
+            })
+        })
+        .ok_or_else(fail)
+}
+
+fn rotated_wire(wire: &mt::Wire, offset: usize) -> mt::Wire {
+    wire.edge_iter().skip(offset).chain(wire.edge_iter().take(offset)).cloned().collect()
 }
 
 fn turn(a: Vec3, b: Vec3) -> f64 {
@@ -506,7 +543,12 @@ pub fn sweep_path_with(plane: &Plane, region: &Region2, path: &[Vec3], ctl: &Swe
             let v = swept_volume(plane, region.area().abs(), &st, &tangents);
             (st, v)
         };
-        if let Ok(b) = smooth_walls(plane, &profile.outer, &st, expected) {
+        if closed_path(&pts) {
+            let offset = closing_offset(plane, &profile.outer, &st)?;
+            if let Ok(b) = smooth_closed_walls(plane, &profile.outer, &st, offset, expected) {
+                return Ok(b);
+            }
+        } else if let Ok(b) = smooth_walls(plane, &profile.outer, &st, expected) {
             return Ok(b);
         }
     }
@@ -515,10 +557,11 @@ pub fn sweep_path_with(plane: &Plane, region: &Region2, path: &[Vec3], ctl: &Swe
 
 fn central_tangents(p: &[Vec3]) -> Result<Vec<Vec3>> {
     let n = p.len();
+    let closed = closed_path(p);
     (0..n)
         .map(|i| {
-            let a = p.get(i.saturating_sub(1)).copied().unwrap_or_default();
-            let b = p.get((i + 1).min(n - 1)).copied().unwrap_or_default();
+            let a = p.get(if closed && (i == 0 || i + 1 == n) { n - 2 } else { i.saturating_sub(1) }).copied().unwrap_or_default();
+            let b = p.get(if closed && (i == 0 || i + 1 == n) { 1 } else { (i + 1).min(n - 1) }).copied().unwrap_or_default();
             (b - a).normalized().ok_or_else(|| KernelError::Invalid("the sweep path has no direction".into()))
         })
         .collect()
@@ -535,12 +578,25 @@ fn ruled_stations(plane: &Plane, pts: &[Vec3], ctl: &SweepControl) -> Result<(Ve
     let pts = densify(pts, ctl);
     let pts: Vec<Vec3> = if pts.len() > MAX_RULED_STATIONS { resample(&pts, MAX_RULED_STATIONS) } else { pts };
     let n = pts.len();
+    let closed = closed_path(&pts);
     let seg_dir = |i: usize| -> Option<Vec3> { (*pts.get(i + 1)? - *pts.get(i)?).normalized() };
     let mut tangents = Vec::with_capacity(n);
     let mut mitre = Vec::with_capacity(n);
     for i in 0..n {
-        let d_in = if i > 0 { seg_dir(i - 1) } else { None };
-        let d_out = if i + 1 < n { seg_dir(i) } else { None };
+        let d_in = if i > 0 {
+            seg_dir(i - 1)
+        } else if closed {
+            seg_dir(n - 2)
+        } else {
+            None
+        };
+        let d_out = if i + 1 < n {
+            seg_dir(i)
+        } else if closed {
+            seg_dir(0)
+        } else {
+            None
+        };
         let (t, m) = match (d_in, d_out) {
             (Some(a), Some(b)) => {
                 let t = (a + b).normalized().ok_or_else(|| KernelError::Invalid("the sweep path turns back on itself".into()))?;
@@ -706,6 +762,15 @@ fn ruled(plane: &Plane, profile: &NumberedRegion, pts: &[Vec3], ctl: &SweepContr
         let pl = station_plane(plane, s0, s);
         wires.push(loops.iter().map(|l| uniform_wire(&pl, &l.lp)).collect::<Result<Vec<_>>>()?);
     }
+    let closed = closed_path(&pts);
+    if closed {
+        let offsets = loops.iter().map(|l| closing_offset(plane, l, &st)).collect::<Result<Vec<_>>>()?;
+        let first = wires.first().ok_or_else(|| KernelError::Invalid("sweep path".into()))?;
+        let end: Vec<mt::Wire> = first.iter().zip(offsets).map(|(w, k)| rotated_wire(w, k)).collect();
+        if let Some(last) = wires.last_mut() {
+            *last = end;
+        }
+    }
     guard("path sweep", || {
         // Every station's wires have the loops' segments, edge for edge.
         let mut faces: Vec<Side> = Vec::new();
@@ -716,8 +781,35 @@ fn ruled(plane: &Plane, profile: &NumberedRegion, pts: &[Vec3], ctl: &SweepContr
                 faces.extend(record::ruled(&sides, a, b, &l.from, &l.from));
             }
         }
+        if closed {
+            return close_sweep(faces);
+        }
         let (Some(first), Some(last)) = (wires.first(), wires.last()) else { return Err(KernelError::Failed("path sweep".into())) };
         cap_and_close(faces, first, last, false)
+    })
+}
+
+/// Two smooth runs share their middle section and the closing section. Splitting the run
+/// avoids edges from a vertex back to itself when the profile returns without a permutation.
+fn smooth_closed_walls(plane: &Plane, profile: &NumberedLoop, st: &[Station], offset: usize, expected: f64) -> Result<Body> {
+    let fail = || KernelError::Failed("closed path sweep: the walls do not close a solid".into());
+    if profile.lp.segs.len() > 64 || st.len() < 7 {
+        return Err(fail());
+    }
+    guard("closed path sweep", || {
+        let first = st.first().ok_or_else(fail)?;
+        let mut wires = st.iter().map(|s| uniform_wire(&station_plane(plane, first.at, s), &profile.lp)).collect::<Result<Vec<_>>>()?;
+        let end = rotated_wire(wires.first().ok_or_else(fail)?, offset);
+        if let Some(last) = wires.last_mut() {
+            *last = end;
+        }
+        let middle = (wires.len() - 1) / 2;
+        let numbers = vec![profile.from.clone(); wires.len()];
+        let mut sides = smooth_loft_faces(wires.get(..=middle).ok_or_else(fail)?, numbers.get(..=middle).ok_or_else(fail)?, true)?;
+        sides.extend(smooth_loft_faces(wires.get(middle..).ok_or_else(fail)?, numbers.get(middle..).ok_or_else(fail)?, true)?);
+        let b = close_sweep(sides)?;
+        let tol = (profile.lp.signed_area().abs().sqrt() * 0.05).max(1e-3);
+        if b.tessellate(tol).is_ok_and(|m| (m.measure().volume - expected).abs() <= 0.15 * expected.abs()) { Ok(b) } else { Err(fail()) }
     })
 }
 

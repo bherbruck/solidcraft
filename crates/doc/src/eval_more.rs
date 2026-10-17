@@ -69,7 +69,7 @@ pub(super) fn eval(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, 
             }
             apply_op(st, f, tools, if *deboss { Operation::Cut } else { Operation::Join }, &crate::plain(targets))
         }
-        FeatureKind::Rib { sketch, curves, thickness, depth, flip, web } => {
+        FeatureKind::Rib { sketch, curves, thickness, depth, flip, web, normal } => {
             let ss = st.sketch(sketch.0).ok_or_else(|| DocError::Unknown(format!("sketch {sketch}")))?.clone();
             let t = val(vals, thickness, Kind::Length)?;
             if !(t > 0.0) {
@@ -88,7 +88,7 @@ pub(super) fn eval(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, 
             }
             let mut tools = Vec::new();
             for g in &groups {
-                tools.push(rib_tool(st, &ss, g, t, depth, *flip)?);
+                tools.push(if *normal { rib_tool_normal(st, &ss, g, t, depth, *flip)? } else { rib_tool(st, &ss, g, t, depth, *flip)? });
             }
             apply_op(st, f, tools, Operation::Join, &[])
         }
@@ -283,6 +283,83 @@ fn rib_tool(st: &ModelState, ss: &SolvedSketch, ids: &[String], t: f64, depth: O
     }
     let region = Region2 { outer: lp, holes: Vec::new() };
     let tools = kernel::extrude(&ss.plane, &[region], -t / 2.0, t / 2.0)?;
+    tools.into_iter().next().ok_or_else(|| DocError::Invalid("the rib made no solid".into()))
+}
+
+/// A rib wall along the sketch normal: the curves widened to `t` in the sketch plane, run from
+/// the sketch toward the body by `depth` (or until the whole wall reaches the body).
+fn rib_tool_normal(st: &ModelState, ss: &SolvedSketch, ids: &[String], t: f64, depth: Option<f64>, flip: bool) -> Result<Body> {
+    let pts = chain_points(ss, ids)?;
+    let len: f64 = pts.windows(2).map(|w| w[0].dist(w[1])).sum();
+    if !(len > 1e-9) {
+        return Err(DocError::Invalid("a zero-length rib curve".into()));
+    }
+    let samples = ((len / (t * 0.5).max(len / 400.0)).ceil() as usize).clamp(2, 400);
+    let along: Vec<Vec3> = (0..=samples).map(|k| ss.plane.to_world(point_on_polyline(&pts, len * k as f64 / samples as f64))).collect();
+    let normal = ss.plane.normal();
+    let reach = st.bodies.iter().map(|b| b.mesh().bounds()).fold(0.0f64, |acc, bb| acc.max((bb.max - bb.min).len()));
+    let inside = |q: Vec3| st.bodies.iter().any(|b| b.mesh().contains(q));
+    // Where the body begins from each point of the curves, along `sign` × the sketch normal.
+    let limit = reach * 2.0 + 1.0;
+    let step = (limit / 400.0).max(1e-3);
+    let hits = |sign: f64| -> Vec<f64> {
+        let mut out = Vec::new();
+        for q in &along {
+            let Some(k) = (1..=400).find(|k| inside(*q + normal * (sign * *k as f64 * step))) else { continue };
+            let (mut lo, mut hi) = ((k - 1) as f64 * step, k as f64 * step);
+            for _ in 0..30 {
+                let m = 0.5 * (lo + hi);
+                if inside(*q + normal * (sign * m)) { hi = m } else { lo = m }
+            }
+            out.push(hi);
+        }
+        out
+    };
+    // Toward the material: the side of the sketch where the curves meet the bodies (unless flipped).
+    let (front, back) = (hits(1.0), hits(-1.0));
+    let mut sign = if back.len() > front.len() { -1.0 } else { 1.0 };
+    let mut reached = if sign > 0.0 { front } else { back };
+    if flip {
+        sign = -sign;
+        reached = hits(sign);
+    }
+    let h = match depth {
+        Some(d) => d,
+        None => {
+            let far = reached.iter().copied().fold(f64::NAN, f64::max);
+            if !far.is_finite() {
+                return Err(DocError::Invalid("the rib curves do not face a body along the sketch normal (give a depth)".into()));
+            }
+            far + (t * 0.5).max(step)
+        }
+    };
+    // The curves widened to `t`: each point offset by half the thickness along the miter of its
+    // neighbours, both sides joined into one band.
+    let half = t / 2.0;
+    let mut left = Vec::with_capacity(pts.len());
+    let mut right = Vec::with_capacity(pts.len());
+    for (i, p) in pts.iter().enumerate() {
+        let prev = i.checked_sub(1).and_then(|j| pts.get(j)).and_then(|q| (*p - *q).normalized());
+        let next = pts.get(i + 1).and_then(|q| (*q - *p).normalized());
+        let (n, scale) = match (prev, next) {
+            (Some(a), Some(b)) => {
+                let m = (a.perp() + b.perp()).normalized().unwrap_or(a.perp());
+                (m, 1.0 / m.dot(a.perp()).max(0.25))
+            }
+            (Some(a), None) | (None, Some(a)) => (a.perp(), 1.0),
+            (None, None) => continue,
+        };
+        left.push(*p + n * (half * scale));
+        right.push(*p - n * (half * scale));
+    }
+    left.extend(right.into_iter().rev());
+    let mut lp = Loop2::polygon(&left);
+    if lp.signed_area() < 0.0 {
+        lp = lp.reversed();
+    }
+    let region = Region2 { outer: lp, holes: Vec::new() };
+    let (a, b) = if sign > 0.0 { (0.0, h) } else { (-h, 0.0) };
+    let tools = kernel::extrude(&ss.plane, &[region], a, b)?;
     tools.into_iter().next().ok_or_else(|| DocError::Invalid("the rib made no solid".into()))
 }
 

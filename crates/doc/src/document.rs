@@ -901,7 +901,8 @@ pub enum FeatureKind {
         targets: Vec<BodyName>,
     },
     /// A thin wall from open sketch curves: `thickness` across the sketch plane, filling from
-    /// the curves toward the body (to the next face, or `depth`). A web makes one per curve.
+    /// the curves toward the body (to the next face, or `depth`), or with `normal` along the
+    /// sketch normal. A web makes one per curve.
     Rib {
         sketch: SketchId,
         curves: Vec<String>,
@@ -917,6 +918,10 @@ pub enum FeatureKind {
         /// Web: each curve is its own wall.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         web: bool,
+        /// Grow the wall along the sketch normal (thickness across the curves, in the sketch
+        /// plane) instead of across the plane from the curves.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        normal: bool,
     },
     /// Move planar faces (at the given points) onto a target plane parallel to them.
     ReplaceFace {
