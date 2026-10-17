@@ -341,8 +341,18 @@ fn spawn(pv: &mut PreviewState, key: u64, scratch: Session, cmds: Vec<(String, V
 /// kernel can't do yet), the tool body is still shown, with the error.
 pub fn compute(s: &Session, cmds: &[(String, Value)], colors: Colors) -> Job {
     if cmds.iter().any(|(command, params)| {
-        matches!(command.as_str(), "sketch.redefine" | "sketch.mirror" | "sketch.pattern.rectangular" | "sketch.pattern.circular" | "sketch.offset")
-            || command == "construct.plane.along_path"
+        matches!(
+            command.as_str(),
+            "sketch.redefine"
+                | "sketch.mirror"
+                | "sketch.pattern.rectangular"
+                | "sketch.pattern.circular"
+                | "sketch.offset"
+                | "sketch.fillet"
+                | "sketch.chamfer.equal_distance"
+                | "sketch.chamfer.two_distance"
+                | "sketch.chamfer.distance_angle"
+        ) || command == "construct.plane.along_path"
             || params.get("command").and_then(Value::as_str) == Some("construct.plane.along_path")
     }) {
         let preview = s.preview_visible_world(cmds).map_err(|error| error.to_string())?;
@@ -699,6 +709,8 @@ pub fn paint_sketches(app: &SolveApp, painter: &egui::Painter, proj: &crate::vie
     if !app.dialog.as_ref().is_some_and(|d| matches!(d.kind, crate::dialogs::Kind::SketchModify(_)) && d.previews()) {
         return;
     }
+    // Corner previews (fillet/chamfer) use the same sketch-preview token as other tools,
+    // so they stay consistent with Mirror, Offset and Patterns which also paint sketches.
     let stroke = egui::Stroke::new(2.5, Tokens::get().preview_sketch);
     let mut budget = solidcraft_engine::render::SamplingBudget::new(32_768, 65_536);
     let mut curves = 0;
