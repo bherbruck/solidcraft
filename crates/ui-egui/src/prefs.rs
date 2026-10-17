@@ -31,12 +31,15 @@ use crate::viewport::NavMode;
 pub const UNITS: [&str; 5] = ["mm", "cm", "m", "in", "ft"];
 pub const OPENSCAD_NAV: &str = "openscad";
 pub const TOUCHPAD_NAV: &str = "touchpad";
-/// A mouse button that can drag the camera.
+/// A button, button chord or two-finger movement that can move the camera.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NavButton {
     Left,
     Middle,
     Right,
+    MiddleLeft,
+    MiddleRight,
+    Trackpad,
 }
 
 /// Modifier keys a binding needs held (others may be held too).
@@ -51,15 +54,16 @@ impl NavKeys {
     const NONE: NavKeys = NavKeys { shift: false, ctrl: false, alt: false };
     const SHIFT: NavKeys = NavKeys { shift: true, ctrl: false, alt: false };
     const CTRL: NavKeys = NavKeys { shift: false, ctrl: true, alt: false };
+    const ALT: NavKeys = NavKeys { shift: false, ctrl: false, alt: true };
     const SHIFT_ALT: NavKeys = NavKeys { shift: true, ctrl: false, alt: true };
 
-    /// All of these keys are held (Ctrl is Cmd on macOS).
+    /// All of these keys are held (Ctrl bindings also accept Command).
     fn held(self, m: Modifiers) -> bool {
         (!self.shift || m.shift) && (!self.ctrl || m.ctrl || m.command) && (!self.alt || m.alt)
     }
 }
 
-/// One camera binding: dragging `button` with `keys` held does `mode`.
+/// One camera binding: moving `button` with `keys` held does `mode`.
 #[derive(Clone, Copy, Debug)]
 pub struct NavBinding {
     pub button: NavButton,
@@ -71,7 +75,7 @@ const fn bind(button: NavButton, keys: NavKeys, mode: NavMode) -> NavBinding {
     NavBinding { button, keys, mode }
 }
 
-/// A mouse mapping: its bindings, most specific first (the first one whose button is dragged
+/// A navigation mapping: its bindings, most specific first (the first matching input
 /// with all its keys held wins).
 pub struct NavPreset {
     pub id: &'static str,
@@ -86,32 +90,43 @@ pub struct NavPreset {
 impl NavPreset {
     /// What dragging `button` with `mods` held does, if anything.
     pub fn mode(&self, button: NavButton, mods: Modifiers) -> Option<NavMode> {
-        self.bindings.iter().find(|b| b.button == button && b.keys.held(mods)).map(|b| b.mode)
+        self.bindings.iter().find(|b| b.button == button && b.keys.held(mods)).map(|b| b.mode).or_else(|| match button {
+            NavButton::MiddleLeft | NavButton::MiddleRight => self.mode(NavButton::Middle, mods),
+            _ => None,
+        })
     }
 }
 
-use NavButton::{Left, Middle, Right};
+use NavButton::{Left, Middle, MiddleLeft, MiddleRight, Right, Trackpad};
 use NavMode::{Orbit, Pan, Zoom};
 
-/// The mouse mappings. The first is the default.
-pub const NAV_PRESETS: [NavPreset; 8] = [
+/// The navigation mappings. The first is the default.
+pub const NAV_PRESETS: [NavPreset; 13] = [
     NavPreset {
         id: "fusion",
         label: "Fusion",
         help: "Middle drag pans, Shift+middle orbits, right drag orbits",
         reverse_zoom: false,
-        bindings: &[bind(Middle, NavKeys::SHIFT, Orbit), bind(Middle, NavKeys::NONE, Pan), bind(Right, NavKeys::NONE, Orbit)],
+        bindings: &[
+            bind(Middle, NavKeys::SHIFT, Orbit),
+            bind(Middle, NavKeys::NONE, Pan),
+            bind(Right, NavKeys::NONE, Orbit),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Orbit),
+            bind(Trackpad, NavKeys::NONE, Pan),
+        ],
     },
     NavPreset {
         id: "solidworks",
         label: "SolidWorks",
-        help: "Middle drag orbits, Ctrl+middle pans, Shift+middle zooms, right drag orbits",
+        help: "Pan: Ctrl/Cmd+middle-button drag. Orbit: middle-button drag. Zoom: wheel.",
         reverse_zoom: true,
         bindings: &[
             bind(Middle, NavKeys::CTRL, Pan),
-            bind(Middle, NavKeys::SHIFT, Zoom),
             bind(Middle, NavKeys::NONE, Orbit),
-            bind(Right, NavKeys::NONE, Orbit),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Orbit),
+            bind(Trackpad, NavKeys::NONE, Pan),
         ],
     },
     NavPreset {
@@ -124,6 +139,9 @@ pub const NAV_PRESETS: [NavPreset; 8] = [
             bind(Middle, NavKeys::CTRL, Zoom),
             bind(Middle, NavKeys::NONE, Pan),
             bind(Right, NavKeys::NONE, Orbit),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Orbit),
+            bind(Trackpad, NavKeys::NONE, Pan),
         ],
     },
     NavPreset {
@@ -138,6 +156,9 @@ pub const NAV_PRESETS: [NavPreset; 8] = [
             bind(Middle, NavKeys::CTRL, Zoom),
             bind(Middle, NavKeys::NONE, Pan),
             bind(Right, NavKeys::NONE, Orbit),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Orbit),
+            bind(Trackpad, NavKeys::NONE, Pan),
         ],
     },
     NavPreset {
@@ -145,14 +166,28 @@ pub const NAV_PRESETS: [NavPreset; 8] = [
         label: "Blender",
         help: "Middle drag orbits, Shift+middle pans, Ctrl+middle zooms; right drag leaves the camera alone",
         reverse_zoom: false,
-        bindings: &[bind(Middle, NavKeys::SHIFT, Pan), bind(Middle, NavKeys::CTRL, Zoom), bind(Middle, NavKeys::NONE, Orbit)],
+        bindings: &[
+            bind(Middle, NavKeys::SHIFT, Pan),
+            bind(Middle, NavKeys::CTRL, Zoom),
+            bind(Middle, NavKeys::NONE, Orbit),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Pan),
+            bind(Trackpad, NavKeys::NONE, Orbit),
+        ],
     },
     NavPreset {
         id: "tinkercad",
         label: "Tinkercad",
         help: "Right drag orbits, middle or Shift+right drag pans",
         reverse_zoom: false,
-        bindings: &[bind(Right, NavKeys::SHIFT, Pan), bind(Right, NavKeys::NONE, Orbit), bind(Middle, NavKeys::NONE, Pan)],
+        bindings: &[
+            bind(Right, NavKeys::SHIFT, Pan),
+            bind(Right, NavKeys::NONE, Orbit),
+            bind(Middle, NavKeys::NONE, Pan),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Orbit),
+            bind(Trackpad, NavKeys::NONE, Pan),
+        ],
     },
     NavPreset {
         id: OPENSCAD_NAV,
@@ -165,6 +200,9 @@ pub const NAV_PRESETS: [NavPreset; 8] = [
             bind(Middle, NavKeys::SHIFT, Zoom),
             bind(Right, NavKeys::NONE, Pan),
             bind(Middle, NavKeys::NONE, Pan),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Orbit),
+            bind(Trackpad, NavKeys::NONE, Pan),
         ],
     },
     NavPreset {
@@ -173,6 +211,77 @@ pub const NAV_PRESETS: [NavPreset; 8] = [
         help: "Hold Shift and move the pointer to pan; hold Alt/Option and move it to orbit. No mouse button is needed. Vertical scroll zooms.",
         reverse_zoom: false,
         bindings: &[bind(Middle, NavKeys::NONE, Pan), bind(Right, NavKeys::NONE, Orbit)],
+    },
+    NavPreset {
+        id: "onshape",
+        label: "Onshape",
+        help: "Pan: middle-button drag or Ctrl+right-button drag. Orbit: right-button drag. Zoom: wheel.",
+        reverse_zoom: false,
+        bindings: &[
+            bind(Right, NavKeys::CTRL, Pan),
+            bind(Middle, NavKeys::NONE, Pan),
+            bind(Right, NavKeys::NONE, Orbit),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Orbit),
+            bind(Trackpad, NavKeys::NONE, Pan),
+        ],
+    },
+    NavPreset {
+        id: "rhino",
+        label: "Rhino",
+        help: "Pan: Shift+right-button drag. Orbit: right-button drag. Zoom: wheel or Ctrl/Cmd/Alt/Option+right-button vertical drag.",
+        reverse_zoom: false,
+        bindings: &[
+            bind(Right, NavKeys::CTRL, Zoom),
+            bind(Right, NavKeys::ALT, Zoom),
+            bind(Right, NavKeys::SHIFT, Pan),
+            bind(Right, NavKeys::NONE, Orbit),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Pan),
+            bind(Trackpad, NavKeys::NONE, Orbit),
+        ],
+    },
+    NavPreset {
+        id: "sketchup",
+        label: "SketchUp",
+        help: "Pan: Shift+middle-button drag. Orbit: middle-button drag. Zoom: wheel.",
+        reverse_zoom: false,
+        bindings: &[
+            bind(Middle, NavKeys::SHIFT, Pan),
+            bind(Middle, NavKeys::NONE, Orbit),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Pan),
+            bind(Trackpad, NavKeys::NONE, Orbit),
+        ],
+    },
+    NavPreset {
+        id: "nx",
+        label: "NX",
+        help: "Pan: Shift+middle-button drag or middle+right-button drag. Orbit: middle-button drag. Zoom: wheel or Ctrl/Cmd+middle-button drag.",
+        reverse_zoom: false,
+        bindings: &[
+            bind(MiddleRight, NavKeys::NONE, Pan),
+            bind(Middle, NavKeys::CTRL, Zoom),
+            bind(Middle, NavKeys::SHIFT, Pan),
+            bind(Middle, NavKeys::NONE, Orbit),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Pan),
+            bind(Trackpad, NavKeys::NONE, Orbit),
+        ],
+    },
+    NavPreset {
+        id: "catia",
+        label: "Catia",
+        help: "Pan: middle-button drag. Orbit: middle+left-button drag or middle+right-button drag. Zoom: wheel.",
+        reverse_zoom: false,
+        bindings: &[
+            bind(MiddleLeft, NavKeys::NONE, Orbit),
+            bind(MiddleRight, NavKeys::NONE, Orbit),
+            bind(Middle, NavKeys::NONE, Pan),
+            bind(Trackpad, NavKeys::CTRL, Zoom),
+            bind(Trackpad, NavKeys::SHIFT, Orbit),
+            bind(Trackpad, NavKeys::NONE, Pan),
+        ],
     },
 ];
 
@@ -195,9 +304,12 @@ impl NavPreset {
 }
 
 impl Prefs {
-    /// Touchpad scroll zooms without overwriting the user's preference for other presets.
-    pub fn trackpad_pans(&self) -> bool {
-        self.nav != TOUCHPAD_NAV && self.trackpad_pan
+    /// Interpret two-finger movement without pretending that a mouse button is held.
+    pub(crate) fn trackpad_mode(&self, mods: Modifiers) -> NavMode {
+        if !self.trackpad_pan || self.nav == TOUCHPAD_NAV {
+            return Zoom;
+        }
+        nav_preset(&self.nav).mode(Trackpad, mods).unwrap_or(Pan)
     }
 }
 
@@ -318,7 +430,7 @@ pub struct Prefs {
     pub zoom_to_cursor: bool,
     /// Spread discrete wheel input across frames (off: apply each event immediately).
     pub smooth_wheel_zoom: bool,
-    /// Two-finger trackpad scroll pans (off: it zooms like the wheel); pinch always zooms.
+    /// Two-finger movement uses the preset (off: it zooms like the wheel); pinch always zooms.
     pub trackpad_pan: bool,
     /// View changes (axis view, Look At, Home) animate; `look_at_speed` scales how fast.
     pub look_at_anim: bool,
@@ -1142,18 +1254,33 @@ fn page(app: &mut SolveApp, ui: &mut egui::Ui, t: &Tokens) {
             let current_preset_label = nav_preset(&app.preferences.nav).translated_label();
             egui::ComboBox::from_id_salt("pref_nav").selected_text(current_preset_label).show_ui(ui, |ui| {
                 for p in &NAV_PRESETS {
-                    if ui.selectable_value(&mut app.preferences.nav, p.id.to_string(), p.translated_label()).clicked() {
+                    if ui.selectable_label(app.preferences.nav == p.id, p.translated_label()).clicked() {
+                        app.preferences.nav = p.id.to_string();
                         app.preferences.zoom_reverse = p.reverse_zoom;
                     }
                 }
             });
             ui.end_row();
+            ui.label(crate::i18n::tr_label("Mouse"));
+            ui.add(egui::Label::new(crate::i18n::tr_label(nav_preset(&app.preferences.nav).help)).wrap());
+            ui.end_row();
+            ui.label(crate::i18n::tr_label("Trackpad"));
+            let trackpad_help = match app.preferences.trackpad_mode(Modifiers::NONE) {
+                Pan => "Two-finger movement pans; Shift+two-finger movement orbits. Pinch or Ctrl/Cmd+vertical movement zooms. No click is needed.",
+                Orbit => "Two-finger movement orbits; Shift+two-finger movement pans. Pinch or Ctrl/Cmd+vertical movement zooms. No click is needed.",
+                Zoom => "Vertical two-finger movement and pinch zoom.",
+            };
+            ui.add(egui::Label::new(crate::i18n::tr_label(trackpad_help)).wrap());
+            ui.end_row();
             if app.preferences.nav == TOUCHPAD_NAV {
                 note(ui, crate::i18n::tr("nav.touchpad.help"));
             } else {
-                let snap_help = if app.preferences.nav == OPENSCAD_NAV { "" } else { "; hold Shift during orbit to snap" };
-                let raw_help = format!("{}; Ctrl+left drag on empty space orbits{snap_help}; hold Space to pan; the wheel zooms", nav_preset(&app.preferences.nav).help);
-                note(ui, crate::i18n::tr_label(&raw_help));
+                let help = if app.preferences.nav == OPENSCAD_NAV {
+                    "Ctrl/Cmd+left drag on empty space also orbits; hold Space to pan; the wheel zooms."
+                } else {
+                    "Ctrl/Cmd+left drag on empty space also orbits; hold Space to pan; the wheel zooms. Shift snaps an orbit when the gesture does not already use it."
+                };
+                note(ui, crate::i18n::tr_label(help));
             }
             ui.label(crate::i18n::tr_label("Context menu"));
             ui.checkbox(&mut app.preferences.radial_context_menu, crate::i18n::tr_label("Radial context menu"));
@@ -1181,12 +1308,12 @@ fn page(app: &mut SolveApp, ui: &mut egui::Ui, t: &Tokens) {
             ui.checkbox(&mut app.preferences.smooth_wheel_zoom, "")
                 .on_hover_text(crate::i18n::tr_label("Turn off to apply each wheel event immediately, without a smoothing tail"));
             ui.end_row();
-            ui.label(crate::i18n::tr_label("Two-finger scroll pans"));
+            ui.label(crate::i18n::tr_label("Use preset trackpad gestures"));
             let touchpad = app.preferences.nav == TOUCHPAD_NAV;
             ui.add_enabled(!touchpad, egui::Checkbox::new(&mut app.preferences.trackpad_pan, "")).on_hover_text(if touchpad {
                 crate::i18n::tr("nav.touchpad.scroll")
             } else {
-                crate::i18n::tr_label("Trackpad gestures pan (off: they zoom like the wheel); mouse wheel zooms, thumb wheel pans sideways, pinch always zooms")
+                crate::i18n::tr_label("Two-finger movement follows the selected preset (off: vertical movement zooms); pinch always zooms")
             });
             ui.end_row();
             ui.label(crate::i18n::tr_label("Orbit around"));
