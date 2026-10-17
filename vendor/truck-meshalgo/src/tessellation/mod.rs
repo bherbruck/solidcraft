@@ -110,10 +110,13 @@ pub struct Deflection {
     pub angle: f64,
     /// Sag below which `angle` no longer splits a facet.
     pub floor: f64,
-    /// SolidCraft: grid lines through the vertices that split a face's ruling edges (see
-    /// `with_ruling_vertices`). Meshes for display and export ask for them; the meshes Boolean
-    /// operations intersect do not, so a Boolean's result does not depend on them.
-    pub rulings: bool,
+    /// SolidCraft: a mesh to display or export, which must lie on its faces, rather than one a
+    /// Boolean operation intersects (whose results must not depend on what follows). Such a
+    /// mesh gets grid lines through the vertices that split a face's ruling edges (see
+    /// `with_ruling_vertices`), triangulates a trimmed face in speed-scaled parameters
+    /// (`UvScale`), keeps every boundary segment as a constraint (`PolyBoundary::insert_to`),
+    /// and puts its boundary points on the face's edges (`onto_edges`).
+    pub display: bool,
 }
 
 impl Deflection {
@@ -133,7 +136,7 @@ impl Deflection {
             chord: tol,
             angle: f64::INFINITY,
             floor: 0.0,
-            rulings: false,
+            display: false,
         }
     }
 
@@ -146,7 +149,7 @@ impl Deflection {
         let angle = self.angle * f64::from(1u32 << level.min(Self::MAX_RELAX));
         match level == 0 || (level < Self::MAX_RELAX && angle < std::f64::consts::PI) {
             true => Self { angle, ..*self },
-            false => Self { rulings: self.rulings, ..Self::chord(self.chord) },
+            false => Self { display: self.display, ..Self::chord(self.chord) },
         }
     }
 

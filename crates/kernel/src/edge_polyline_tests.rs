@@ -121,7 +121,7 @@ fn same_division(curve: &Curve, d: Deflection) -> Vec<Point3> {
 
 /// The chord tolerance alone (booleans), then with the display's facet angle.
 fn deflections(tol: f64) -> [Deflection; 2] {
-    [Deflection::chord(tol), Deflection { chord: tol, angle: DISPLAY_ANGLE, floor: tol * 0.05, rulings: true }]
+    [Deflection::chord(tol), Deflection { chord: tol, angle: DISPLAY_ANGLE, floor: tol * 0.05, display: true }]
 }
 
 #[test]

@@ -153,6 +153,21 @@ Changes:
   old test is kept as `tessellation::include_test_hooks`, behind a `test-hooks` feature that
   only `solidcraft-kernel`'s tests turn on, and `crates/kernel/tests/tess_include_equivalence.rs`
   compares the two.
+- `tessellation/triangulation.rs`: the constrained Delaunay triangulation of a trimmed face
+  works in (u, v) scaled by the surface's mean speed along each (a power of two, so exact both
+  ways). In raw parameters, a loft side ruled across (about 30 mm) and long along the loft
+  (about 600 mm) is a strip stretched twentyfold, and a trimming node was fanned to boundary
+  nodes hundreds of millimetres away: a flat sheet through a joined tube.
+- `tessellation/triangulation.rs`: every segment of a face's boundary becomes a constraint; one
+  that crosses or overlaps a constraint already added (an intersection edge's polyline can hook
+  back a few micrometres past its vertex) is split where they meet. truck dropped such a
+  segment and joined its start to the first later node it could reach, which on a joined tube
+  left a trimming curve's 130 nodes behind one constraint across the face: slivers from it
+  sagged millimetres off the surface.
+- `tessellation/mod.rs`: `Deflection::rulings` is now `Deflection::display`: a mesh to display
+  or export (the kernel's `tessellate` and display meshes), which gets the ruling grid lines,
+  the speed-scaled triangulation and the split boundary constraints above. The meshes a Boolean
+  operation intersects (`Deflection::chord`) keep truck's triangulation.
 - `lib.rs`: compiler warnings no longer fail the build. Example, test and bench targets are
   dropped (their sources are not vendored).
 - `tessellation/triangulation.rs`: adaptive division also splits a cell that bows off its
@@ -164,13 +179,13 @@ Changes:
   face's mesh puts each point at its parameters on the face's own surface, so a point of an edge
   that lies off a surface within tolerance (an intersection-curve sample whose projection did not
   converge, an imported edge) came out in a different place on each of the edge's faces, and the
-  exported mesh had a crack there. In display and export meshes (`Deflection::rulings`), a
+  exported mesh had a crack there. In display and export meshes (`Deflection::display`), a
   vertex at a point of a face's boundary loops that is farther than `TOLERANCE` from the nearest
   point of the face's edges now goes to that point, when it is within the chord tolerance
   (`onto_edges`). Points within `TOLERANCE` stay on the surface, so exact geometry meshes as
   before. The meshes Boolean operations intersect keep truck's points.
 
-- `tessellation/triangulation.rs`: in display and export meshes (`Deflection::rulings`), a
+- `tessellation/triangulation.rs`: in display and export meshes (`Deflection::display`), a
   direction left undivided along the rulings of a face ruled one way also gets a grid line
   through each point of the face's boundary that lies inside the face along it
   (`with_boundary_lines`), when there are at most 16 such points: corners standing into the
