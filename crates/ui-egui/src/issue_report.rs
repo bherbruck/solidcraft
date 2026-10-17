@@ -4,11 +4,16 @@ use std::fmt::Write as _;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use egui::{ColorImage, RichText, TextureHandle, vec2};
+use egui::{ColorImage, TextureHandle};
 
 use crate::{SolveApp, dialogs, help};
 
+mod form;
+
+const MAX_ANSWER: usize = 2000;
 const MAX_BODY: usize = 24_000;
+// Room for all three answers and the original bounded diagnostic context.
+const MAX_REPORT: usize = 32_000;
 const MAX_IMAGE_PIXELS: usize = 16_000_000;
 const ISSUE_URL: &str = "https://github.com/bherbruck/solidcraft/issues/new";
 
@@ -96,11 +101,64 @@ pub struct ReportState {
 
 pub struct Draft {
     pub title: String,
+    /// Collected technical context, separately reviewable and editable.
     pub body: String,
+    description: String,
+    steps: String,
+    expected: String,
     image: Option<Arc<ColorImage>>,
     texture: Option<TextureHandle>,
     pub note: String,
     source_signature: u64,
+    focus_requested: bool,
+    missing_description: bool,
+    opened_github: bool,
+}
+
+impl Draft {
+    fn new(title: String, body: String, source_signature: u64) -> Self {
+        Self {
+            title,
+            body,
+            description: String::new(),
+            steps: String::new(),
+            expected: String::new(),
+            image: None,
+            texture: None,
+            note: String::new(),
+            source_signature,
+            focus_requested: false,
+            missing_description: false,
+            opened_github: false,
+        }
+    }
+
+    fn report_title(&self) -> String {
+        if self.title.trim().is_empty() {
+            limited(self.description.trim().lines().next().unwrap_or_default(), 160)
+        } else {
+            limited(&self.title, 160)
+        }
+    }
+
+    fn report_body(&self) -> String {
+        let answer = |text: &str| if text.trim().is_empty() { "Not provided".to_string() } else { limited(text, MAX_ANSWER) };
+        let mut report = format!(
+            "## Actual behavior\n{}\n\n## Reproduction\n{}\n\n## Expected behavior\n{}\n\n",
+            answer(&self.description),
+            answer(&self.steps),
+            answer(&self.expected)
+        );
+        let room = MAX_REPORT.saturating_sub(report.len());
+        if self.body.len() <= room {
+            report.push_str(&self.body);
+        } else {
+            let marker = "\n[technical details truncated]\n";
+            report.push_str(&limited(&self.body, room.saturating_sub(marker.len())));
+            report.push_str(marker);
+        }
+        report
+    }
 }
 
 struct Pending {
@@ -270,14 +328,14 @@ pub fn draft_for(app: &SolveApp, dialog: Option<&dialogs::Dialog>, error: Option
             context.push_str(&format!("Feature error: {}\n", debug(&e, 1000)));
         }
     }
-    let actual = error.map(|e| debug(&e, 4000)).unwrap_or_else(|| "Describe the unexpected result shown in the view.".into());
+    let actual = error.map(|e| debug(&e, 4000)).unwrap_or_else(|| "No command error was recorded.".into());
     let image_state = if error.is_some() {
         "A failed preview may display the last valid geometry; that geometry is not evidence that the failed operation succeeded."
     } else {
-        "Describe what looks wrong in the current result."
+        "The screenshot shows the current view."
     };
     let mut body = format!(
-        "## Expected behavior\nDescribe the intended result.\n\n## Actual behavior\n{actual}\n\n{image_state}\n\n## Reproduction\nDescribe the steps or a small public-safe example.\n\n## Settings and selection\n{context}\n## Environment\n{}\nRevision: {}\nCamera: {}\n\n## Visual context\nAttach the reviewed screenshot or a short example showing the problem.\n",
+        "## Operation context\n{actual}\n\n{image_state}\n\n## Settings and selection\n{context}\n## Environment\n{}\nRevision: {}\nCamera: {}\n\n## Visual context\nAttach the reviewed screenshot or a short example showing the problem.\n",
         block(&debug(&help::diagnostics(app), 2000)),
         app.session.revision,
         block(&debug(&app.cam, 1500))
@@ -288,7 +346,7 @@ pub fn draft_for(app: &SolveApp, dialog: Option<&dialogs::Dialog>, error: Option
     }
     let mut title = format!("{label}: {}", if error.is_some() { "operation failed" } else { "unexpected result" });
     truncate(&mut title, 160);
-    Draft { title, body, image: None, texture: None, note: String::new(), source_signature: source_signature(app, dialog) }
+    Draft::new(title, body, source_signature(app, dialog))
 }
 
 /// A draft from a crash report (`solidcraft_engine::crash`): what happened, where, the command
@@ -351,7 +409,10 @@ pub fn crash_draft(report: &serde_json::Value) -> Draft {
     }
     let mut title = format!("Crash: {}", s("message").lines().next().unwrap_or_default());
     truncate(&mut title, 160);
-    Draft { title, body, image: None, texture: None, note: String::new(), source_signature: 0 }
+    let mut draft = Draft::new(title, body, 0);
+    draft.description =
+        limited(&format!("{what}{}.", command.map(|c| format!(" while running `{}`", limited(c, 160))).unwrap_or_default()), MAX_ANSWER);
+    draft
 }
 
 /// Open a reviewed draft for a crash report (no screenshot: the view shows nothing of it).
@@ -503,129 +564,8 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
         return;
     }
     let Some(mut draft) = app.issue_report.draft.take() else { return };
-    let mut open = true;
-    let mut retake = false;
-    let mut close = false;
-    let screen = ctx.content_rect();
-    let max_width = (screen.width() - 48.0).clamp(100.0, crate::frame::WINDOW_WIDE_MAX_W);
-    crate::frame::window(ctx, crate::i18n::tr_label("Create Issue — review draft"), crate::frame::Width::Wide)
-        .id(egui::Id::new("sc_issue_report"))
-        .open(&mut open)
-        .resizable(true)
-        .default_width((screen.width() - 32.0).clamp(100.0, 640.0))
-        .max_width(max_width)
-        .max_height((screen.height() - 32.0).max(100.0))
-        .show(ctx, |ui| {
-            // Only the editable report and evidence scroll. Keep the submission guide
-            // and actions visible even when a screenshot or long report needs more room.
-            egui::ScrollArea::vertical().id_salt("issue-report-review").max_height((screen.height() - 260.0).clamp(80.0, 520.0)).show(ui, |ui| {
-                ui.label(crate::i18n::tr_label("Review the report and screenshot before opening GitHub."));
-                // TextEdit rounds its allocation to physical pixels. Leaving one pixel of
-                // room prevents that rounding from increasing the window width every frame
-                // at fractional display/UI scales (for example 140%).
-                let editor_width = |ui: &egui::Ui| (ui.available_width() - ui.ctx().pixels_per_point().recip()).max(24.0);
-                ui.add(
-                    egui::TextEdit::singleline(&mut draft.title)
-                        .id(egui::Id::new("issue_report_title"))
-                        .hint_text(crate::i18n::tr_label("Issue title"))
-                        .char_limit(160)
-                        .desired_width(editor_width(ui)),
-                );
-                egui::ScrollArea::vertical().id_salt("issue-report-body").max_height((screen.height() * 0.35).clamp(72.0, 240.0)).show(ui, |ui| {
-                    ui.add(
-                        egui::TextEdit::multiline(&mut draft.body)
-                            .id(egui::Id::new("issue_report_body"))
-                            .char_limit(MAX_BODY)
-                            .desired_rows(5)
-                            .desired_width(editor_width(ui)),
-                    );
-                });
-                truncate(&mut draft.title, 160);
-                truncate(&mut draft.body, MAX_BODY);
-                ui.label(RichText::new(crate::i18n::tr_label("Remove private design details or paths before sharing.")).small());
-                ui.add(egui::Label::new(&draft.note).wrap());
-                if let Some(image) = draft.image.as_ref() {
-                    let texture =
-                        draft.texture.get_or_insert_with(|| ctx.load_texture("issue-report-frame", image.clone(), egui::TextureOptions::LINEAR));
-                    ui.add(
-                        egui::Image::new(&*texture)
-                            .max_size(vec2(ui.available_width(), (screen.height() * 0.25).clamp(60.0, 220.0)))
-                            .maintain_aspect_ratio(true),
-                    );
-                }
-            });
-            ui.horizontal_wrapped(|ui| {
-                retake = ui.button(crate::i18n::tr_label("Retake screenshot")).clicked();
-                if ui.add_enabled(draft.image.is_some(), egui::Button::new(crate::i18n::tr_label("Copy screenshot"))).clicked()
-                    && let Some(image) = draft.image.as_ref()
-                {
-                    ctx.copy_image((**image).clone());
-                    draft.note = "Paste the image into the GitHub draft, or save the PNG if image copying is unavailable.".into();
-                }
-                if ui.add_enabled(draft.image.is_some() && app.services.pick_save.is_some(), egui::Button::new("Save screenshot…")).clicked()
-                    && let Some(image) = draft.image.clone()
-                {
-                    app.pick_save(&format!("solidcraft-issue-{}.png", app.shot_token), &["png"], move |app, path| {
-                        let Some(path) = path else { return };
-                        let result = crate::control::save_screenshot(&image, Some(&path));
-                        if let Some(draft) = app.issue_report.draft.as_mut() {
-                            draft.note = if result.get("ok").and_then(serde_json::Value::as_bool) == Some(true) {
-                                "Screenshot saved. Attach the PNG in the GitHub draft.".into()
-                            } else {
-                                format!("Could not save screenshot: {}", debug(&result.get("error"), 1000))
-                            };
-                        }
-                    });
-                }
-                if ui.add_enabled(draft.image.is_some(), egui::Button::new(crate::i18n::tr_label("Remove screenshot"))).clicked() {
-                    draft.image = None;
-                    draft.texture = None;
-                    draft.note = "Screenshot removed from this draft.".into();
-                }
-            });
-            ui.separator();
-            ui.label(RichText::new(crate::i18n::tr_label("Send your report on GitHub")).strong());
-            let (url, copy_needed) = draft_url(&draft.title, &draft.body);
-            ui.add(
-                egui::Label::new(crate::i18n::tr_label(if copy_needed {
-                    "1. Open GitHub draft below, then paste the report copied to your clipboard."
-                } else {
-                    "1. Open GitHub draft below. Your title and report will be filled in."
-                }))
-                .wrap(),
-            );
-            ui.add(egui::Label::new(crate::i18n::tr_label("2. Attach your screenshot: copy and paste it, or save and upload the PNG.")).wrap());
-            ui.add(egui::Label::new(crate::i18n::tr_label("3. Click Submit new issue on GitHub to send your report.")).wrap());
-            ui.horizontal_wrapped(|ui| {
-                let t = crate::theme::Tokens::get();
-                if crate::frame::add_outlined(
-                    ui,
-                    egui::Button::new(RichText::new(crate::i18n::tr_label("Open GitHub draft")).strong().color(t.text))
-                        .fill(t.accent_soft)
-                        .stroke(egui::Stroke::new(1.0, t.accent)),
-                    1.0,
-                )
-                .clicked()
-                {
-                    if copy_needed {
-                        ctx.copy_text(draft.body.clone());
-                    }
-                    ctx.open_url(egui::OpenUrl::new_tab(url));
-                    draft.note = if copy_needed {
-                        "Report copied. Paste into the GitHub draft, attach the screenshot, then click Submit new issue on GitHub."
-                    } else {
-                        "Review the GitHub draft and attach the screenshot. GitHub's Submit new issue button publishes it."
-                    }
-                    .into();
-                }
-                if ui.button(crate::i18n::tr_label("Copy report")).clicked() {
-                    ctx.copy_text(draft.body.clone());
-                    draft.note = "Report copied. Paste it into the GitHub draft if needed.".into();
-                }
-                close = ui.button(crate::i18n::tr_label("Close draft")).clicked();
-            });
-        });
-    if open && !close {
+    let (retake, close) = form::show(app, &mut draft, ctx);
+    if !close {
         app.issue_report.draft = Some(draft);
         if retake {
             let dialog = app.dialog.clone();
@@ -674,6 +614,71 @@ mod tests {
         dialog.inputs.get_mut(1).unwrap().items = vec![Sel::Body { name: "Cutter".into() }];
     }
 
+    fn click_commands(h: &mut crate::scenario::Harness, label: &str) -> Vec<egui::OutputCommand> {
+        let [x, y] = h.widget(label).unwrap();
+        assert_eq!(h.call("ui.move", json!({"x":x,"y":y}))["ok"], true);
+        let (request, _reply) = crate::control::ControlRequest::new("ui.click", json!({"x":x,"y":y}));
+        assert!(matches!(crate::control::handle(&mut h.app, &h.ctx, &request), crate::control::Outcome::Done(value) if value["ok"] == true));
+        let mut commands = Vec::new();
+        for _ in 0..12 {
+            h.frame();
+            commands.extend(h.output.commands.clone());
+        }
+        commands
+    }
+
+    #[test]
+    fn issue_report_form_separates_user_answers_from_technical_context() {
+        let mut h = crate::scenario::Harness::new();
+        h.app.home.open = false;
+        h.app.issue_report.draft = Some(draft_for(&h.app, None, None));
+        h.frames(4);
+        for label in ["What happened?", "Steps to reproduce (optional)", "Expected result (optional)", "Technical details", "Continue on GitHub"] {
+            assert!(h.widget(label).is_some(), "missing report form control: {label}");
+        }
+        assert!(h.widget("Describe the intended result.").is_none(), "Markdown instructions must not be editable answers");
+    }
+
+    #[test]
+    fn issue_report_answers_preserve_the_reviewed_context_within_the_export_budget() {
+        let mut draft = draft_for(&app(), None, None);
+        draft.description = "a".repeat(MAX_ANSWER);
+        draft.steps = "b".repeat(MAX_ANSWER);
+        draft.expected = "c".repeat(MAX_ANSWER);
+        draft.body = format!("{}END_CONTEXT", "d".repeat(MAX_BODY - 11));
+        let report = draft.report_body();
+        assert!(report.len() <= MAX_REPORT && report.ends_with(&draft.body));
+        for answer in [&draft.description, &draft.steps, &draft.expected] {
+            assert!(report.contains(answer));
+        }
+        draft.description = "現象🚀".repeat(MAX_REPORT);
+        draft.body = "調査🚀".repeat(MAX_REPORT);
+        let bounded = draft.report_body();
+        assert!(bounded.len() <= MAX_REPORT && bounded.ends_with("[technical details truncated]\n"));
+    }
+
+    #[test]
+    fn issue_report_requires_an_answer_before_browser_handoff_without_changing_the_design() {
+        for (size, scale) in [([1600, 1000], 1.0), ([640, 480], 2.0)] {
+            let mut h = crate::scenario::Harness::new();
+            h.app.home.open = false;
+            h.app.preferences.ui_scale = scale;
+            h.call("ui.resize", json!({"width":size[0],"height":size[1]}));
+            h.app.issue_report.draft = Some(draft_for(&h.app, None, None));
+            h.frames(4);
+            let before = (h.app.session.doc.to_json(), h.app.session.revision, h.app.session.undo.len());
+            let commands = click_commands(&mut h, "Continue on GitHub");
+            assert!(!commands.iter().any(|c| matches!(c, egui::OutputCommand::OpenUrl(_))));
+            assert!(h.app.issue_report.draft.as_ref().unwrap().missing_description);
+            assert_eq!(h.ctx.memory(|m| m.focused()), Some(egui::Id::new("issue_report_body")));
+            h.step(&json!({"text":"The preview disappeared"})).unwrap();
+            let commands = click_commands(&mut h, "Continue on GitHub");
+            assert!(commands.iter().any(|c| matches!(c, egui::OutputCommand::OpenUrl(url) if url.url.starts_with(ISSUE_URL))));
+            assert!(h.app.issue_report.draft.as_ref().unwrap().description.contains("The preview disappeared"));
+            assert_eq!(before, (h.app.session.doc.to_json(), h.app.session.revision, h.app.session.undo.len()));
+        }
+    }
+
     #[test]
     fn issue_report_actual_pending_boolean_settings_and_failure_are_read_only() {
         let mut app = app();
@@ -717,7 +722,7 @@ mod tests {
         let ctx = egui::Context::default();
         help::run(&mut app, &ctx, "report");
         let draft = app.issue_report.draft.as_ref().unwrap();
-        assert!(draft.body.contains("Describe the unexpected result"));
+        assert!(draft.description.is_empty(), "user answers start empty, without template instructions");
         assert!(draft.body.contains(help::COMMIT));
         assert!(draft.body.contains("combine") && draft.body.contains("keep_tools") && draft.body.contains("Cutter"));
         assert!(pending(&app), "Help must request real evidence, not just copy generic text");
@@ -769,27 +774,49 @@ mod tests {
         h.app.home.open = false;
         let mut draft = draft_for(&h.app, None, None);
         draft.body = "Reviewed context 🚀 &labels=private\n".repeat(120);
-        let reviewed = draft.body.clone();
+        draft.description = "The preview disappeared after clicking Extrude.".into();
+        draft.steps = "1. Select a face\n2. Start Extrude".into();
+        draft.expected = "A preview of the extrusion".into();
+        draft.image = Some(Arc::new(ColorImage::new([2, 2], vec![egui::Color32::GREEN; 4])));
+        let reviewed = draft.report_body();
         h.app.issue_report.draft = Some(draft);
         h.frames(4);
-        assert!(h.widget("1. Open GitHub draft below, then paste the report copied to your clipboard.").is_some());
-        assert!(h.widget("3. Click Submit new issue on GitHub to send your report.").is_some());
-        let [x, y] = h.widget("Open GitHub draft").unwrap();
-        assert_eq!(h.call("ui.move", json!({"x":x,"y":y}))["ok"], true);
-        let (request, _reply) = crate::control::ControlRequest::new("ui.click", json!({"x":x,"y":y}));
-        assert!(matches!(crate::control::handle(&mut h.app, &h.ctx, &request), crate::control::Outcome::Done(value) if value["ok"] == true));
-        let mut commands = Vec::new();
-        for _ in 0..12 {
-            h.frame();
-            commands.extend(h.output.commands.clone());
-        }
+        assert!(h.widget("Opens your browser and copies the report text for you to paste into GitHub.").is_some());
+        assert!(h.widget("Reports are public. A GitHub account is required.").is_some());
+        let commands = click_commands(&mut h, "Continue on GitHub");
         assert!(commands.iter().any(|c| matches!(c, egui::OutputCommand::CopyText(text) if text == &reviewed)), "commands: {commands:?}");
         assert!(
             commands.iter().any(|c| matches!(c, egui::OutputCommand::OpenUrl(url) if url.url.starts_with(ISSUE_URL) && !url.url.contains("&body=")))
         );
-        assert_eq!(h.app.issue_report.draft.as_ref().unwrap().body, reviewed);
-        assert!(h.app.issue_report.draft.as_ref().unwrap().note.starts_with("Report copied. Paste into the GitHub draft"));
-        assert!(h.app.issue_report.draft.as_ref().unwrap().note.contains("Submit new issue"));
+        assert_eq!(h.app.issue_report.draft.as_ref().unwrap().report_body(), reviewed);
+        assert!(h.app.issue_report.draft.as_ref().unwrap().opened_github);
+        click_commands(&mut h, "Copy screenshot");
+        assert!(!h.app.issue_report.draft.as_ref().unwrap().opened_github, "copying an image replaces the report text on the clipboard");
+        assert!(h.widget("Opens your browser and copies the report text for you to paste into GitHub.").is_some());
+        click_commands(&mut h, "Continue on GitHub");
+        click_commands(&mut h, "Remove screenshot");
+        assert!(h.app.issue_report.draft.as_ref().unwrap().image.is_none());
+        assert!(h.widget("Screenshot removed from this draft.").is_some());
+        assert!(h.widget("Report text copied. Paste it into GitHub and submit your report there.").is_some());
+    }
+
+    #[test]
+    fn issue_report_blank_summary_uses_the_export_title_for_clipboard_guidance() {
+        let mut h = crate::scenario::Harness::new();
+        h.app.home.open = false;
+        let mut draft = draft_for(&h.app, None, None);
+        draft.title.clear();
+        draft.description = "d".repeat(160);
+        draft.body = "x".repeat(1500);
+        let reviewed = draft.report_body();
+        assert!(!draft_url("", &reviewed).1, "the fallback title must be what crosses the URL limit");
+        assert!(draft_url(&draft.report_title(), &reviewed).1);
+        h.app.issue_report.draft = Some(draft);
+        h.frames(4);
+        assert!(h.widget("Opens your browser and copies the report text for you to paste into GitHub.").is_some());
+        let commands = click_commands(&mut h, "Continue on GitHub");
+        assert!(commands.iter().any(|c| matches!(c, egui::OutputCommand::CopyText(text) if text == &reviewed)));
+        assert!(h.widget("Report text copied. Paste it into GitHub and submit your report there.").is_some());
     }
 
     #[test]
@@ -811,8 +838,8 @@ mod tests {
                 let idle = rect(&h);
                 assert!((idle.width() - settled.width()).abs() < 1.0, "size={size:?}: {settled:?} grew to {idle:?}");
                 assert!(idle.width() <= 790.0, "report must retain its width limit: {idle:?}");
-                assert!(h.ctx.content_rect().contains_rect(idle), "size={size:?} scale={scale}: window must fit: {idle:?}");
-                for label in ["Copy screenshot", "Save screenshot…", "Open GitHub draft", "Copy report", "Close draft"] {
+                assert!(h.ctx.content_rect().shrink(8.0).contains_rect(idle), "size={size:?} scale={scale}: retain an outer margin: {idle:?}");
+                for label in ["Continue on GitHub", "Close draft"] {
                     let [x, y] = h.widget(label).unwrap();
                     assert!(idle.contains(egui::pos2(x as f32, y as f32)), "{label} must stay visible: {idle:?}, {x}, {y}");
                 }
@@ -841,7 +868,7 @@ mod tests {
             h.ctx.memory_mut(|m| m.surrender_focus(id));
         }
         let draft = h.app.issue_report.draft.as_ref().unwrap();
-        assert!(draft.title.contains("edited-report-marker") && draft.body.contains("edited-report-marker"));
+        assert!(draft.title.contains("edited-report-marker") && draft.description.contains("edited-report-marker"));
         for key in [json!({"key":"Enter"}), json!({"key":"Escape"}), json!({"key":"Z","cmd":true})] {
             h.step(&key).unwrap();
             assert!(h.app.dialog.is_some() && h.app.issue_report.draft.is_some());
@@ -881,7 +908,7 @@ mod tests {
             assert!(h.widget("Pending CAD text").is_some(), "report keys must not apply, edit or cancel the Text editor");
         }
         let draft = h.app.issue_report.draft.as_ref().unwrap();
-        assert!(draft.title.contains("report-only-marker") && draft.body.contains("report-only-marker"));
+        assert!(draft.title.contains("report-only-marker") && draft.description.contains("report-only-marker"));
         h.step(&json!({"widget":"Close draft"})).unwrap();
         assert!(h.app.issue_report.draft.is_none());
         h.frames(2);
@@ -1002,7 +1029,7 @@ mod tests {
         h.step(&json!({"key":"Escape"})).unwrap();
         assert_eq!(before, (h.app.session.doc.to_json(), h.app.session.undo.len(), h.app.session.redo.len(), h.app.session.revision));
         assert!(crate::dim_view::editing() && h.widget("30 mm").is_some());
-        assert!(h.app.issue_report.draft.as_ref().unwrap().body.contains("Typing here describes"));
+        assert!(h.app.issue_report.draft.as_ref().unwrap().description.contains("Typing here describes"));
         h.step(&json!({"widget":"Close draft"})).unwrap();
         h.frames(2);
         assert_eq!(h.ctx.memory(|m| m.focused()), Some(egui::Id::new("sc_dim_edit")));
