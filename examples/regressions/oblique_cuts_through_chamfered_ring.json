@@ -1,0 +1,22 @@
+{
+ "description": "A 240 degree ring revolved from a chamfered profile (bore 32.8, outside 37, 8 high; 1 x 1 chamfers outside, 0.2 x 0.2 in the bore), turned 60 degrees, then cut by two 5-sided prisms near its ends, mirror images of each other, and by a notch 0.9 wide into its top outer chamfer. Each prism's outline has one corner exactly on the bore and one exactly in the ring's end face, the wall beside each outside the ring: the boolean gave up on every try, and only the last-resort nudge of the tool got through, after seconds, leaving a face of no width at the corner. The notch's hole in the chamfer meshed several mm2 too large, and its cut was refused for an implausible volume after more than a minute. Result: each cut exact, without a retry, in well under a second.",
+ "commands": [
+  {"command": "sketch.create", "params": {"plane": "XZ"}},
+  {"command": "sketch.line", "params": {"points": [[16.599999999999998, 0], [17.5, 0], [18.5, -1.0], [18.5, -7.0], [17.5, -8.0], [16.599999999999998, -8.0], [16.4, -7.8], [16.4, -0.2]], "closed": true}},
+  {"command": "sketch.finish", "params": {}},
+  {"command": "solid.revolve", "params": {"axis": "Z", "angle": "240 deg", "body_name": "R"}},
+  {"command": "solid.move", "params": {"bodies": ["R"], "axis": [0, 0, 1], "angle": "60.0 deg"}},
+  {"command": "sketch.create", "params": {"plane": "XY", "offset": -1}},
+  {"command": "sketch.line", "params": {"points": [[8.395206818469031, 13.385085075378903], [9.35162278513006, 14.909968185232195], [8.8, 15.242047106606117], [7.139755172185144, 14.764277702659735], [6.8785446171052, 14.224121201342916]], "closed": true}},
+  {"command": "sketch.finish", "params": {}},
+  {"command": "solid.extrude", "params": {"distance": 10.0, "operation": "cut", "targets": ["R"]}},
+  {"command": "sketch.create", "params": {"plane": "XY", "offset": -1}},
+  {"command": "sketch.line", "params": {"points": [[8.395206818469026, -13.385085075378907], [9.351622785130054, -14.909968185232199], [8.8, -15.242047106606117], [7.139755172185147, -14.764277702659733], [6.878544617105202, -14.224121201342914]], "closed": true}},
+  {"command": "sketch.finish", "params": {}},
+  {"command": "solid.extrude", "params": {"distance": 10.0, "operation": "cut", "targets": ["R"]}},
+  {"command": "sketch.create", "params": {"plane": "XY", "offset": 7.1}},
+  {"command": "sketch.line", "params": {"points": [[-17.223280386654135, 3.6498099570655795], [-19.091464711025647, 3.99605745550066], [-19.255476683968578, 3.111128038693101], [-17.387292359597065, 2.7648805402580208]], "closed": true}},
+  {"command": "sketch.finish", "params": {}},
+  {"command": "solid.extrude", "params": {"distance": 1.9, "operation": "cut", "targets": ["R"]}}
+ ]
+}

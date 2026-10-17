@@ -899,6 +899,18 @@ fn boolean_whole_with_refinement(a: &Body, b: &Body, op: BoolOp, refine: bool) -
                 return Ok(Some(body));
             }
         }
+        // A prism tool whose walls only touch the target (a corner of its outline on a ring's bore
+        // or in its end face, the wall beside it outside the ring): with those walls pushed
+        // outward, clear of the target, it takes the same cut exactly, without the contact the
+        // tries below fail on (and the nudge after them got through only seconds later, leaving a
+        // face of no width at the corner).
+        if attempt == 1
+            && op == BoolOp::Cut
+            && let (Some(ma), Some(_)) = &meshes
+            && let Some(body) = pushed_walls_cut(a, b, ma, 2.0 * tol_m, size, &keep, &counts, &check)
+        {
+            return Ok(Some(body));
+        }
         // A prism tool whose target is a prism along its direction only round it (a pocket made
         // deeper in a plate with a chamfered rim, a ring cut round a counterbored hole in a
         // chamfered disc): the exact 2D route in a column cut round the tool. Its walls lying on
@@ -1130,6 +1142,39 @@ fn boolean_whole_with_refinement(a: &Body, b: &Body, op: BoolOp, refine: bool) -
         }
         None => Err(KernelError::Failed(format!("boolean {op:?}: {last}"))),
     }
+}
+
+/// `a` cut by `b` with the walls of `b` that only touch `a` pushed outward (see
+/// [`crate::touching_walls`]), at each of the general boolean's tolerances by a little more than
+/// it (at least `by`, past the sag of `target`, the mesh of `a`): the first result that checks
+/// and whose faces lie on none of the pushed walls. The pushed tool keeps `b`'s order, so the
+/// history holds for `b`.
+#[allow(clippy::too_many_arguments)]
+fn pushed_walls_cut(
+    a: &Body,
+    b: &Body,
+    target: &solidcraft_geom::Mesh,
+    by: f64,
+    size: f64,
+    keep: &[Vec<Vec3>],
+    counts: &[(usize, usize)],
+    check: &dyn Fn(&Body) -> (bool, f64),
+) -> Option<Body> {
+    let inside = target.inside_index();
+    for k in [2e-3, 5e-4] {
+        // Pushed past what the boolean takes for touching, and past the mesh's sag.
+        let tol = (size * k).max(1e-5);
+        let Some(pushed) = crate::touching_walls::pushed_tool(b, &inside, (2.5 * tol).max(by)) else { continue };
+        let Ok((s, h)) = truck_boolean(a, &pushed.tool, BoolOp::Cut, None, tol) else { continue };
+        if s.boundaries().is_empty() || s.face_iter().next().is_none() {
+            continue;
+        }
+        let Ok(body) = guard("boolean result", || recorded::truck_result(s, h, size, keep, counts)) else { continue };
+        if pushed.untouched(&body) && check(&body).0 {
+            return Some(body);
+        }
+    }
+    None
 }
 
 /// The screw motions a tool is nudged by as a last resort: (direction of the move, axis of the
