@@ -1,4 +1,4 @@
-//! Reproducible numerical traces and paired wall-time samples. See docs/sketch-profiling.md.
+//! Reproducible numerical traces and paired wall-time samples. Use `--help` for cases and bounds.
 
 use std::{error::Error, io::Write, path::PathBuf, time::Instant};
 
