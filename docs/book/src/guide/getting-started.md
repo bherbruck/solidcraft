@@ -116,6 +116,32 @@ cd apps/solidcraft-web && trunk serve --release --no-autoreload
 Offline use needs `--no-autoreload`: Trunk's live reload changes the page as it serves it, so it
 no longer matches the build the browser would keep. Debug builds (`trunk serve`) never keep a copy.
 
+### Self-hosting with Docker
+
+The web app is also a container image, `ghcr.io/tangency-labs/solidcraft-web`, for Linux on x86_64
+and ARM64: `latest` is the latest release, `0.14.0` or `0.14` a release, `edge` the newest `main`.
+It serves the app with nginx on port 8080 and keeps nothing on the server: designs stay in each
+visitor's browser.
+
+```sh
+docker run -d --name solidcraft -p 8080:8080 --restart unless-stopped ghcr.io/tangency-labs/solidcraft-web:latest
+```
+
+Or with Docker Compose, using
+[`packaging/docker/compose.yaml`](https://github.com/tangency-labs/solidcraft/blob/main/packaging/docker/compose.yaml)
+(`SOLIDCRAFT_PORT` picks another port):
+
+```sh
+docker compose -f packaging/docker/compose.yaml up -d      # start
+docker compose -f packaging/docker/compose.yaml pull && docker compose -f packaging/docker/compose.yaml up -d   # update
+docker compose -f packaging/docker/compose.yaml up -d --build   # build the image from your checkout instead
+```
+
+Then open `http://localhost:8080/`. On another machine the browser only saves designs over HTTPS,
+so put a reverse proxy with a certificate in front (Caddy, Traefik, nginx); the app works under
+any URL path, such as `https://example.com/cad/`. To build the image without Compose, from the
+repository root: `docker build -f packaging/docker/Dockerfile -t solidcraft-web .`
+
 ### 3D mouse in the browser
 
 The web app reads a 3Dconnexion SpaceMouse or SpaceNavigator through the browser's Gamepad API,
