@@ -98,6 +98,7 @@ mod apply_off_thread_tests;
 mod expression_complete;
 #[cfg(test)]
 mod extrude_edit_tests;
+mod extrude_preview;
 mod file_load;
 mod file_picker;
 #[cfg(test)]

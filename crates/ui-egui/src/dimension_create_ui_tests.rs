@@ -32,6 +32,57 @@ fn type_value(h: &mut Harness, text: &str) {
         h.step(&json!({"text":text})).unwrap();
     }
 }
+
+#[test]
+fn dimension_editor_names_and_reference_picks_drive_new_and_existing_dimensions() {
+    let mut h = line([20., 0.]);
+    let source =
+        h.app.run("sketch.dimension", json!({"entities":["l1"],"value":20,"text_at":[10,8]})).unwrap()["param"].as_str().unwrap().to_string();
+    h.app.run("sketch.line", json!({"points":[[0,-10],[12,-10]],"infer":false})).unwrap();
+    h.settle();
+    place(&mut h, &[[6., -10.]], [6., -16.]);
+    let target = h.app.session.doc.next_d_name();
+    assert!(h.widget(&format!("Dimension: {target}")).is_some(), "new dimension shows its actual parameter name");
+    // Let the preceding placement clicks expire before starting a distinct double-click.
+    h.frames(40);
+    h.step(&json!({"click":{"dimension":source},"double":true})).unwrap();
+    assert!(crate::dim_view::editing(), "reference click keeps the draft open");
+    h.step(&json!({"text":" / 2"})).unwrap();
+    h.step(&json!({"key":"Enter"})).unwrap();
+    assert!(!crate::dim_view::editing(), "{}", h.call("ui.inspect", json!({})));
+    assert_eq!(h.app.session.doc.param(&target).unwrap().expr, format!("{source} / 2"));
+    h.app.tool = None;
+    h.settle();
+    crate::dim_view::edit_param(&h.app, &target);
+    h.frames(5);
+    assert!(h.widget(&format!("Dimension: {target}")).is_some());
+    type_value(&mut h, "2 * ");
+    h.frames(40);
+    h.step(&json!({"click":{"dimension":source},"double":true})).unwrap();
+    h.step(&json!({"key":"Enter"})).unwrap();
+    assert_eq!(h.app.session.doc.param(&target).unwrap().expr, format!("2 * {source}"));
+    h.app.run("parameters.change", json!({"name":source,"expression":"15 mm"})).unwrap();
+    assert!((h.app.session.doc.eval(&target, solidcraft_engine::doc::expr::Kind::Length).unwrap() - 30.).abs() < 1e-6);
+    crate::dim_view::cancel();
+}
+
+#[test]
+fn single_clicking_another_dimension_does_not_change_the_expression() {
+    let mut h = line([20., 0.]);
+    h.app.run("sketch.dimension", json!({"entities":["l1"],"value":20,"text_at":[10,8]})).unwrap();
+    h.app.run("sketch.line", json!({"points":[[0,-10],[12,-10]],"infer":false})).unwrap();
+    h.app.run("sketch.dimension", json!({"entities":["l2"],"value":12,"text_at":[6,-16]})).unwrap();
+    h.settle();
+    crate::dim_view::edit_param(&h.app, "d2");
+    h.frames(5);
+    type_value(&mut h, "8");
+    h.step(&json!({"click":{"dimension":"d1"}})).unwrap();
+    assert!(crate::dim_view::editing());
+    h.step(&json!({"key":"Enter"})).unwrap();
+    assert_eq!(h.app.session.doc.param("d2").unwrap().expr, "8");
+    crate::dim_view::cancel();
+}
+
 #[test]
 fn dimension_parameters_use_typing_and_ctrl_space_completion() {
     for (prefix, expected) in [("wid", "width"), ("", "width"), ("d", "d1")] {

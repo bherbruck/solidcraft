@@ -370,7 +370,7 @@ mod tests {
         sketch.add_circle(Vec2::new(0., 0.), 3., None, Some("circle")).unwrap();
         let report = solve(&mut sketch);
         let profiles = find_profiles(&sketch);
-        let ss = SolvedSketch { feature: 1, name: "ordinary circle".into(), plane: Plane::XY, sketch, report, profiles };
+        let ss = SolvedSketch { feature: 1, name: "ordinary circle".into(), plane: Plane::XY, sketch, report, profiles, ends: Default::default() };
         assert_eq!(ss.profiles.len(), 1);
         let indices = vec![0; 600];
         let selection = ProfileSel::Indices { indices: indices.clone() };

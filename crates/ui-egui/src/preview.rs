@@ -98,10 +98,12 @@ pub struct PreviewState {
     pub stopped: Option<serde_json::Value>,
     /// The radius splines the previewed fillet tapered its edges with.
     pub tapered: Vec<(Vec3, solidcraft_engine::kernel::Taper)>,
+    straight: crate::extrude_preview::StraightPreview,
 }
 
 impl PreviewState {
     fn clear(&mut self) {
+        self.straight.clear();
         self.running = None;
         self.running_tool = false;
         self.running_stream_key = None;
@@ -293,6 +295,14 @@ pub fn update(app: &mut SolveApp, ctx: &egui::Context) {
     if pv.running.is_none() && pv.shown_key != Some(key) {
         pv.started = crate::now_ms();
         pv.running_stream_key = stream_key;
+        let mut straight = std::mem::take(&mut app.preview.straight);
+        let job = straight.compute(app, &cmds, colors);
+        app.preview.straight = straight;
+        if let Some(job) = job {
+            app.preview.apply(key, job);
+            app.preview.busy = false;
+            return;
+        }
         let scratch = app.session.scratch();
         spawn(&mut app.preview, key, scratch, cmds, colors, tool);
     }
@@ -392,6 +402,51 @@ fn compute_tool(s: &Session, cmds: &[(String, Value)], colors: Colors) -> Job {
         .map_err(|_| "the preview failed".to_string())?;
     b.bounds = state_bounds(&tool.after);
     Ok(b)
+}
+
+fn extrusion_params<'a>(id: &str, params: &'a Value) -> Option<&'a Value> {
+    match id {
+        "solid.extrude" => Some(params),
+        "timeline.redefine" if params.get("command").and_then(Value::as_str) == Some("solid.extrude") => params.get("params"),
+        _ => None,
+    }
+}
+
+/// Check references without intersecting the tool with the target's geometry.
+pub(crate) fn extrusion_target_error(s: &Session, cmds: &[(String, Value)], before: &ModelState) -> Option<String> {
+    for (id, params) in cmds {
+        let params = extrusion_params(id, params)?;
+        let op = params.get("operation").and_then(Value::as_str).unwrap_or("new");
+        if op == "new" {
+            continue;
+        }
+        let targets = params
+            .get("targets")
+            .and_then(Value::as_array)
+            .filter(|targets| !targets.is_empty())
+            .or_else(|| params.get("participants").and_then(Value::as_array));
+        let mut found = false;
+        if let Some(targets) = targets.filter(|targets| !targets.is_empty()) {
+            for target in targets.iter().filter_map(Value::as_str) {
+                if target == "*" {
+                    found |= !before.bodies.is_empty();
+                } else if before.body(target).is_some() {
+                    found = true;
+                } else {
+                    return Some(format!("unknown body `{target}`"));
+                }
+            }
+        } else {
+            found = params.get("faces").and_then(|_| params.get("face_body")).and_then(Value::as_str).map_or_else(
+                || before.bodies.iter().any(|body| s.doc.model_body_component(body) == s.active_component),
+                |name| s.world_state().body(name).is_some(),
+            );
+        }
+        if !found && matches!(op, "cut" | "intersect") {
+            return Some("there is no body to cut or intersect".into());
+        }
+    }
+    None
 }
 
 fn state_bounds(st: &ModelState) -> Aabb3 {

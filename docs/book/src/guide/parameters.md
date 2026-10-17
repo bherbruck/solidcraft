@@ -5,6 +5,13 @@ are ones you add yourself, with a unit, an expression and an optional comment. C
 **Change Parameters** (`parameters.change`). The timeline rebuilds from the first feature that
 uses them.
 
+When creating or editing a sketch dimension, its value editor shows its model parameter
+name (`d1`, `d2`, …). Double-click another driving dimension to insert its name at the cursor,
+replacing selected text; add arithmetic such as `/ 2` to build a dependent dimension.
+Single clicks on dimensions leave the expression unchanged. Press **Enter** to apply the
+expression or **Escape** to cancel the edit.
+Add and edit user parameters through the existing **Change Parameters** command.
+
 In the SOLID toolbar's CONFIGURE panel, click **Parameters** to open the user and model
 parameter editor. The separate **Configurations** button opens the configuration table;
 **Configure** remains in the dropdown for configuring columns.
