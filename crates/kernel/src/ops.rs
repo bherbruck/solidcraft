@@ -1251,7 +1251,10 @@ fn boolean_whole_with_refinement(a: &Body, b: &Body, op: BoolOp, refine: bool) -
     }
     last.push_str(&apart_failed);
     // Coincident faces defeat the B-rep boolean; bodies with only planar faces have an exact
-    // polygon fallback.
+    // polygon fallback. Whether it refused these bodies for their faces curving where they meet
+    // is the one failure the faceted route at the end answers (#1865), so it is noted here: the
+    // routes between may replace the message it left behind.
+    let mut curved_contact = false;
     match planar.unwrap_or_else(|| crate::polybool::planar_boolean(a, b, op)) {
         Ok(Some(body)) => {
             let (ok, v) = check(&body);
@@ -1265,7 +1268,10 @@ fn boolean_whole_with_refinement(a: &Body, b: &Body, op: BoolOp, refine: bool) -
             record(BooleanFallback::new(BooleanStrategy::PlanarFallback));
             return Ok(None);
         }
-        Err(e) => last = format!("{last}; {e}"),
+        Err(e) => {
+            curved_contact = e.to_string().contains(crate::polybool::PLANAR_ONLY);
+            last = format!("{last}; {e}");
+        }
     }
     // Prisms along one direction that end at different levels (a barrel joined between two
     // faces of a wider part, its ends flush with them) were left to the B-rep boolean, which
@@ -1395,15 +1401,64 @@ fn boolean_whole_with_refinement(a: &Body, b: &Body, op: BoolOp, refine: bool) -
     if let Some(body) = fine(&mut last) {
         return Ok(Some(body));
     }
-    match doubted {
-        Some(r) => {
-            let mut event = BooleanFallback::new(BooleanStrategy::UnverifiedShortcut);
-            event.tolerance_mm = 3.0 * tol_m;
-            record(event);
-            Ok(r)
-        }
-        None => Err(KernelError::Failed(format!("boolean {op:?}: {last}"))),
+    if let Some(r) = doubted {
+        let mut event = BooleanFallback::new(BooleanStrategy::UnverifiedShortcut);
+        event.tolerance_mm = 3.0 * tol_m;
+        record(event);
+        return Ok(r);
     }
+    // The bodies meet along faces that curve, which no exact route takes: the polygon fallback
+    // above is planar-only, and every other route has failed on them (#1865, a band joined to a
+    // ring over the cylinder they share). The last resort is to facet both bodies and combine
+    // the polygons. That flattens the faces where they curve, so it is asked here, after every
+    // route that would have kept those faces, and only for the bodies the exact fallback
+    // refused for being curved. The faceted boolean holds its own result to the volume identity
+    // (A ∪ B is A plus B less A ∩ B), and that result is checked and reported like any other
+    // retry's: a join that comes out wrong is worse than one that refuses.
+    if curved_contact {
+        // Finer than the reach the retry guard compares surfaces within, so the facets of a
+        // face the operation never touched are not read as the body having changed there.
+        let facet = (size * 1e-4).max(1e-6);
+        match faceted_contact(a, b, op, facet) {
+            Ok(result) => {
+                // An empty result is the volume identity's own answer (a cut whose tool covers
+                // the target); a body is held to the checks every other route's result is.
+                match result.as_ref().map(check).filter(|(ok, _)| !*ok) {
+                    None => {
+                        let mut event = BooleanFallback::new(BooleanStrategy::FacetedFallback);
+                        event.tolerance_mm = facet;
+                        record(event);
+                        return Ok(result);
+                    }
+                    Some((_, v)) => last = format!("{last}; the faceted bodies gave an implausible volume {v:.4}"),
+                }
+            }
+            Err(e) => last = format!("{last}; faceted: {e}"),
+        }
+    }
+    Err(KernelError::Failed(format!("boolean {op:?}: {last}")))
+}
+
+/// The most facets the two bodies may come to for the faceted route. Behind it stands a BSP
+/// tree built and clipped ten times over - five tolerances, each weighed against its
+/// complementary operation - so a pair that facets far past this costs minutes, and a boolean
+/// that takes minutes is a hang to the person waiting on it. Two cylinders that meet along
+/// their sides come to about fifteen thousand at the tolerance above. Bodies past this keep
+/// the error they had. A thread's groove is not held to it: it has no other route to take.
+const MAX_CONTACT_FACETS: usize = 25_000;
+
+/// [`crate::polybool::faceted_boolean`] of two bodies, the tool meshed at the tolerance the
+/// target's own curved faces are faceted to, so the two facetings meet where the bodies do.
+fn faceted_contact(a: &Body, b: &Body, op: BoolOp, tol: f64) -> Result<Option<Body>> {
+    let mesh = b.tessellate(tol)?;
+    let facets = a.tessellate(tol)?.triangles.len() + mesh.triangles.len();
+    if facets > MAX_CONTACT_FACETS {
+        return Err(KernelError::Failed(format!("the bodies come to {facets} facets, more than this route combines in reasonable time")));
+    }
+    // The history it records numbers the tool's faces as the triangles of this mesh, not as the
+    // faces of `b`, so it does not fit the operand counts a boolean's caller reads a history
+    // by: the result carries none rather than one pointing at faces the tool never had.
+    Ok(crate::polybool::faceted_boolean(a, &mesh, op, tol)?.map(Body::without_history))
 }
 
 /// `a` cut by `b` with the walls of `b` that only touch `a` pushed outward (see

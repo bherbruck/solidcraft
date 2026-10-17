@@ -369,7 +369,8 @@ pub fn faceted_boolean(a: &Body, b: &Mesh, op: BoolOp, tol: f64) -> Result<Optio
     // Fine facets of curved faces meet at shallow angles, where the coplanar test decides
     // whether the pieces' boundaries come out consistent: try a few tolerances, and take the
     // first whose result is watertight and agrees with the complementary boolean (A − B and
-    // A ∩ B add up to A; A ∪ B is A plus B less A ∩ B).
+    // A ∩ B add up to A; A ∪ B is A plus B less A ∩ B). An intersection is weighed against the
+    // join, because weighing it against itself would say nothing at all.
     // The BSP takes each list's first polygon as its splitting plane. Facets in sweep order
     // (a thread's groove, turn after turn) make every splitter cut nothing, so the tree is as
     // deep as the list is long: quadratic time and memory, and a long thread ran out of depth
@@ -380,14 +381,16 @@ pub fn faceted_boolean(a: &Body, b: &Mesh, op: BoolOp, tol: f64) -> Result<Optio
     for rel in [1e-8, 1e-7, 3e-8, 1e-9, 3e-7] {
         let eps = size * rel;
         let out = csg(pa.clone(), pb.clone(), op, eps)?;
-        let both = csg(pa.clone(), pb.clone(), BoolOp::Intersect, eps)?;
-        let (vo, vi) = (polys_volume(&out), polys_volume(&both));
+        let against = if op == BoolOp::Intersect { BoolOp::Union } else { BoolOp::Intersect };
+        let other = csg(pa.clone(), pb.clone(), against, eps)?;
+        let (vo, vx) = (polys_volume(&out), polys_volume(&other));
         let expect = match op {
-            BoolOp::Cut => va - vi,
-            BoolOp::Union => va + vb - vi,
-            BoolOp::Intersect => vi,
+            BoolOp::Cut => va - vx,
+            // The join and the intersection add up to the operands, whichever of the two is
+            // the result and whichever is the one it is weighed against.
+            BoolOp::Union | BoolOp::Intersect => va + vb - vx,
         };
-        if (vo - expect).abs() > 1e-6 * (va.abs() + vb.abs()) || vi < -1e-9 * (va.abs() + vb.abs()) {
+        if (vo - expect).abs() > 1e-6 * (va.abs() + vb.abs()) || vx < -1e-9 * (va.abs() + vb.abs()) {
             last = KernelError::Failed(format!("faceted boolean: inconsistent volumes ({vo} vs {expect})"));
             continue;
         }
@@ -419,6 +422,10 @@ fn shuffled(mut polys: Vec<Poly>) -> Vec<Poly> {
     polys
 }
 
+/// The words [`planar_boolean`] refuses curved bodies with. The faceted route answers that one
+/// failure and no other, so it is told apart by its words, as [`crate::coplanar::NO_ROOM`] is.
+pub(crate) const PLANAR_ONLY: &str = "takes planar faces only";
+
 /// Boolean of two all-planar bodies.
 pub fn planar_boolean(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
     a.require_brep("a boolean")?;
@@ -432,7 +439,7 @@ pub fn planar_boolean(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
             let why: Vec<String> =
                 [(ra.err(), "target"), (rb.err(), "tool")].into_iter().filter_map(|(e, role)| e.map(|e| e.describe(role))).collect();
             return Err(KernelError::Failed(format!(
-                "not supported yet: the exact fallback for where the bodies meet (faces that touch, or cross at a shallow angle) takes planar faces only, and {}",
+                "not supported yet: the exact fallback for where the bodies meet (faces that touch, or cross at a shallow angle) {PLANAR_ONLY}, and {}",
                 why.join(" and ")
             )));
         }
