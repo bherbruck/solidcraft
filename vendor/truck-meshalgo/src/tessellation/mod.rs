@@ -25,6 +25,18 @@ pub fn preview_face<S: RobustMeshableSurface>(surface: &S, loops: &[Vec<Point3>]
     triangulation::preview_face(surface, loops, steps)
 }
 
+/// Periods of a surface, including smooth geometric closure of bounded splines.
+/// Meshing wraps inferred periods into the original knot domain before evaluation.
+pub fn surface_periods<S: PreMeshableSurface>(surface: &S) -> [Option<f64>; 2] {
+    closed::Closed::new(surface).periods()
+}
+
+/// Project a trim point with the same bounded, tolerance-aware search used by the mesher.
+/// A preceding parameter is a hint, never proof that the search converged correctly.
+pub fn project_trim_point<S: RobustMeshableSurface>(surface: &S, point: Point3, hint: Option<(f64, f64)>, tolerance: f64) -> Option<(f64, f64)> {
+    triangulation::nearest_projection(surface, point, hint, tolerance, 100)
+}
+
 /// SolidCraft: an edge's polyline as the meshers divide it (at most 20 000 points). Exposed for
 /// the kernel's regressions in the workspace CI.
 #[doc(hidden)]
@@ -508,6 +520,7 @@ impl<C: PolylineableCurve, S: RobustMeshableSurface> RobustMeshableShape
     }
 }
 
+mod closed;
 mod triangulation;
 #[cfg(feature = "test-hooks")]
 #[doc(hidden)]

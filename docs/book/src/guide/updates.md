@@ -46,6 +46,19 @@ background would install code macOS can't vouch for without you seeing it.
 Update now needs write access to the installed file: an AppImage in a folder you can't write to
 fails with a message, and **Download** is the way to update it.
 
+## Updating from 0.11 to 0.14
+
+SolidCraft 0.11.0 to 0.14.0 only accept packages from the project's old GitHub address. Since
+the repository moved to `github.com/tangency-labs/solidcraft`, every release names the new address,
+so these versions see that a newer release is out but find no package in it: **Update now** can't
+install it, and **Download** opens the release page.
+
+Download 0.15.0 or later once yourself, from the release page or the
+[download links](https://github.com/tangency-labs/solidcraft#download), and install it over the old
+version as you first installed it. From 0.15.0 on, SolidCraft accepts either address, and
+**Update now** works again. Package managers (Flatpak, Snap, WinGet, `.deb`, `.rpm`) aren't
+affected.
+
 ## What is sent
 
 One HTTPS request each time SolidCraft starts, and once a day while it stays open:

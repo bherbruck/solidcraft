@@ -520,21 +520,34 @@ pub(super) fn snap_points(s: &mut Session, p: &Value, cmd: &str) -> Result<Value
 /// Private compatibility projection for generated face profiles. Named legacy links follow
 /// edits, but cannot provide the construction certificate required by public attachments.
 pub(super) fn project_internal_face(s: &mut Session, id: u64, body: &str, index: usize) -> Result<String> {
+    project_internal_faces(s, id, body, &[index])?.pop().ok_or_else(|| bad("face profile", "empty face projection"))
+}
+
+/// Capture individual replay names together, against the same unchanged source body.
+pub(super) fn project_internal_faces(s: &mut Session, id: u64, body: &str, indices: &[usize]) -> Result<Vec<String>> {
+    if indices.len() > 1024 {
+        return Err(bad("face profile", "too many faces"));
+    }
     let mut doc = (*s.doc).clone();
     let raw = s.model.state_before(id);
     let component = doc.feature(id).map(|feature| feature.component).unwrap_or(0);
     let state = solidcraft_doc::state_in_frame_at(&doc, &raw, component, owner_frame(s, &doc, component));
     let plane = sketch_plane(&doc, id, &state)?;
-    let resolved = solidcraft_doc::project::resolve_face_indices(&state, &plane, LinkKind::Project, body, &[index])?;
-    let face_name = state.body(body).and_then(|body| solidcraft_doc::naming::face_names(body).get(index).cloned());
+    let names = state.body(body).map(solidcraft_doc::naming::face_names).unwrap_or_default();
+
     let mut sk = doc.sketch(id)?.clone();
-    let link = sk.add_link_with_wires(LinkKind::Project, resolved.source, &resolved.geom, &resolved.wires)?;
-    if let Some(entry) = sk.links.iter_mut().find(|entry| entry.id == link) {
-        entry.face_name = face_name;
+    let mut links = Vec::with_capacity(indices.len());
+    for &index in indices {
+        let resolved = solidcraft_doc::project::resolve_face_indices(&state, &plane, LinkKind::Project, body, &[index])?;
+        let link = sk.add_link_with_wires(LinkKind::Project, resolved.source, &resolved.geom, &resolved.wires)?;
+        if let Some(entry) = sk.links.iter_mut().find(|entry| entry.id == link) {
+            entry.face_name = names.get(index).cloned();
+        }
+        links.push(link);
     }
     *doc.sketch_mut(id)? = sk;
     *s.doc_mut() = doc;
-    Ok(link)
+    Ok(links)
 }
 
 /// Project the edges of the face a new sketch was created on (Fusion's default).

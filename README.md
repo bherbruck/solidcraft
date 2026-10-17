@@ -26,7 +26,7 @@
   <a href="https://solidcraft.io/download">Download</a> ·
   <a href="https://solidcraft.io/app">Try it in the browser</a> ·
   <a href="https://docs.solidcraft.io/">Documentation</a> ·
-  <a href="https://solidcraft.io/discord">Discord</a> ·
+  <a href="https://discord.gg/FtU4NQNVDH">Discord</a> ·
   <a href="https://github.com/bherbruck/solidcore">SolidCore</a>
 </p>
 
@@ -35,7 +35,7 @@
   <a href="https://github.com/tangency-labs/solidcraft/releases/latest"><img src="https://img.shields.io/github/v/release/tangency-labs/solidcraft?label=release" alt="Latest release" /></a>
   <a href="https://github.com/tangency-labs/solidcraft/releases"><img src="https://img.shields.io/github/downloads/tangency-labs/solidcraft/total?label=downloads" alt="Downloads" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/tangency-labs/solidcraft" alt="Licence" /></a>
-  <a href="https://solidcraft.io/discord"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="https://discord.gg/FtU4NQNVDH"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://remade.wiki/projects/solidcraft/"><img src="https://remade.wiki/badges/listed-on-remade-classic.svg" alt="Listed on Remade" /></a>
   <a href="https://github.com/tangency-labs/solidcraft/stargazers"><img src="https://img.shields.io/github/stars/tangency-labs/solidcraft?style=flat" alt="Stars" /></a>
 </p>
@@ -62,6 +62,10 @@
 
 The downloads aren't signed yet. On Windows, if SmartScreen warns you, choose **More info**, then
 **Run anyway**. On macOS, the first time, right-click SolidCraft in Applications and choose **Open**.
+
+**On SolidCraft 0.11 to 0.14?** Its **Update now** can't install 0.15.0 or later, because the
+releases moved to a new address. Download the new version once from the links above; after that,
+updating from inside SolidCraft works again ([details](https://docs.solidcraft.io/guide/updates.html#updating-from-011-to-014)).
 
 Older versions, checksums and other formats are on the [releases page](https://github.com/tangency-labs/solidcraft/releases).
 Install details, upgrading from earlier builds and building from source are in
@@ -90,7 +94,7 @@ Install details, upgrading from earlier builds and building from source are in
 **Documentation:** the [SolidCraft book](https://docs.solidcraft.io/) (user guide,
 developer guide and command reference; sources in [docs/book](docs/book)).
 
-**Community:** chat with users and contributors on [Discord](https://solidcraft.io/discord).
+**Community:** chat with users and contributors on [Discord](https://discord.gg/FtU4NQNVDH).
 
 **Status: early but usable for simple parts.** 75 of 76 public reference parts
 match their analytic or FreeCAD-computed volume, area, centre of mass and bounding box
@@ -215,7 +219,7 @@ unaccepted artwork Open; run `cargo xtask icons` to check the collection.
 
 Windows builds: `cargo xwin build --release --target x86_64-pc-windows-msvc -p solidcraft`.
 
-On Windows and Linux, SolidCraft detects a connected 3D mouse through its HID multi-axis
+On Windows, macOS and Linux, SolidCraft detects a connected 3D mouse through its HID multi-axis
 controller interface: a 3Dconnexion SpaceNavigator or SpaceMouse, or a homemade device that
 declares itself one. Move the cap to pan and zoom, and tilt or twist it to rotate the 3D view.
 While editing a sketch, the cap pans and zooms without changing the sketch view. The Navigation
@@ -252,6 +256,13 @@ SolidCraft finds the axes from the device's report descriptor, so it doesn't mat
 lays them out: translation and rotation in separate reports (3Dconnexion's wired devices), all six
 in one (its wireless ones and most homemade devices), after the buttons, or narrower than 16 bits.
 Each axis is scaled from the range the descriptor declares.
+
+On macOS SolidCraft talks to the 3Dconnexion driver (3DxWare) when it is installed, through the
+driver's client API (`crates/threedx-client`; the framework is loaded at run time, never bundled).
+The driver keeps the device to itself, and sends it only to a program it can identify: SolidCraft
+as an `.app` (the packaged app). Without the driver, or with its helper not running, SolidCraft reads the device through IOKit like on Windows.
+
+SolidCraft does not follow 3DxWare's profile on macOS. Its default is 3DxWare's object mode.
 
 In the browser: `cd apps/solidcraft-web && trunk build --release --public-url ./` (WebGPU, or
 WebGL2 with `?webgl`; `?sample` opens the sample part).

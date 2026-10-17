@@ -4,7 +4,7 @@
 //! `/solidcraft/app/` (as on GitHub Pages, with its 10-minute HTTP caching) from a local server
 //! that can also act offline, flaky, hung or mid-deployment, plus another copy of the app at
 //! `/solidcraft/elsewhere/` on the same origin, and drives headless Chrome through the DevTools
-//! protocol through these steps (twenty-one page launches, which failures are numbered by):
+//! protocol through these steps (twenty-two page launches, which failures are numbered by):
 //!
 //! 1. online, build v1: the page loads, the service worker takes over and keeps every file;
 //! 2. offline: v1 starts from the kept copy;
@@ -33,7 +33,9 @@
 //! 17. offline: v6 still starts from the kept copy;
 //! 18. a development build (`trunk serve`) on the same origin: it starts (no `build.json`)
 //!     while the worker retires, dropping everything kept;
-//! 19. the development build starts, from the network, with no worker.
+//! 19. the development build starts, from the network, with no worker;
+//! 20. a sign-in in front of the app (everything redirects to another origin) while v6 is kept:
+//!     the launch shows the sign-in page, not the kept v6.
 //!
 //! The site is a small stand-in app (default) or a real web build (`--site dist/web`, after
 //! `trunk build --release`); a real build must hold the `sw.js` and `build.json` the generator
@@ -65,6 +67,8 @@ const LAUNCH_TIMEOUT: Duration = Duration::from_secs(90);
 const SLOW_NETWORK_WAIT: Duration = Duration::from_secs(3);
 /// How long a file takes in Mode::SlowFiles.
 const SLOW_FILE: Duration = Duration::from_secs(6);
+/// Where Mode::SignIn redirects to (on `localhost`: another origin than the 127.0.0.1 app).
+const SIGN_IN: &str = "/sign-in";
 
 /// Exercise the real browser build's command bridge, using the same Chrome harness as the offline test.
 pub fn run_api(site: &str) -> Result<(), String> {
@@ -347,6 +351,16 @@ pub fn run(root: &Path, site: Option<&str>, required: bool) -> Result<(), String
     server.set(Mode::Refuse);
     step("offline: build v6 still starts from the kept copy", launch(&mut cdp, "v6")?);
 
+    // In a tab of its own: in the tab that was redirected, Chrome skipped the next launch's check
+    // for a new worker (the development build's step below needs it).
+    server.set(Mode::SignIn);
+    let t = Instant::now();
+    let mut tab = browser.new_tab()?;
+    tab.call("Page.navigate", json!({ "url": format!("http://127.0.0.1:{}{PREFIX}", server.port) }))?;
+    wait_for(&mut tab, "location.pathname", "the sign-in page is shown", |p| p == SIGN_IN)?;
+    tab.call("Page.close", json!({}))?;
+    step("sign-in in front of the app: the launch shows the sign-in, not the kept v6", t.elapsed());
+
     server.set(Mode::Serve(dev));
     let t = launch(&mut cdp, "dev")?;
     wait_for(&mut cdp, &state_js, "the worker retires", |s| s["registered"] == 0 && s["caches"] == json!({}))?;
@@ -502,6 +516,9 @@ enum Mode {
     SlowFiles(PathBuf),
     /// Like SlowFiles, but `index.html` fails at once.
     FailFast(PathBuf),
+    /// A sign-in in front of the app (an expired session): every request is redirected to
+    /// SIGN_IN on another origin.
+    SignIn,
 }
 
 struct Server {
@@ -563,16 +580,31 @@ fn answer(mut stream: TcpStream, shared: &Mutex<Mode>, slow: &AtomicUsize, elsew
     if reader.read_line(&mut request).is_err() {
         return;
     }
+    let mut port = "";
+    let mut host = String::new();
     loop {
         let mut header = String::new();
         match reader.read_line(&mut header) {
             Ok(0) | Err(_) => return,
             Ok(_) if header == "\r\n" => break,
-            Ok(_) => {}
+            Ok(_) => {
+                if let Some(h) = header.strip_prefix("Host: ") {
+                    host = h.trim().to_string();
+                }
+            }
         }
+    }
+    if let Some((_, p)) = host.rsplit_once(':') {
+        port = p;
     }
     let path = request.split_whitespace().nth(1).unwrap_or("/");
     let path = path.split('?').next().unwrap_or_default();
+    if path == SIGN_IN {
+        let body = b"<!DOCTYPE html><html><body>Sign in</body></html>";
+        let head = format!("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+        let _ = stream.write_all(head.as_bytes()).and_then(|()| stream.write_all(body));
+        return;
+    }
     let (file, other) = match path.strip_prefix(ELSEWHERE) {
         Some(f) => (Some(f), true),
         None => (path.strip_prefix(PREFIX), false),
@@ -603,6 +635,11 @@ fn answer(mut stream: TcpStream, shared: &Mutex<Mode>, slow: &AtomicUsize, elsew
             (dir, false, false)
         }
         Mode::Mixed(dir, next) => (if file == Some("index.html") { next } else { dir }, false, false),
+        Mode::SignIn => {
+            let head = format!("HTTP/1.1 302 Found\r\nLocation: http://localhost:{port}{SIGN_IN}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            let _ = stream.write_all(head.as_bytes());
+            return;
+        }
         Mode::Refuse => return,
         Mode::Hang => return hold(shared, |m| matches!(m, Mode::Hang)),
     };
