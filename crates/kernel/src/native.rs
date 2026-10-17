@@ -65,6 +65,21 @@ pub fn encode_native_body(body: &Body) -> Result<Vec<u8>> {
     })
 }
 
+/// The body's topology and geometry as portable records, for read-only consumers such as
+/// the hidden-line investigation (#2105). Lines, splines, planes and revolutions are copied
+/// exactly; procedural intersection edges become bounded fits. Not the W02 extraction contract.
+pub fn portable_body(body: &Body) -> Result<solidcraft_geom::brep::Brep> {
+    guard("portable B-rep", || {
+        if body.mesh.is_some() {
+            return Err(invalid("mesh bodies have no B-rep"));
+        }
+        if body.face_count() > MAX_ITEMS || body.solid.edge_iter().take(MAX_ITEMS + 1).count() > MAX_ITEMS {
+            return Err(invalid("native geometry budget"));
+        }
+        adapter::encode(&body.solid)
+    })
+}
+
 /// Decode bounded untrusted data. Validate indices before topology extraction.
 /// Callers must not treat the decoded body as authoritative editing geometry.
 pub fn decode_native_body(bytes: &[u8]) -> Result<Body> {

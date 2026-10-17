@@ -17,6 +17,7 @@ pub mod compare;
 pub mod env;
 pub mod fill;
 pub mod fill_general;
+pub mod hlr;
 mod mesh;
 pub mod mesh_distance;
 mod plane;

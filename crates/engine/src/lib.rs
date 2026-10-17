@@ -1025,6 +1025,8 @@ mod extent_tests;
 #[cfg(test)]
 mod face_name_tests;
 #[cfg(test)]
+mod hlr_investigation;
+#[cfg(test)]
 mod hole_face_tests;
 #[cfg(test)]
 mod hole_matrix_tests;
