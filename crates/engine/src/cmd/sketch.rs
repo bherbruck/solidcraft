@@ -111,7 +111,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .params(concat!("p0, p1: overall ends, width", connect_doc!(), created_doc!())),
     CommandSpec::new("sketch.point", "Point", draw_point).at("SKETCH", "CREATE").icon("point").enabled(in_sketch).params(concat!("point: [x,y], id?", connect_doc!(), created_doc!())),
     CommandSpec::new("sketch.dimension", "Sketch Dimension", dimension).at("SKETCH", "CREATE").icon("dimension").key("D").enabled(in_sketch).params(
-        "entities: [refs], type?: auto|distance|horizontal|vertical|length|radius|diameter|angle, value?: number or expression (default: current; a bare number is in the design's units, e.g. 2 means 2 in in an inch design; give a unit such as \"50 mm\" to override); text_at?: [x, y]. Two points or a line off the axes: with auto, text_at across from them is the distance between them, above or below them horizontal, beside them vertical. Two lines: the angle between them (acute, or 180° − it when the value is nearer that) unless text_at picks a sector. A dimension the sketch already determines is refused (naming what determines it); if_redundant?: \"driven\" places it as a driven (reference) dimension instead. scale_sketch?: bool (the dimension tool sends true): when this is the sketch's first length dimension and nothing in the sketch fixes a size (no other driving length dimension, nothing fixed or projected), the whole sketch scales about its origin to the value instead of distorting. Returns measured in unit (mm or deg), and scaled: the factor when the sketch was scaled",
+        "entities: [refs], type?: auto|distance|horizontal|vertical|length|radius|diameter|angle, value?: number or expression (default: current; a bare number is in the design's units, e.g. 2 means 2 in in an inch design; give a unit such as \"50 mm\" to override); text_at?: [x, y]. Two points or a line off the axes: with auto, text_at across from them is the distance between them, above or below them horizontal, beside them vertical. Two lines: the angle between them (acute, or 180° − it when the value is nearer that) unless text_at picks a sector. A line and a circle or arc: the distance from the line to its edge (the gap, or how far the edge reaches past a line that cuts it; 0 is tangent); dimension the centre point for the distance to the centre. A dimension the sketch already determines is refused (naming what determines it); if_redundant?: \"driven\" places it as a driven (reference) dimension instead. scale_sketch?: bool (the dimension tool sends true): when this is the sketch's first length dimension and nothing in the sketch fixes a size (no other driving length dimension, nothing fixed or projected), the whole sketch scales about its origin to the value instead of distorting. Returns measured in unit (mm or deg), and scaled: the factor when the sketch was scaled",
     ),
     CommandSpec::new("sketch.constraint.horizontal_vertical", "Horizontal/Vertical", c_horizontal_vertical)
         .at("SKETCH", "CONSTRAINTS")
@@ -1939,6 +1939,7 @@ fn dimension(s: &mut Session, p: &Value) -> Result<Value> {
         };
         let is_line = |c: usize| matches!(sk.curves.get(c).map(|c| &c.kind), Some(CurveKind::Line { .. }));
         let is_circle = |c: usize| matches!(sk.curves.get(c).map(|c| &c.kind), Some(CurveKind::Circle { .. }));
+        let is_round = |c: usize| matches!(sk.curves.get(c).map(|c| &c.kind), Some(CurveKind::Circle { .. } | CurveKind::Arc { .. }));
         // The other reading of an angle between two lines (see below).
         let mut alt: Option<(ConstraintKind, f64)> = None;
         let (mut k, mut cur): (ConstraintKind, f64) = match (e0, e1) {
@@ -2047,6 +2048,16 @@ fn dimension(s: &mut Session, p: &Value) -> Result<Value> {
                         }
                     }
                 }
+            }
+            // A line and a circle or arc: the distance from the line to its edge (#1803).
+            ((None, Some(l)), Some((None, Some(c)))) | ((None, Some(c)), Some((None, Some(l)))) if is_line(l) && is_round(c) => {
+                let (a, b) = line_pts(sk, l).unwrap_or_default();
+                let (centre, r) = sk.center(c).zip(sk.radius(c)).ok_or_else(|| bad(cmd, "cannot dimension that curve"))?;
+                let d = (b - a).normalized().map(|u| u.cross(centre - a).abs()).ok_or_else(|| bad(cmd, "that line has no length"))?;
+                // A line that cuts the circle measures how far its edge reaches past the line.
+                let inside = d < r;
+                let gap = (d - r).abs();
+                (ConstraintKind::LineCircleDistance { l, c, value: gap, inside }, gap)
             }
             _ => return Err(bad(cmd, "cannot dimension that combination of entities")),
         };
@@ -2545,6 +2556,9 @@ mod ids_tests;
 #[cfg(test)]
 #[path = "sketch_infinite_tests.rs"]
 mod infinite_tests;
+#[cfg(test)]
+#[path = "sketch_line_circle_tests.rs"]
+mod line_circle_tests;
 #[cfg(test)]
 #[path = "sketch_redundant_tests.rs"]
 mod redundant_tests;

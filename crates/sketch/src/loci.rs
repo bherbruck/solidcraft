@@ -887,6 +887,14 @@ pub(crate) fn read(sk: &Sketch, before: &dyn Fn(usize) -> Option<Vec2>, on_curve
                     ties.push(Tie::Offset { p, l, len: Len::Value(d) });
                 }
             }
+            // The centre lies radius ± the gap from the line, on its side in the reference.
+            LineCircleDistance { l, c, value, inside } if line(l).is_some() => {
+                if let (Some(rd), Some(r)) = (round(c), r_of(c))
+                    && let Some(d) = dim(if inside { r - value } else { r + value })
+                {
+                    ties.push(Tie::Offset { p: rd.c, l, len: Len::Value(d) });
+                }
+            }
             Tangent { a, b } => {
                 let (l, curve) = if line(a).is_some() { (a, b) } else { (b, a) };
                 if line(l).is_some()

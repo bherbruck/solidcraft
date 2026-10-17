@@ -76,6 +76,8 @@ mod continuation_tests;
 #[cfg(test)]
 mod font_tests;
 #[cfg(test)]
+mod line_circle_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod thin_tests;

@@ -215,6 +215,9 @@ completed drawings publish atomically. The browser still exports synchronously.
   Type a value and press Enter to commit one undo step; rejected values remain editable and
   cancellation leaves the sketch unchanged. Fit keeps geometry clear of the Sketch Palette
   and navigation controls, including enlarged displays and nested pending placements.
+- Sketch Dimension takes a line and a circle or arc (#1803): it measures from the line to the
+  circle's edge (the gap, 0 when tangent, or how far the edge reaches past a line that cuts
+  it), drives it like any other dimension and keeps the circle on its side of the line.
 - Sketch annotations, live drawing lengths and Measure use document units. Inches show
   three decimals and retain a meaningful fourth digit. Bare length dimension entry captures
   the current design unit; changing units leaves existing geometry and expressions intact.
