@@ -241,7 +241,7 @@ mod tests {
     }
 
     /// Catalogs delivered complete. English is the source catalog; Japanese was completed
-    /// upstream; Chinese and Malay are also complete. German, Korean, Russian, French and Ukrainian
+    /// upstream; Chinese, Czech and Malay are also complete. German, Korean, Russian, French and Ukrainian
     /// are partial (German and Korean predate the coverage guards; Russian, French and Ukrainian
     /// are kept partial so a new label doesn't need more translations), so their gaps fall back
     /// to English and are reported by `cargo xtask i18n` without failing the build, while
