@@ -1,0 +1,20 @@
+[package]
+name = "solidcraft-3dx-client"
+description = "SolidCraft: a client of the 3Dconnexion driver on macOS (3DxWare), loaded at run time"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# The workspace lints, except unsafe_code: denied, not forbidden, so that src/macos.rs can allow
+# it: loading a framework and calling through its function pointers has no safe API. Keep the rest
+# in sync with [workspace.lints].
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+too_many_arguments = "allow"
+type_complexity = "allow"
+neg_cmp_op_on_partial_ord = "allow"
