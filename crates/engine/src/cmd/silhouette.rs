@@ -12,7 +12,7 @@ const CMD: &str = "inspect.silhouette";
 const MAX_PIXELS: usize = 4 * 1024 * 1024;
 
 // For agents comparing the model with a picture; nothing to show a person, so no toolbar button.
-pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new(CMD, "Silhouette", run).noundo().params(
+pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new(CMD, "Silhouette", run).icon("project").noundo().params(
     "view?: front|back|left|right|top|bottom|iso (default front); or camera?: {target: [x,y,z], yaw, pitch, distance, fov?} (mm, radians; fov 0 means parallel); bodies?: [world body names] (default visible bodies, named hidden bodies included); rows?: mask height in pixels (default 240, clamped to 16..1024) → tightly framed run-length mask, box_mm, mm_per_px, right/up, projection, body and triangle counts",
 )];
 
