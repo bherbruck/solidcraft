@@ -73,6 +73,11 @@ hierarchies are shared; bounded desktop preparation and occlusion use up to eigh
 Curves are approximated; drawing sheets,
 annotations and exact projected curves remain deferred. See [view DXF](docs/view-dxf.md).
 
+Drawing foundations: [RFC #860](https://github.com/tangency-labs/solidcraft/issues/860)
+and the [foundation ledger](docs/drawing-foundations.md) track the bounded implementation
+packages. The first geometry increment defines validated section records in a plane-local
+frame; the ledger separates that contract from section producers and the Drawing workspace.
+
 Desktop view DXF export runs in the file-operation worker with five-stage progress and
 cooperative cancellation. Curve tolerance (0.0001–1 mm, default 0.01 mm) is remembered alongside
 the hidden-edge setting. Cancelled exports preserve the model and the previous destination;

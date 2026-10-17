@@ -21,6 +21,7 @@ mod mesh;
 pub mod mesh_distance;
 mod plane;
 mod profile;
+pub mod section;
 pub mod tess;
 pub mod tspline;
 mod vec;
