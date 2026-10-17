@@ -217,6 +217,7 @@ fn toggle_feature(app: &mut SolveApp, id: u64) {
 
 pub fn timeline(app: &mut SolveApp, ui: &mut egui::Ui) {
     let t = Tokens::get();
+    let accent = crate::theme::TabAccent::for_tab(&t, &app.ui.tab);
     egui::Panel::bottom("sc_timeline").exact_size(40.0).frame(egui::Frame::NONE.fill(t.timeline)).show(ui, |ui| {
         let r = ui.max_rect();
         let p = ui.painter().clone();
@@ -301,7 +302,7 @@ pub fn timeline(app: &mut SolveApp, ui: &mut egui::Ui) {
                     let bg = if err.is_some() {
                         t.timeline_item_error
                     } else if sel {
-                        t.accent_soft
+                        accent.soft
                     } else if resp.hovered() || from_view == Some(*id) {
                         t.hover
                     } else {
@@ -310,7 +311,7 @@ pub fn timeline(app: &mut SolveApp, ui: &mut egui::Ui) {
                     let edge = if err.is_some() {
                         t.error
                     } else if from_view == Some(*id) {
-                        t.accent
+                        accent.color
                     } else {
                         t.border
                     };
@@ -427,7 +428,13 @@ pub fn timeline(app: &mut SolveApp, ui: &mut egui::Ui) {
                     if resp.drag_started() {
                         drag = Some(Drag::Marker);
                     }
-                    let col = if resp.hovered() || drag == Some(Drag::Marker) { t.accent } else { t.timeline_marker };
+                    let col = if resp.hovered() || drag == Some(Drag::Marker) {
+                        accent.color
+                    } else if accent.color == t.accent {
+                        t.timeline_marker
+                    } else {
+                        accent.color
+                    };
                     p.rect_filled(mr, 1.0, col);
                     resp.on_hover_text("History marker: drag to roll the model back; new features go here");
                 }
@@ -440,7 +447,7 @@ pub fn timeline(app: &mut SolveApp, ui: &mut egui::Ui) {
                     let sx = xs.get(slot).copied().unwrap_or(end) - 4.0;
                     p.line_segment(
                         [pos2(sx, r.top() + 3.0), pos2(sx, r.bottom() - 3.0)],
-                        Stroke::new(2.0, if matches!(dg, Drag::Marker) { t.accent } else { t.sketch_accent }),
+                        Stroke::new(2.0, if matches!(dg, Drag::Marker) { accent.color } else { t.sketch_accent }),
                     );
                 }
                 let released = ui.input(|i| i.pointer.any_released());

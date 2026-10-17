@@ -124,6 +124,8 @@ fn sketch_dialog_mirror_refuses_external_and_curved_references() {
 #[test]
 fn sketch_dialog_box_selection_adds_replaces_and_preserves_reference() {
     let mut h = fixture();
+    // Put every selection box between the left dialog and the right Sketch Palette.
+    step(&mut h, json!({"call":"ui.camera","params":{"target":[-40,0,0],"distance":150}}));
     step(&mut h, json!({"call":"engine.execute","params":{"command":"sketch.line","params":{"points":[[-50,-20],[-40,-20]]}}}));
     step(&mut h, json!({"start":"sketch.mirror"}));
     step(&mut h, json!({"call":"ui.dialogInput","params":{"index":1}}));

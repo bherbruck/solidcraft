@@ -12,8 +12,8 @@ Single clicks on dimensions leave the expression unchanged. Press **Enter** to a
 expression or **Escape** to cancel the edit.
 Add and edit user parameters through the existing **Change Parameters** command.
 
-In the SOLID toolbar's CONFIGURE panel, click **Parameters** to open the user and model
-parameter editor. The separate **Configurations** button opens the configuration table;
+In the MANAGE tab's PARAMETERS section, click **Parameters** to open the user and model
+parameter editor. The **Configurations** button in CONFIGURATIONS opens the configuration table;
 **Configure** remains in the dropdown for configuring columns.
 
 Press **Enter** in the new parameter's name, expression or comment field to add it.

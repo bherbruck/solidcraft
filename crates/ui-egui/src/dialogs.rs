@@ -1310,6 +1310,7 @@ fn plane_value(s: &Session, sel: Option<&Sel>) -> Option<Value> {
 /// A value field; true when Enter was pressed in it.
 pub(crate) fn field(ui: &mut egui::Ui, s: &mut String) -> bool {
     let r = ui.text_edit_singleline(s);
+    crate::theme::TabAccent::number_focus(ui, &r);
     publish_row(&r);
     crate::params_dialog::complete(ui, &r, s);
     r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))
@@ -1351,7 +1352,7 @@ pub(crate) fn icon_choice(ui: &mut egui::Ui, labels: &[&str], icons: &[&str], se
             } else if resp.hovered() {
                 ui.painter().rect_filled(r, 4.0, t.hover);
             }
-            let ink = if on { Color32::WHITE } else { t.icon };
+            let ink = if on { t.on_accent } else { t.icon };
             crate::icons::paint(ui.painter(), r.shrink(3.0), icons.get(i).copied().unwrap_or(""), ink, t.icon_fill, ink);
             crate::scenario::publish_handle(&format!("dialog:{row}:{label}"), r.center());
             if on {
@@ -1700,7 +1701,7 @@ fn input_rows_range(d: &mut Dialog, ui: &mut egui::Ui, s: &Session, range: std::
                 } else {
                     crate::i18n::format("dialog.selected_count", &[("count", &inp.items.len().to_string())])
                 })
-                .color(Color32::WHITE)
+                .color(t.on_accent)
             } else {
                 RichText::new(crate::i18n::tr("dialog.select")).color(t.text)
             };
@@ -2176,8 +2177,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     // Physical materials: the library's, then the design's own (material.create).
     let material_names = app.session.doc.material_names();
     let t = Tokens::get();
-    let vp = app.viewport.rect.unwrap_or_else(|| ctx.content_rect());
-    let top = (vp.top() + crate::viewport::AXIS_VIEW_CLEARANCE).min((vp.bottom() - 360.0).max(vp.top()));
+    let vp = crate::shell::content_rect(app, app.viewport.rect.unwrap_or_else(|| ctx.content_rect()));
     // The Sketch Palette owns the right edge for as long as a sketch is being edited. A dialog
     // started there docks at the left instead, so neither panel hides the other.
     let side = if crate::sketch_palette::editing(app) && crate::sketch_palette::fits_beside_a_dialog(app, ctx) {
@@ -2185,6 +2185,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     } else {
         crate::frame::Side::Right
     };
+    let top = crate::shell::panel_top(app, vp, vp.bottom(), side);
     // Dragged by its title band, the dialog keeps that offset from its docked place while it
     // is open (#1335), kept inside the viewport.
     let moved = crate::frame::dock_offset(ctx, title(&d.kind));
@@ -3061,7 +3062,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
             let buttons = close_width + if has_ok { ok_width + ui.spacing().item_spacing.x } else { 0.0 };
             crate::frame::right_aligned(ui, total, buttons, |ui| {
                 if has_ok {
-                    let b = egui::Button::new(RichText::new(label).color(if valid { Color32::WHITE } else { t.text_dim }))
+                    let b = egui::Button::new(RichText::new(label).color(if valid { t.on_accent } else { t.text_dim }))
                         .fill(if valid { t.accent } else { Color32::TRANSPARENT })
                         .wrap_mode(egui::TextWrapMode::Extend)
                         .min_size(vec2(ok_width, 24.0));

@@ -155,7 +155,7 @@ pub(super) fn show(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect) {
     let t = Tokens::get().navigation_cube(active);
     crate::scenario::publish_count("navigation_cube:active", f64::from(u8::from(active)));
     let faces = facets(&app.cam, c, HALF * f64::from(scale));
-    let hover = ui.input(|i| i.pointer.hover_pos()).filter(|_| ui.rect_contains_pointer(rect));
+    let hover = ui.input(|i| i.pointer.hover_pos()).filter(|p| ui.is_enabled() && ui.rect_contains_pointer(rect) && !crate::shell::covered(app, *p));
     let hovered = if orbiting { None } else { hover.and_then(|p| hit(&faces, p)) };
     let painter = ui.painter_at(outer);
     paint_cube(&painter, &faces, hovered, t, true, scale);

@@ -348,8 +348,8 @@ pub fn items(app: &SolveApp, target: &Target) -> Vec<Item> {
                     .key(if rendering { "current" } else { "" })
                     .on(app.session.active_sketch.is_none() && app.tool.is_none() && app.dialog.is_none() && !app.file_load.busy()),
             ];
-            for w in ["Animation", "Simulation", "Manufacture", "Drawing"] {
-                v.push(act("ui.workspace", w, "").key("coming later").on(false));
+            for (w, icon) in [("Animation", "ws_animate"), ("Simulation", ""), ("Manufacture", ""), ("Drawing", "ws_drawing")] {
+                v.push(act("ui.workspace", w, icon).key("coming later").on(false));
             }
             v
         }
@@ -1598,7 +1598,9 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     let pointer = ctx.input(|i| i.pointer.latest_pos());
     let mut inside = app.menu.opener.is_some_and(|r| pointer.is_some_and(|p| r.contains(p)));
 
-    let list_at = if app.menu.radial {
+    let list_at = if target == Target::Workspace {
+        pos2(at.x.clamp(screen.left(), (screen.right() - 470.0).max(screen.left())), at.y)
+    } else if app.menu.radial {
         let c = radial_center(at, screen);
         let radial = radial_items(app);
         let area = Rect::from_center_size(c, vec2(2.0 * (RX + 165.0), 2.0 * (RY + 34.0)));
@@ -1664,13 +1666,17 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     let key_row = app.menu.key_row;
     let resp =
         crate::frame::area(egui::Id::new("sc_context_menu")).fixed_pos(list_at).constrain(true).order(egui::Order::Foreground).show(ctx, |ui| {
-            menu_frame(ui, |ui| {
-                for (k, item) in list.iter().enumerate() {
-                    if let Some(p) = list_row_lit(ui, item, key_row == Some(k)) {
-                        picked = Some(p);
+            if target == Target::Workspace {
+                picked = workspace_menu(ui, &list, key_row, (screen.bottom() - list_at.y).max(160.0)).or(picked.take());
+            } else {
+                menu_frame(ui, |ui| {
+                    for (k, item) in list.iter().enumerate() {
+                        if let Some(p) = list_row_lit(ui, item, key_row == Some(k)) {
+                            picked = Some(p);
+                        }
                     }
-                }
-            });
+                });
+            }
         });
     inside |= resp.response.contains_pointer() || resp.response.rect.contains(pointer.unwrap_or(Pos2::ZERO));
 
@@ -1691,6 +1697,105 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
         close(app);
         run_item(app, &item, at);
     }
+}
+
+/// Workspace cards retain the context-menu items and dispatch, including keyboard and
+/// control-channel picks. Only the presentation differs from ordinary command lists.
+fn workspace_menu(ui: &mut egui::Ui, items: &[Item], key_row: Option<usize>, height: f32) -> Option<Item> {
+    let t = Tokens::get();
+    let mut picked = None;
+    egui::Frame::popup(ui.style()).fill(t.panel).stroke(Stroke::new(1.0, t.border)).corner_radius(10.0).inner_margin(9).show(ui, |ui| {
+        ui.set_width(450.0);
+        ui.spacing_mut().item_spacing.y = 0.0;
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new(crate::i18n::tr("ui.ribbon_workspace").to_uppercase()).size(11.0).strong().color(t.text_dim));
+        ui.add_space(8.0);
+        egui::ScrollArea::vertical().id_salt("workspace_menu_rows").max_height((height - 116.0).max(60.0)).show(ui, |ui| {
+            for (k, item) in items.iter().enumerate() {
+                let (slug, description, tabs) = match item.label.as_str() {
+                    "Design" => ("design", "ui.workspace_design_description", Some("ui.workspace_design_tabs")),
+                    "Render" => ("render", "ui.workspace_render_description", Some("ui.workspace_render_tabs")),
+                    "Animation" => ("animation", "ui.workspace_animation_description", None),
+                    "Simulation" => ("simulation", "ui.workspace_simulation_description", None),
+                    "Manufacture" => ("manufacture", "ui.workspace_manufacture_description", None),
+                    "Drawing" => ("drawing", "ui.workspace_drawing_description", None),
+                    _ => continue,
+                };
+                let planned = tabs.is_none();
+                let current = item.shortcut == "current";
+                let accent = if planned {
+                    t.text_dim
+                } else if slug == "render" {
+                    t.render_accent
+                } else {
+                    t.accent
+                };
+                let soft = t.panel.lerp_to_gamma(accent, 0.10);
+                let (r, resp) = ui
+                    .allocate_exact_size(vec2(450.0, if planned { 60.0 } else { 72.0 }), if item.enabled { Sense::click() } else { Sense::hover() });
+                for handle in [format!("menu:{}", item.id), format!("workspace:menu:{slug}")] {
+                    crate::scenario::publish_handle(&handle, r.center());
+                    crate::scenario::publish_rect(&handle, r);
+                }
+                if current || (item.enabled && (resp.hovered() || key_row == Some(k))) {
+                    ui.painter().rect_filled(r, 5.0, soft);
+                }
+                ui.painter().rect_filled(Rect::from_min_max(r.min + vec2(2.0, 7.0), pos2(r.left() + 6.0, r.bottom() - 7.0)), 2.0, accent);
+                let tile = Rect::from_center_size(pos2(r.left() + 40.0, r.center().y), vec2(44.0, 44.0));
+                ui.painter().rect_filled(tile, 9.0, if planned { t.panel_header } else { soft });
+                if !item.icon.is_empty() {
+                    icons::paint_icon(ui.painter(), tile.shrink(7.0), &item.icon, if item.enabled { 1.0 } else { 0.35 });
+                }
+                let text = if item.enabled { t.text } else { t.text_dim };
+                let name = crate::i18n::tr_label(&item.label);
+                let x = r.left() + 74.0;
+                let y = r.top() + 17.0;
+                let galley = egui::WidgetText::from(egui::RichText::new(name).strong().size(14.0).color(text)).into_galley(
+                    ui,
+                    Some(egui::TextWrapMode::Extend),
+                    f32::INFINITY,
+                    egui::TextStyle::Button,
+                );
+                let badge_x = x + galley.size().x + 9.0;
+                let origin = pos2(x, y - galley.size().y / 2.0);
+                ui.painter().galley(origin - vec2(0.2, 0.0), galley.clone(), text);
+                ui.painter().galley(origin + vec2(0.2, 0.0), galley, text);
+                let badge = crate::i18n::tr(if planned {
+                    "ui.workspace_planned"
+                } else if current {
+                    "ui.workspace_current"
+                } else {
+                    "ui.workspace_available"
+                });
+                let badge = ui.painter().layout_no_wrap(badge.to_string(), FontId::proportional(11.0), if current { t.on_accent } else { accent });
+                let badge_rect = Rect::from_min_size(pos2(badge_x, y - 8.0), badge.size() + vec2(12.0, 3.0));
+                ui.painter().rect_filled(badge_rect, 8.0, if current { accent } else { soft });
+                ui.painter().galley(badge_rect.min + vec2(6.0, 1.5), badge, accent);
+                let line = |message: &str, y: f32| {
+                    let mut job = egui::text::LayoutJob::simple_singleline(crate::i18n::tr(message).to_string(), FontId::proportional(12.0), text);
+                    job.wrap.max_width = r.right() - x - 6.0;
+                    job.wrap.max_rows = 1;
+                    job.wrap.break_anywhere = false;
+                    let galley = ui.painter().layout_job(job);
+                    ui.painter().galley(pos2(x, y), galley, text);
+                };
+                line(description, r.top() + 29.0);
+                if let Some(tabs) = tabs {
+                    line(tabs, r.top() + 47.0);
+                }
+                resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, item.enabled, name));
+                if resp.clicked() && item.enabled {
+                    picked = Some(item.clone());
+                }
+            }
+        });
+        ui.add_space(6.0);
+        ui.separator();
+        ui.add_space(6.0);
+        ui.add(egui::Label::new(egui::RichText::new(crate::i18n::tr("ui.workspace_footer")).size(11.0).color(t.text_dim)).wrap());
+        ui.add_space(4.0);
+    });
+    picked
 }
 
 /// The frame every menu uses.
@@ -1975,5 +2080,42 @@ mod tests {
                 assert!(screen.contains_rect(r), "{at:?} slot {k}: {r:?}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod workspace_menu_tests {
+    use super::*;
+    use crate::scenario::{Harness, rect_of};
+
+    #[test]
+    fn workspace_rows_keep_switching_handles_and_disabled_render_behavior() {
+        let mut h = Harness::new();
+        h.call("ui.resize", json!({"width":1200,"height":1000}));
+        h.step(&json!({"click":{"handle":"ribbon:workspace"}})).unwrap();
+        let opener = rect_of("ribbon:workspace").unwrap();
+        let rows: Vec<_> = ["design", "render", "animation", "simulation", "manufacture", "drawing"]
+            .iter()
+            .map(|slug| rect_of(&format!("workspace:menu:{slug}")).unwrap())
+            .collect();
+        assert!(rows.windows(2).all(|pair| pair[0].bottom() <= pair[1].top()));
+        assert!(rows[0].top() > opener.bottom());
+        assert_eq!(rows[0].width(), 450.0);
+        assert!(items(&h.app, &Target::Workspace).iter().skip(2).all(|item| !item.enabled));
+        h.step(&json!({"click":{"handle":"workspace:menu:animation"}})).unwrap();
+        assert!(!crate::render_workspace::active(&h.app));
+        assert!(h.app.viewport.context_menu.is_some());
+        h.step(&json!({"click":{"handle":"workspace:menu:render"}})).unwrap();
+        assert!(crate::render_workspace::active(&h.app));
+        h.step(&json!({"click":{"handle":"ribbon:workspace"}})).unwrap();
+        h.step(&json!({"click":{"handle":"workspace:menu:design"}})).unwrap();
+        assert!(!crate::render_workspace::active(&h.app));
+        h.app.run("sketch.create", json!({"plane":"XY"})).unwrap();
+        h.frames(2);
+        h.step(&json!({"click":{"handle":"ribbon:workspace"}})).unwrap();
+        assert!(!items(&h.app, &Target::Workspace).iter().find(|i| i.id == "ui.workspace.render").unwrap().enabled);
+        h.step(&json!({"click":{"handle":"workspace:menu:render"}})).unwrap();
+        assert!(!crate::render_workspace::active(&h.app));
+        assert!(h.app.viewport.context_menu.is_some());
     }
 }

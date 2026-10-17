@@ -357,15 +357,15 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("SolidCraft").size(26.0).strong().color(t.text));
-                ui.add_space(12.0);
+                ui.add_space(t.space_12);
                 ui.label(RichText::new(crate::i18n::tr_label("Start")).size(16.0).color(t.text_dim));
             });
-            ui.add_space(16.0);
+            ui.add_space(t.space_16);
             ui.horizontal(|ui| {
                 let big = |ui: &mut egui::Ui, icon: &str, label: &str, primary: bool| -> bool {
                     // The label sets the width: a translation longer than the English one widens
                     // the button instead of running past its edge.
-                    let ink_text = if primary { Color32::WHITE } else { t.text };
+                    let ink_text = if primary { t.on_accent } else { t.text };
                     let galley = ui.painter().layout_no_wrap(label.to_owned(), egui::FontId::proportional(15.0), ink_text);
                     let width = (56.0 + galley.size().x + 20.0).max(170.0);
                     let (r, resp) = ui.allocate_exact_size(vec2(width, 64.0), Sense::click());
@@ -376,8 +376,8 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
                     } else {
                         t.field
                     };
-                    ui.painter().rect(r, 6.0, fill, Stroke::new(1.0, if primary { t.accent } else { t.border }), egui::StrokeKind::Inside);
-                    let ink = if primary { Color32::WHITE } else { t.icon };
+                    ui.painter().rect(r, t.radius_md, fill, Stroke::new(1.0, if primary { t.accent } else { t.border }), egui::StrokeKind::Inside);
+                    let ink = if primary { t.on_accent } else { t.icon };
                     crate::icons::paint(
                         ui.painter(),
                         egui::Rect::from_center_size(r.left_center() + vec2(30.0, 0.0), vec2(30.0, 30.0)),
@@ -392,7 +392,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
                 if big(ui, "new", app.tr("ui.new_design"), true) {
                     action = Some(Box::new(|app: &mut SolveApp| crate::documents::new_design(app)));
                 }
-                ui.add_space(10.0);
+                ui.add_space(t.space_10);
                 if big(ui, "open", app.tr("home.open"), false) {
                     action = Some(Box::new(|app: &mut SolveApp| {
                         app.pick_open(|app, path| {
@@ -404,7 +404,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
                     }));
                 }
             });
-            ui.add_space(24.0);
+            ui.add_space(t.space_24);
             ui.horizontal_wrapped(|ui| {
                 ui.hyperlink_to(app.tr("home.documentation"), crate::help::DOCS_URL);
                 ui.hyperlink_to(app.tr("home.report_issue"), "https://github.com/bherbruck/solidcraft/issues/new");
@@ -417,7 +417,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
                     crate::prefs::open_at(app, 0);
                 }
             });
-            ui.add_space(16.0);
+            ui.add_space(t.space_16);
             section(ui, app.tr("home.recent"));
             if recent.is_empty() {
                 ui.label(RichText::new(crate::i18n::tr_label("Designs you open or save appear here.")).color(t.text_dim));
@@ -472,7 +472,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
                     }
                 });
             }
-            ui.add_space(24.0);
+            ui.add_space(t.space_24);
             section(ui, app.tr("home.samples"));
             grid(ui, samples.len(), |ui, i| {
                 let Some(s) = samples.get(i) else { return };
@@ -499,21 +499,22 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
 fn section(ui: &mut egui::Ui, title: &str) {
     let t = Tokens::get();
     ui.label(RichText::new(title).size(15.0).strong().color(t.text));
-    ui.add_space(8.0);
+    ui.add_space(t.space_8);
 }
 
 /// Cards in rows that fill the width.
 fn grid(ui: &mut egui::Ui, n: usize, mut each: impl FnMut(&mut egui::Ui, usize)) {
+    let t = Tokens::get();
     let w = THUMB[0] as f32 + 16.0;
-    let per_row = ((ui.available_width() + 14.0) / (w + 14.0)).floor().max(1.0) as usize;
+    let per_row = ((ui.available_width() + t.space_14) / (w + t.space_14)).floor().max(1.0) as usize;
     for row in 0..n.div_ceil(per_row) {
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 14.0;
+            ui.spacing_mut().item_spacing.x = t.space_14;
             for i in row * per_row..((row + 1) * per_row).min(n) {
                 each(ui, i);
             }
         });
-        ui.add_space(14.0);
+        ui.add_space(t.space_14);
     }
 }
 
@@ -531,7 +532,7 @@ fn card(ui: &mut egui::Ui, pic: Pic, name: &str, sub: &str, dim: bool) -> egui::
     let hover = resp.hovered();
     ui.painter().rect(
         r,
-        6.0,
+        t.radius_md,
         if hover { t.hover } else { t.field },
         Stroke::new(1.0, if hover { t.accent } else { t.border }),
         egui::StrokeKind::Inside,
@@ -539,7 +540,7 @@ fn card(ui: &mut egui::Ui, pic: Pic, name: &str, sub: &str, dim: bool) -> egui::
     let img = egui::Rect::from_min_size(r.min + vec2(8.0, 8.0), vec2(THUMB[0] as f32, THUMB[1] as f32));
     match pic {
         Pic::Icon(icon) => {
-            ui.painter().rect_filled(img, CornerRadius::same(4), t.panel_header);
+            ui.painter().rect_filled(img, CornerRadius::same(t.radius_sm), t.panel_header);
             crate::icons::paint(ui.painter(), egui::Rect::from_center_size(img.center(), vec2(56.0, 56.0)), icon, t.icon, t.icon_fill, t.icon);
         }
         Pic::Ready(Some(tx)) => {
@@ -547,7 +548,7 @@ fn card(ui: &mut egui::Ui, pic: Pic, name: &str, sub: &str, dim: bool) -> egui::
             ui.painter().image(tx.id(), img, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), tint);
         }
         Pic::Ready(None) => {
-            ui.painter().rect_filled(img, CornerRadius::same(4), t.panel_header);
+            ui.painter().rect_filled(img, CornerRadius::same(t.radius_sm), t.panel_header);
             if !dim {
                 egui::Spinner::new().size(18.0).paint_at(ui, egui::Rect::from_center_size(img.center(), vec2(18.0, 18.0)));
             }
@@ -556,8 +557,14 @@ fn card(ui: &mut egui::Ui, pic: Pic, name: &str, sub: &str, dim: bool) -> egui::
     let ty = img.bottom() + 8.0;
     let clip = egui::Rect::from_min_max(egui::pos2(r.left() + 8.0, ty), egui::pos2(r.right() - 8.0, r.bottom()));
     let p = ui.painter().with_clip_rect(clip);
-    p.text(egui::pos2(r.left() + 10.0, ty), egui::Align2::LEFT_TOP, name, egui::FontId::proportional(14.0), if dim { t.text_dim } else { t.text });
-    p.text(egui::pos2(r.left() + 10.0, ty + 20.0), egui::Align2::LEFT_TOP, sub, egui::FontId::proportional(11.5), t.text_dim);
+    p.text(
+        egui::pos2(r.left() + 10.0, ty),
+        egui::Align2::LEFT_TOP,
+        name,
+        egui::FontId::proportional(t.font_heading),
+        if dim { t.text_dim } else { t.text },
+    );
+    p.text(egui::pos2(r.left() + 10.0, ty + 20.0), egui::Align2::LEFT_TOP, sub, egui::FontId::proportional(t.font_caption), t.text_dim);
     if hover {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }

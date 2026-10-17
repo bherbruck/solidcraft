@@ -16,13 +16,13 @@ Everything about it is on one page: **Preferences → AI**.
 - **Show AI features** (on by default) is the master switch. Turned off, SolidCraft shows nothing
   of it: no AI button, no shortcut, no menu entry, no panel, and nothing is looked for or
   started. The page stays, so you can turn it back on.
-- **Show button in toolbar** (on by default): the **AI** button at the right end of the toolbar
+- **Show Assistant button in application bar** (on by default): the **Assistant** icon in the application bar
   row, which stays there however wide the window is. Turn it off to keep only the shortcut and
   the menu entry.
 
 With AI features on, the panel opens from:
 
-- the **AI** button at the right end of the toolbar;
+- the **Assistant** icon in the application bar;
 - **Ctrl+Shift+A** (Cmd+Shift+A on a Mac), which also works from the chat's own text box;
 - **View settings** (the last button of the navigation bar under the view) → **Agent chat**.
 

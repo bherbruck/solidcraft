@@ -433,6 +433,9 @@ mod tests {
     #[test]
     fn dragging_a_corner_resizes_the_text_in_one_undo_step() {
         let (mut h, link) = setup();
+        // Both the initial handle and the doubled text must stay below the floating ribbon.
+        h.app.cam.distance = 90.0;
+        h.frames(3);
         let before = (h.app.session.doc.to_json(), h.app.session.undo.len());
         let f = frame(&h.app, &link).unwrap();
         // Pull the top right corner out to twice the frame: the bottom left stays put.
@@ -461,7 +464,8 @@ mod tests {
         let result = h.app.run("sketch.text", json!({"text":"II","at":[0,0],"height":"tall"})).unwrap();
         let link = result["link"].as_str().unwrap().to_owned();
         h.call("ui.view", json!({"view":"top"}));
-        h.app.cam.distance = 60.0;
+        // Keep the rotated resize target clear of the floating ribbon too.
+        h.app.cam.distance = 90.0;
         h.app.session.selection = vec![Sel::SketchCurve { id: result["curves"][0].as_str().unwrap().into() }];
         h.frames(3);
         let height_expr = |h: &Harness| {

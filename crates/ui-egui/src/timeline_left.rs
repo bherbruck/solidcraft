@@ -194,7 +194,7 @@ fn vertical_marker(app: &mut SolveApp, ui: &mut egui::Ui, drag: &mut Option<Drag
     let t = Tokens::get();
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 7.0), Sense::drag());
     let line = Rect::from_min_max(pos2(rect.left() + 8.0, rect.center().y - 1.5), pos2(rect.right() - 5.0, rect.center().y + 1.5));
-    let colour = t.accent;
+    let colour = crate::theme::TabAccent::for_tab(&t, &app.ui.tab).color;
     ui.painter().rect_filled(line, 1.5, colour);
     ui.painter().circle_filled(pos2(line.right(), line.center().y), 4.0, colour);
     crate::scenario::publish_handle("timeline:rollback", rect.center());
@@ -557,7 +557,7 @@ fn vertical_group_row(
     drop_zones.push((rect, group.id));
     slots.push(VerticalSlot { y: rect.bottom(), position: if open { position } else { end_position }, group: Some(group.id), indent_group: None });
     if selected || response.hovered() {
-        ui.painter().rect_filled(rect, 3.0, if selected { t.accent_soft } else { t.hover });
+        ui.painter().rect_filled(rect, 3.0, if selected { crate::theme::TabAccent::current(ui.ctx()).soft } else { t.hover });
     }
     let offset = depth as f32 * 14.0;
     let centre = pos2(rect.left() + 9.0 + offset, rect.center().y);
@@ -701,7 +701,7 @@ fn vertical_features(app: &mut SolveApp, ui: &mut egui::Ui) {
         let background = if error.is_some() {
             t.timeline_item_error
         } else if selected {
-            t.accent_soft
+            crate::theme::TabAccent::current(ui.ctx()).soft
         } else if response.hovered() || from_view == Some(*id) {
             t.hover
         } else {
@@ -864,7 +864,7 @@ fn vertical_features(app: &mut SolveApp, ui: &mut egui::Ui) {
             let left = vertical_drop_bar_left(ui.min_rect().left(), folder_target, &groups);
             ui.painter().line_segment(
                 [pos2(left, slot.y), pos2(ui.max_rect().right() - 5.0, slot.y)],
-                Stroke::new(2.0, if matches!(active, Drag::Marker) { t.accent } else { t.sketch_accent }),
+                Stroke::new(2.0, if matches!(active, Drag::Marker) { crate::theme::TabAccent::current(ui.ctx()).color } else { t.sketch_accent }),
             );
         }
     }

@@ -1111,7 +1111,10 @@ fn draw_revolve(
         }
     }
     if to_mode {
-        crate::frame::area(egui::Id::new("sc_canvas_area")).fixed_pos(box_at).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
+        // This badge is read-only. Its placement follows the model and can overlap the
+        // command dialog, whose buttons must keep receiving clicks.
+        let area = crate::frame::area(egui::Id::new("sc_canvas_area")).fixed_pos(box_at).order(egui::Order::Foreground).interactable(false);
+        area.show(ui.ctx(), |ui| {
             egui::Frame::popup(ui.style()).inner_margin(egui::Margin::symmetric(6, 3)).show(ui, |ui| {
                 let text = if extent.curved_to {
                     "To surface".into()

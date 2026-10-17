@@ -36,40 +36,6 @@ thread_local! {
     static DEFERRED: Cell<bool> = const { Cell::new(false) };
 }
 
-/// Commands registered on one panel that Fusion also lists on another: the analyses (sketch
-/// INSPECT) on SOLID INSPECT, and Interference (SOLID INSPECT) on sketch INSPECT.
-const ALSO_IN: &[(&str, &str, &str)] = &[
-    ("SOLID", "INSPECT", "inspect.zebra"),
-    ("SOLID", "INSPECT", "inspect.draft"),
-    ("SOLID", "INSPECT", "inspect.curvature_map"),
-    ("SOLID", "INSPECT", "inspect.environment_map"),
-    ("SOLID", "INSPECT", "inspect.accessibility"),
-    ("SOLID", "INSPECT", "inspect.minimum_radius"),
-    ("SOLID", "INSPECT", "inspect.isocurve"),
-    ("SOLID", "INSPECT", "inspect.curvature_comb"),
-    ("SOLID", "INSPECT", "inspect.center_of_mass"),
-    ("SKETCH", "INSPECT", "inspect.interference"),
-];
-
-/// A panel's commands plus the ones it shares with another panel (see [`ALSO_IN`]).
-pub fn also_in<'a>(
-    tab: &str,
-    panel: &str,
-    mut cmds: Vec<&'a solidcraft_engine::CommandSpec>,
-    specs: &[&'a solidcraft_engine::CommandSpec],
-) -> Vec<&'a solidcraft_engine::CommandSpec> {
-    for (t, p, id) in ALSO_IN {
-        if *t == tab
-            && *p == panel
-            && !cmds.iter().any(|c| c.id == *id)
-            && let Some(c) = specs.iter().find(|c| c.id == *id)
-        {
-            cmds.push(c);
-        }
-    }
-    cmds
-}
-
 /// Run an analysis and keep its result as a marker.
 fn analysis(app: &mut SolveApp, cmd: &str, p: Value) {
     let Ok(v) = app.run(cmd, p) else { return };

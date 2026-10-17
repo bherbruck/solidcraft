@@ -511,7 +511,7 @@ fn path_row(ui: &mut egui::Ui, k: &mut Tx, inputs: &mut [SelInput], active: &mut
     ui.horizontal(|ui| {
         let on = k.style.path.is_some();
         let text = if on {
-            egui::RichText::new(crate::i18n::format("dialog.selected_count", &[("count", "1")])).color(egui::Color32::WHITE)
+            egui::RichText::new(crate::i18n::format("dialog.selected_count", &[("count", "1")])).color(t.on_accent)
         } else {
             egui::RichText::new(crate::i18n::tr("dialog.select")).color(t.text)
         };

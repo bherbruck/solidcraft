@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Silhouette</title>
+  <path d="M8.62 18.5L32 32L32 59L8.62 45.5Z" fill="#b8c3cf"/>
+  <path d="M55.38 18.5L32 32L32 59L55.38 45.5Z" fill="#8e9faf"/>
+  <path d="M32 5L55.38 18.5L32 32L8.62 18.5Z" fill="#e2e8ef"/>
+  <path d="M8.62 18.5L32 32L55.38 18.5" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 32L32 59" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 5L55.38 18.5L55.38 45.5L32 59L8.62 45.5L8.62 18.5Z" fill="none" stroke="#ffffff" stroke-width="7.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 5L55.38 18.5L55.38 45.5L32 59L8.62 45.5L8.62 18.5Z" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

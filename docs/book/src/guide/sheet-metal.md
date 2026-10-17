@@ -1,6 +1,7 @@
 # Sheet metal
 
-The SHEET METAL tab builds parts from a sheet of constant thickness under a **sheet metal rule**
+MODEL → MODIFY offers Convert to Sheet Metal. The contextual SHEET METAL tab appears
+when the active body is a sheet, and builds parts from a sheet of constant thickness under a **sheet metal rule**
 (thickness, bend radius, K-factor), set in **Sheet Metal Rules** (`sheet.manage_rules`).
 
 - **Flange** (`sheet.flange`): a base flange from a sketch profile, a contour flange from an open

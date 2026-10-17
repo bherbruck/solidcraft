@@ -622,25 +622,25 @@ fn occurrence_moves_turn_about_their_origin_then_move() {
 fn toolbar_pins_removes_reorders_and_keeps_its_layout() {
     use crate::toolbar_custom as tc;
     let mut app = sample_app();
-    app.ui.tab = "SOLID".into();
+    app.ui.tab = "MODEL".into();
     let ids = |app: &SolveApp, panel: &str| -> Vec<&'static str> {
-        let lists = tc::panel_lists("SOLID");
+        let lists = tc::panel_lists("MODEL");
         let (_, cmds, n) = lists.iter().find(|(p, ..)| *p == panel).unwrap();
-        tc::buttons(app, "SOLID", panel, cmds, *n).iter().map(|c| c.id).collect()
+        tc::buttons(app, "MODEL", panel, cmds, *n).iter().map(|c| c.id).collect()
     };
     let create = ids(&app, "CREATE");
     // Pin a command that isn't a button yet: it lands at the end of its panel.
     let extra =
-        tc::panel_lists("SOLID").iter().find(|(p, ..)| *p == "CREATE").unwrap().1.iter().map(|c| c.id).find(|id| !create.contains(id)).unwrap();
+        tc::panel_lists("MODEL").iter().find(|(p, ..)| *p == "CREATE").unwrap().1.iter().map(|c| c.id).find(|id| !create.contains(id)).unwrap();
     act(&mut app, &Target::ToolbarCommand { id: extra.into() }, "Pin to Toolbar");
     assert_eq!(ids(&app, "CREATE").last(), Some(&extra));
     // Remove a default button.
     act(&mut app, &Target::ToolbarCommand { id: create[0].into() }, "Remove from Toolbar");
     assert!(!ids(&app, "CREATE").contains(&create[0]));
     // Reorder: the pinned one before the second default; then into another panel.
-    tc::reorder(&mut app, "SOLID", extra, "CREATE", Some(create[1]));
+    tc::reorder(&mut app, "MODEL", extra, "CREATE", Some(create[1]));
     assert_eq!(ids(&app, "CREATE")[0], extra);
-    tc::reorder(&mut app, "SOLID", extra, "MODIFY", None);
+    tc::reorder(&mut app, "MODEL", extra, "MODIFY", None);
     assert!(!ids(&app, "CREATE").contains(&extra) && ids(&app, "MODIFY").last() == Some(&extra));
     // Pin to Shortcuts goes to the S box's favourites.
     act(&mut app, &Target::ToolbarCommand { id: "solid.extrude".into() }, "Pin to Shortcuts");

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Assistant</title>
+  <defs>
+    <mask id="assistant-sparkle" maskUnits="userSpaceOnUse" x="-32" y="-32" width="128" height="128">
+      <path d="M-32 -32L96 -32L96 96L-32 96Z" fill="white"/>
+      <path d="M28 18.5Q30.3 27.7 39.5 30Q30.3 32.3 28 41.5Q25.7 32.3 16.5 30Q25.7 27.7 28 18.5Z" fill="black"/>
+      <path d="M43.5 15.5Q44.6 19.9 49 21Q44.6 22.1 43.5 26.5Q42.4 22.1 38 21Q42.4 19.9 43.5 15.5Z" fill="black"/>
+    </mask>
+  </defs>
+  <path d="M15 11.5L49 11.5Q55 11.5 55 17.5L55 40.5Q55 46.5 49 46.5L30 46.5L18 55L18 46.5L15 46.5Q9 46.5 9 40.5L9 17.5Q9 11.5 15 11.5Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" mask="url(#assistant-sparkle)"/>
+</svg>

@@ -132,6 +132,7 @@ mod revolve_manipulator_tests;
 pub mod scenario;
 pub mod select_other;
 pub mod selection;
+pub mod shell;
 #[cfg(test)]
 mod shell_face_sketch_ui_tests;
 pub mod shortcut_box;
@@ -197,8 +198,13 @@ pub use control::{ControlRequest, ControlResponse};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct UiState {
-    /// Toolbar tab: SOLID, SURFACE, MESH, SHEET METAL, PLASTIC, UTILITIES (SKETCH while sketching).
+    /// Automation-only shell mode; never persisted in preferences.
+    pub layout: shell::LayoutMode,
+    /// Ribbon tab; contextual SKETCH and SHEET METAL join the seven design tabs.
     pub tab: String,
+    /// Last contextual body/sketch, only used to select on entry.
+    #[serde(skip)]
+    pub ribbon_context: Option<String>,
     pub show_browser: bool,
     pub show_timeline: bool,
     pub show_grid: bool,
@@ -231,7 +237,9 @@ pub struct UiState {
 impl Default for UiState {
     fn default() -> Self {
         UiState {
-            tab: "SOLID".into(),
+            layout: Default::default(),
+            tab: "MODEL".into(),
+            ribbon_context: None,
             show_browser: true,
             show_timeline: true,
             show_grid: true,
@@ -280,6 +288,7 @@ pub struct Services {
 pub struct SolveApp {
     pub session: Session,
     pub ui: UiState,
+    pub(crate) shell: shell::State,
     pub cam: Camera,
     /// A view change in progress (axis view, Home, Fit); any mouse navigation cancels it.
     pub cam_anim: Option<CameraAnim>,
@@ -418,6 +427,7 @@ impl SolveApp {
         SolveApp {
             session,
             ui: UiState::default(),
+            shell: Default::default(),
             cam: Camera::default(),
             cam_anim: None,
             now: 0.0,
@@ -690,12 +700,10 @@ impl SolveApp {
                 self.set_status(msg, true);
             }
         }
-        if self.session.active_sketch.is_some() && self.ui.tab != "SKETCH" {
-            self.ui.tab = "SKETCH".into();
-        } else if self.session.active_sketch.is_none() && self.ui.tab == "SKETCH" {
-            self.ui.tab = "SOLID".into();
+        if self.session.active_sketch.is_none() && self.ui.tab == "SKETCH" {
             self.tool = None;
         }
+        workspace::sync_context(self);
         r
     }
 
@@ -716,6 +724,7 @@ impl SolveApp {
             self.set_status(format!("{label}: {why}"), true);
             return;
         }
+        workspace::select_command_tab(self, id);
         if id == "material.properties.validate" {
             self.material_card_review = Some(material_card_review::ReviewWindow::default());
             self.home.open = false;
@@ -1367,13 +1376,37 @@ impl SolveApp {
                 return;
             }
         }
-        toolbar::toolbar(self, ui);
+        let floating = self.ui.layout == shell::LayoutMode::Floating;
         let show_timeline = self.ui.show_timeline && !render_workspace::active(self);
         let left_timeline = show_timeline && self.preferences.timeline_left;
+        if !floating {
+            toolbar::toolbar(self, ui);
+        }
+        theme::TabAccent::publish(self, ui.ctx());
         if show_timeline && !left_timeline {
             timeline::timeline(self, ui);
         }
         palette::palette_bar(self, ui);
+        let full = ui.available_rect_before_wrap();
+        if floating {
+            let cards = shell::Cards::new(full, self.ui.layout);
+            self.shell.cards = vec![cards.workspace, cards.ribbon];
+            // Draw the scene first, then let the unchanged panel layouts cover it. The
+            // viewport keeps its full projection even underneath the browser and cards.
+            preview::update(self, ui.ctx());
+            let blocked = ui.input(|i| i.pointer.latest_pos()).is_some_and(|p| shell::covered(self, p));
+            let mut viewport_ui = ui.new_child(egui::UiBuilder::new().max_rect(full).id_salt("floating_viewport"));
+            if blocked {
+                // Disabled only to shield the scene from input under a card or menu; it must
+                // not fade, or the whole viewport dims whenever the pointer is over the shell.
+                viewport_ui.visuals_mut().disabled_alpha = 1.0;
+                viewport_ui.disable();
+            }
+            self.show_workspace(&mut viewport_ui);
+            shell::paint_top_corners(ui.painter(), full, theme::Tokens::get().app_bar);
+            toolbar::toolbar(self, ui);
+            theme::TabAccent::publish(self, ui.ctx());
+        }
         if self.ui.show_browser {
             if left_timeline {
                 browser::browser_below_timeline(self, ui);
@@ -1387,12 +1420,21 @@ impl SolveApp {
             render_workspace::panel(self, ui);
         }
         agent_chat::show(self, ui);
-        preview::update(self, ui.ctx());
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| {
-            if render_workspace::active(self) {
-                render_workspace::show(self, ui);
+            if floating {
+                let content = ui.max_rect();
+                self.shell.content = Some(content);
+                self.shell.panels = [
+                    egui::Rect::from_min_max(egui::pos2(full.left(), content.top()), egui::pos2(content.left(), full.bottom())),
+                    egui::Rect::from_min_max(egui::pos2(content.right(), content.top()), full.max),
+                ]
+                .into_iter()
+                .filter(|r| r.is_positive())
+                .collect();
+                viewport::refresh_layout(self, ui.ctx().pixels_per_point());
             } else {
-                viewport::show(self, ui);
+                preview::update(self, ui.ctx());
+                self.show_workspace(ui);
             }
         });
         dialogs::show(self, ui.ctx());
@@ -1410,6 +1452,14 @@ impl SolveApp {
         shortcut_box::show(self, ui.ctx());
         prefs::show(self, ui.ctx());
         toolbar_custom::window(self, ui.ctx());
+    }
+
+    fn show_workspace(&mut self, ui: &mut egui::Ui) {
+        if render_workspace::active(self) {
+            render_workspace::show(self, ui);
+        } else {
+            viewport::show(self, ui);
+        }
     }
 
     fn drain_control(&mut self, ctx: &egui::Context) {

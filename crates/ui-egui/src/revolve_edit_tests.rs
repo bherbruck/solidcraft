@@ -128,7 +128,10 @@ fn second_active_occurrence_noop_preserves_definition_axis_target_and_instances(
     assert!(placed.mesh().triangles.len() > 10);
     assert_eq!(placed.mesh().bounds(), before.iter().find(|(_, bounds)| bounds.center().x > 50.0).unwrap().1);
     assert!(h.widget("↖ Custom Axis").is_some());
+    // In the floating shell the read-only Sweep badge overlaps OK at this placement.
+    // It must not intercept the dialog's click or leave the timeline rolled back.
     h.step(&json!({"widget":"OK"})).unwrap();
+    assert!(h.app.dialog.is_none(), "OK must apply even underneath the Sweep badge");
     assert_eq!(serde_json::to_value(&h.app.session.doc.find_feature("Turn").unwrap().kind).unwrap(), original);
     let after: Vec<_> = h.app.session.world_state().bodies.iter().map(|b| (b.name.clone(), b.mesh().bounds())).collect();
     assert_eq!(after, before);

@@ -356,6 +356,11 @@ fn groups(t: &Tokens) -> Vec<Group> {
             &[("app_bar_icon[0]", t.app_bar_icon[0]), ("app_bar_icon[1]", t.app_bar_icon[1]), ("app_bar_icon[2]", t.app_bar_icon[2])],
             &[("app_bar", t.app_bar)],
         ),
+        // Tab names and icons identify the tabs; each accent must read against the toolbar.
+        group("surface tab", &[("surface_accent", t.surface_accent)], &[("toolbar", t.toolbar)]),
+        group("mesh tab", &[("mesh_accent", t.mesh_accent)], &[("toolbar", t.toolbar)]),
+        group("form tab", &[("form_accent", t.form_accent)], &[("toolbar", t.toolbar)]),
+        group("agent status", &[("agent_ok", t.agent_ok), ("agent_busy", t.agent_busy)], &[("app_bar", t.app_bar)]),
         group("logo", &[("logo[0]", t.logo[0]), ("logo[1]", t.logo[1]), ("logo[2]", t.logo[2])], &[("app_bar", t.app_bar)]),
     ];
     // The removed part of a cut preview is translucent over the body.
@@ -371,6 +376,35 @@ const SHADED: [&str; 2] = ["analysis.draft", "analysis.access"];
 /// Tokens no colour vision mode needs to keep apart, and why. A new token fails
 /// `every_token_is_measured_or_carries_no_meaning` until it is in a group above or here.
 const NO_MEANING: &[(&str, &str)] = &[
+    ("space_2", "layout dimension"),
+    ("space_3", "layout dimension"),
+    ("space_4", "layout dimension"),
+    ("space_6", "layout dimension"),
+    ("space_8", "layout dimension"),
+    ("space_10", "layout dimension"),
+    ("space_12", "layout dimension"),
+    ("space_14", "layout dimension"),
+    ("space_16", "layout dimension"),
+    ("space_24", "layout dimension"),
+    ("radius_sm", "layout dimension"),
+    ("radius_md", "layout dimension"),
+    ("radius_lg", "layout dimension"),
+    ("radius_xl", "layout dimension"),
+    ("font_badge", "layout dimension"),
+    ("font_micro", "layout dimension"),
+    ("font_panel", "layout dimension"),
+    ("font_small", "layout dimension"),
+    ("font_caption", "layout dimension"),
+    ("font_body", "layout dimension"),
+    ("font_label", "layout dimension"),
+    ("font_button", "layout dimension"),
+    ("font_heading", "layout dimension"),
+    ("on_accent", "ink on an accent fill"),
+    ("app_bar_hover_subtle", "translucent hover chrome"),
+    ("app_bar_hover_button", "translucent hover chrome"),
+    ("app_bar_hover_strong", "translucent hover chrome"),
+    ("app_bar_tab_active", "the active document tab's surface"),
+    ("render_accent", "the Render workspace's identity colour"),
     // The window's chrome: grounds, text and borders (measured as grounds where meaning sits on them).
     ("panel_header", "chrome"),
     ("border", "chrome"),
@@ -384,6 +418,7 @@ const NO_MEANING: &[(&str, &str)] = &[
     ("subheading_bg", "chrome"),
     ("overlay", "a chip's ground over the view"),
     ("app_bar_text", "text"),
+    ("app_bar_separator", "neutral chrome divider"),
     ("app_bar_hover", "a hovered tab, translucent white"),
     ("timeline_marker", "the rollback marker, alone"),
     ("field", "a field's ground"),
@@ -635,18 +670,51 @@ fn each_mode_changes_only_its_table() {
         "icons.draft",
         "bend_up",
         "bend_down",
+        "surface_accent",
+        "mesh_accent",
+        "form_accent",
         "sketch_accent",
         "preview_sketch",
     ];
-    let mut red_green_light = red_green_both.to_vec();
+    let mut red_green_light =
+        red_green_both.into_iter().filter(|name| !["surface_accent", "mesh_accent", "form_accent"].contains(name)).collect::<Vec<_>>();
     red_green_light.extend(["sketch_projected", "sketch_locked", "timeline_item_error", "construction_geom"]);
     for (dark, mode, want) in [
         (false, ColorVision::Protan, set(&red_green_light)),
         (true, ColorVision::Protan, set(&red_green_both)),
         (false, ColorVision::Deutan, set(&red_green_light)),
         (true, ColorVision::Deutan, set(&red_green_both)),
-        (false, ColorVision::Tritan, set(&["sketch_locked", "box_crossing", "construction_geom", "preview_sketch", "analysis.hatch"])),
-        (true, ColorVision::Tritan, set(&["sketch_locked", "box_crossing", "construction_geom", "glyph_text", "preview_sketch", "analysis.hatch"])),
+        (
+            false,
+            ColorVision::Tritan,
+            set(&[
+                "surface_accent",
+                "mesh_accent",
+                "form_accent",
+                "agent_busy",
+                "sketch_locked",
+                "box_crossing",
+                "construction_geom",
+                "preview_sketch",
+                "analysis.hatch",
+            ]),
+        ),
+        (
+            true,
+            ColorVision::Tritan,
+            set(&[
+                "surface_accent",
+                "mesh_accent",
+                "form_accent",
+                "agent_busy",
+                "sketch_locked",
+                "box_crossing",
+                "construction_geom",
+                "glyph_text",
+                "preview_sketch",
+                "analysis.hatch",
+            ]),
+        ),
     ] {
         let base = Tokens::themed(dark, ColorVision::Off);
         assert_eq!(changed_fields(&base, &Tokens::themed(dark, mode)), want, "{mode:?}, dark {dark}");

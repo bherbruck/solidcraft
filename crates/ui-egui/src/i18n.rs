@@ -269,6 +269,10 @@ mod tests {
         let texts = english_texts();
         let mut wanted: Vec<&str> = crate::toolbar::TABS.to_vec();
         wanted.push(crate::toolbar_custom::WORKSPACE);
+        for section in crate::workspace::SECTIONS {
+            wanted.push(section.tab);
+            wanted.push(section.panel);
+        }
         for spec in solidcraft_engine::command_specs() {
             wanted.push(spec.tab);
             wanted.push(spec.panel);
