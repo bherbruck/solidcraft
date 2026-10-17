@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Update</title>
+  <path d="M24.38 27.6L32 32L32 40.8L24.38 36.4Z" fill="#b8c3cf"/>
+  <path d="M39.62 27.6L32 32L32 40.8L39.62 36.4Z" fill="#8e9faf"/>
+  <path d="M32 23.2L39.62 27.6L32 32L24.38 27.6Z" fill="#e2e8ef"/>
+  <path d="M32 23.2L39.62 27.6L39.62 36.4L32 40.8L24.38 36.4L24.38 27.6Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M24.38 27.6L32 32L39.62 27.6" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 32L32 40.8" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M41.72 11.15A23 23 0 0 1 44.53 51.29" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M39.08 54.83L43.48 46.01L48.93 54.39Z" fill="#ffffff" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M41.72 11.15A23 23 0 0 1 44.53 51.29" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M39.08 54.83L43.48 46.01L48.93 54.39Z" fill="#236ead"/>
+  <path d="M22.28 52.85A23 23 0 0 1 19.47 12.71" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M24.92 9.17L20.52 17.99L15.07 9.61Z" fill="#ffffff" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22.28 52.85A23 23 0 0 1 19.47 12.71" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M24.92 9.17L20.52 17.99L15.07 9.61Z" fill="#236ead"/>
+</svg>

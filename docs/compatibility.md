@@ -158,8 +158,11 @@ replace any Dock shortcut with the old name (open `SolidCraft.app`, then
 
 ## Flatpak remotes added from the former website address
 
-`flatpak remote-modify --user --url=https://bherbruck.github.io/solidcraft/flatpak/repo/ solvecraft`
-(use your remote's name), then `flatpak update --user`.
+The feed has moved twice: from the SolveCraft address, then from `bherbruck.github.io/solidcraft`
+when the project moved to `docs.solidcraft.io` (#1920). A remote added from either address no
+longer finds updates. Point it at the current one:
+`flatpak remote-modify --user --url=https://docs.solidcraft.io/flatpak/repo/ solidcraft`
+(use your remote's name: `solvecraft` for one added before 0.4), then `flatpak update --user`.
 
 ## Draft design containers
 

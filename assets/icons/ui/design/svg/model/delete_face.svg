@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Delete face</title>
+  <path d="M8.62 18.5L32 32L32 59L8.62 45.5Z" fill="#b8c3cf"/>
+  <path d="M32 5L55.38 18.5L32 32L8.62 18.5Z" fill="#e2e8ef"/>
+  <path d="M32 5L55.38 18.5M32 5L8.62 18.5L8.62 45.5L32 59M8.62 18.5L32 32" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M55.38 18.5L32 32L32 59L55.38 45.5Z" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 4.5"/>
+  <path d="M48.08 31.16L39.31 46.34M48.08 41.28L39.31 36.22" fill="none" stroke="#ffffff" stroke-width="6.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M48.08 31.16L39.31 46.34M48.08 41.28L39.31 36.22" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

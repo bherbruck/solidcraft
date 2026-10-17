@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Environment map</title>
+  <path d="M8 32A24 24 0 1 0 56 32A24 24 0 1 0 8 32Z" fill="#b9ddf8"/>
+  <defs><clipPath id="disc-env"><path d="M8 32A24 24 0 1 0 56 32A24 24 0 1 0 8 32Z" fill="none"/></clipPath></defs>
+  <g clip-path="url(#disc-env)">
+  <path d="M6 42C16 30 30 28 42 35C50 40 56 40 62 37L62 64L6 64Z" fill="#8e9faf"/>
+  <path d="M2 54C14 40 30 44 42 49C50 52 58 50 64 47L64 66L2 66Z" fill="#236ead"/>
+  <path d="M39 19A6 6 0 1 0 51 19A6 6 0 1 0 39 19Z" fill="#ffffff"/>
+  </g>
+  <path d="M8 32A24 24 0 1 0 56 32A24 24 0 1 0 8 32Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

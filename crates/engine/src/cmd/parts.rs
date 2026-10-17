@@ -15,7 +15,7 @@ use crate::params::{bad, num, str_, vec3};
 use crate::{EngineError, Result, Session};
 
 pub static COMMANDS: &[CommandSpec] = &[
-    CommandSpec::new("parts.library", "Standard Parts", library)
+    CommandSpec::new("parts.library", "Standard Parts", library).icon("library")
         .noundo()
         .params("family? → families (name, standard, sizes, lengths) and, with family, each size's dimensions (mm)"),
     CommandSpec::new("parts.fastener", "Insert Fastener", insert).at("SOLID", "INSERT").icon("fastener").params(
@@ -26,7 +26,7 @@ pub static COMMANDS: &[CommandSpec] = &[
          length? (mm; screws, bolts, set screws, pins; default a standard length near 2.5 d); \
          at?: [x,y,z] on a hole's rim or wall (the part seats on the hole's face with a rigid joint) | point?: [x,y,z] with direction?: [x,y,z] (no joint); name?",
     ),
-    CommandSpec::new("parts.resize", "Change Part Size", resize)
+    CommandSpec::new("parts.resize", "Change Part Size", resize).icon("scale")
         .params("component: id|name of an inserted part; size?; length? — rebuilds it (joints keep it seated)"),
 ];
 

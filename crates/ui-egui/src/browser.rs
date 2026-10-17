@@ -1363,7 +1363,7 @@ fn entries(app: &SolveApp, comp: u64, folder: &str) -> Vec<Entry> {
                 key: f.id.to_string(),
                 row_key: format!("p:{}", f.id),
                 label: f.name.clone(),
-                icon: "plane",
+                icon: crate::timeline::icon_of(&f.kind),
                 visible: !app.session.visibility.hidden_origin.contains(&f.name),
                 selected: sel.iter().any(|x| matches!(x, Sel::Plane { name } if *name == f.name)),
                 color: None,

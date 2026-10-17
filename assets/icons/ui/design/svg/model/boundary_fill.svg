@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Boundary fill</title>
+  <path d="M32 29.73L58.21 44.86L32 60L5.79 44.86Z" fill="#e2e8ef"/>
+  <path d="M32 29.73L58.21 44.86L32 60L5.79 44.86Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 29.73L58.21 44.86L58.21 19.14L32 4Z" fill="#b8c3cf"/>
+  <path d="M32 29.73L58.21 44.86L58.21 19.14L32 4Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 29.73L5.79 44.86L5.79 19.14L32 4Z" fill="#8e9faf"/>
+  <path d="M32 29.73L5.79 44.86L5.79 19.14L32 4Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M15.62 22.54L32 32L32 50.92L15.62 41.46Z" fill="#328bd3"/>
+  <path d="M48.38 22.54L32 32L32 50.92L48.38 41.46Z" fill="#236ead"/>
+  <path d="M32 13.08L48.38 22.54L32 32L15.62 22.54Z" fill="#b9ddf8"/>
+  <path d="M32 13.08L48.38 22.54L48.38 41.46L32 50.92L15.62 41.46L15.62 22.54Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M15.62 22.54L32 32L48.38 22.54" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 32L32 50.92" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

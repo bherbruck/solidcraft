@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Extend</title>
+  <path d="M7.16 22.06L32.16 22.06" fill="none" stroke="#8e9faf" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32.16 22.06L57.16 22.06" fill="none" stroke="#236ead" stroke-width="3.6" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 5.6"/>
+  <path d="M34.16 38.06L50.16 38.06" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M57.16 38.06L46.16 44.06L46.16 32.06Z" fill="#236ead"/>
+</svg>

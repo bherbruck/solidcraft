@@ -1452,3 +1452,31 @@ mod cam;
 // Plots and interference of motion studies, on the four-bar and slider-crank above.
 #[path = "motion_analysis_tests.rs"]
 mod motion_analysis;
+
+/// A pin through a hole of its own radius whose axis is a hair off the hole's (parts placed from
+/// rounded coordinates): the walls are all but tangent along two lines, which the boolean can't
+/// intersect. Each offset gets a checked answer: clear on the axis and within the kernel's
+/// same-surface tolerance, and otherwise the crescent the pin shares with the plate, against
+/// the textbook lens of two circles. The pin is chamfered, so it is not a plain prism.
+#[test]
+fn interference_of_a_pin_a_hair_off_its_hole() {
+    let crescent = |r: f64, e: f64| std::f64::consts::PI * r * r - (2.0 * r * r * (e / (2.0 * r)).acos() - e / 2.0 * (4.0 * r * r - e * e).sqrt());
+    for offset in [0.0, 1e-6, 5.9e-4, 1e-2] {
+        let mut s = Session::default();
+        run(&mut s, "solid.box", json!({"length": 20, "width": 20, "height": 5, "corner": [-10, -10, 0], "body_name": "Plate"}));
+        run(&mut s, "solid.cylinder", json!({"radius": 3, "height": 9, "base": [0, 0, -2], "operation": "cut", "targets": ["Plate"]}));
+        run(&mut s, "solid.cylinder", json!({"radius": 3, "height": 9, "base": [offset, 0, -2], "operation": "new", "body_name": "Pin"}));
+        run(&mut s, "solid.chamfer", json!({"edges": [[offset + 3.0, 0, 7]], "distance": 0.5, "body": "Pin"}));
+        let i = run(&mut s, "inspect.interference", json!({"bodies": ["Plate", "Pin"]}));
+        assert_eq!(i["unchecked"].as_array().map(Vec::len), Some(0), "{offset}: {i}");
+        if offset < 1e-5 {
+            assert_eq!(i["count"], 0, "{offset}: {i}");
+            continue;
+        }
+        assert_eq!(i["count"], 1, "{offset}: {i}");
+        let want = 5.0 * crescent(3.0, offset);
+        let got = i["interferences"][0]["volume_mm3"].as_f64().unwrap_or(0.0);
+        assert!((got - want).abs() < 1e-6 * want, "{offset}: {got} against {want}: {i}");
+        assert!((i["interferences"][0]["near_coaxial"]["offset_mm"].as_f64().unwrap_or(0.0) - offset).abs() < 1e-9, "{i}");
+    }
+}

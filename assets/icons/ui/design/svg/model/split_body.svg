@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Split body</title>
+  <path d="M29.77 12.68L47.62 22.98L47.62 43.59L29.77 33.28Z" fill="#b8c3cf"/>
+  <path d="M56.54 17.83L47.62 22.98L47.62 43.59L56.54 38.44Z" fill="#8e9faf"/>
+  <path d="M38.69 7.53L56.54 17.83L47.62 22.98L29.77 12.68Z" fill="#e2e8ef"/>
+  <path d="M38.69 7.53L56.54 17.83L56.54 38.44L47.62 43.59L29.77 33.28L29.77 12.68Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M29.77 12.68L47.62 22.98L56.54 17.83" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M47.62 22.98L47.62 43.59" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.85 38.44L43.15 51.32L43.15 25.56L20.85 12.68Z" fill="#b9ddf8"/>
+  <path d="M20.85 38.44L43.15 51.32L43.15 25.56L20.85 12.68Z" fill="none" stroke="#236ead" stroke-width="3.19" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M7.46 25.56L25.31 35.86L25.31 56.47L7.46 46.16Z" fill="#b8c3cf"/>
+  <path d="M34.23 30.71L25.31 35.86L25.31 56.47L34.23 51.32Z" fill="#8e9faf"/>
+  <path d="M16.38 20.41L34.23 30.71L25.31 35.86L7.46 25.56Z" fill="#e2e8ef"/>
+  <path d="M16.38 20.41L34.23 30.71L34.23 51.32L25.31 56.47L7.46 46.16L7.46 25.56Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M7.46 25.56L25.31 35.86L34.23 30.71" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M25.31 35.86L25.31 56.47" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

@@ -22,6 +22,7 @@ pub static COMMANDS: &[CommandSpec] = &[
          reverse-DNS key such as com.example.tool (an object; null removes) → metadata, changed: [keys]",
     ),
     CommandSpec::new("document.metadata.remove", "Remove Design Property", remove)
+        .icon("delete")
         .doc_only()
         .params("key, or keys: [keys] (any key, also one another tool wrote) → metadata, removed: [keys that were there]"),
 ];

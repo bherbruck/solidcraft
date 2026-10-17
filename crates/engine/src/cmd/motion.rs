@@ -30,35 +30,41 @@ macro_rules! trace_doc {
 }
 
 pub static COMMANDS: &[CommandSpec] = &[
-    CommandSpec::new("contact.enable_sets", "Enable Contact Sets", enable_sets).at("SOLID", "ASSEMBLE").icon("joint").params(
+    CommandSpec::new("contact.enable_sets", "Enable Contact Sets", enable_sets).at("SOLID", "ASSEMBLE").icon("contact_sets").params(
         "enabled?: bool (default true) — driving joints and motion studies stop where bodies in one contact set would pass through each other",
     ),
     CommandSpec::new("contact.enable_all", "Enable All Contact", enable_all)
         .at("SOLID", "ASSEMBLE")
-        .icon("joint")
+        .icon("contact_all")
         .params("every occurrence takes part in contact (one set of all)"),
-    CommandSpec::new("contact.disable_all", "Disable Contact", disable_all).at("SOLID", "ASSEMBLE").icon("joint").params("contact off"),
+    CommandSpec::new("contact.disable_all", "Disable Contact", disable_all).at("SOLID", "ASSEMBLE").icon("contact_off").params("contact off"),
     CommandSpec::new("contact.create", "New Contact Set", new_set)
         .at("SOLID", "ASSEMBLE")
-        .icon("joint")
+        .icon("contact_new")
         .params("occurrences: [ids or names] (two or more); name?"),
-    CommandSpec::new("contact.edit", "Edit Contact Set", edit_set).params("set: id|name; occurrences?; name?; suppressed?: bool; delete?: bool"),
-    CommandSpec::new("contact.list", "List Contact Sets", list_sets).noundo().doc_only().params("→ sets, enabled, all"),
-    CommandSpec::new("contact.check", "Check Contact", check).noundo().params("→ pairs in contact sets that pass through each other now"),
-    CommandSpec::new("motion.study", "Motion Study", study).at("SOLID", "ASSEMBLE").icon("joint").params(
+    CommandSpec::new("contact.edit", "Edit Contact Set", edit_set)
+        .icon("edit")
+        .params("set: id|name; occurrences?; name?; suppressed?: bool; delete?: bool"),
+    CommandSpec::new("contact.list", "List Contact Sets", list_sets).icon("list").noundo().doc_only().params("→ sets, enabled, all"),
+    CommandSpec::new("contact.check", "Check Contact", check)
+        .icon("interference")
+        .noundo()
+        .params("→ pairs in contact sets that pass through each other now"),
+    CommandSpec::new("motion.study", "Motion Study", study).at("SOLID", "ASSEMBLE").icon("play").params(
         "name?; study? (edit an existing one); steps? (timeline length, default 100); keys: [{joint, index?, points: [[step, value], …]}] \
          (values: degrees for angles, mm for distances, or expressions)",
     ),
-    CommandSpec::new("motion.play", "Play Motion Study", play).params(
+    CommandSpec::new("motion.play", "Play Motion Study", play).icon("play").params(
         "study: id|name; step (0…steps) — sets the joints to the study's values there (contact sets stop them); quiet?: bool \
          (positions of only the occurrences that moved) → values: [{joint, values: [{name, value, unit}]}], positions, moved: whether \
          any occurrence moved, unmoved: [{joint, name, reason}] (keyed joints that can move nothing, such as a chain joined to \
          nothing grounded)",
     ),
     CommandSpec::new("motion.export", "Export Motion Study", export)
+        .icon("export")
         .noundo()
         .params("study; samples? (default steps + 1); path? (.json or .csv) → occurrence positions per step (the design is not changed)"),
-    CommandSpec::new("motion.export_animation", "Export Motion Animation", animation::export).noundo().params(
+    CommandSpec::new("motion.export_animation", "Export Motion Animation", animation::export).icon("export").noundo().params(
         "study: id|name, or joint: id|name with from and to (degrees for angles, mm for distances, or expressions) and index?;          path: a .gif file, or a folder for PNG frames (frame-0001.png, frame-0002.png, …); samples? (frames, 2…1000; default the          study's steps + 1, or 100); width?, height? (16…4096 pixels, default 800 × 500); camera?: {target, yaw, pitch, roll?,          distance, fov?, up?} (ui.camera's reply; fields left out keep the default view: view.apply's camera, or the home view          framing the model); fps? (1…50, default 20); grid?, axes? (default true: the ground grid and the origin's axes) - draws the study as it plays, or the joint as it is driven, with the headless          renderer → path, format, frames, width, height, fps (GIF), bytes, renderer, stopped_at, stopped_by_loop,          stopped_by_contact (the design is not changed)",
     ),
     CommandSpec::new("motion.trace", "Motion Trace", trace).at("SOLID", "ASSEMBLE").icon("trace").noundo().params(concat!(
@@ -66,24 +72,25 @@ pub static COMMANDS: &[CommandSpec] = &[
         " → points: [[x,y,z]…] world positions, samples (taken), stopped_at (the sample where the motion stopped short; the trace \
          ends there), stopped_by_loop, stopped_by_contact (the design is not changed)"
     )),
-    CommandSpec::new("motion.trace.keep", "Keep Motion Trace", keep_trace).params(concat!(
+    CommandSpec::new("motion.trace.keep", "Keep Motion Trace", keep_trace).icon("trace").params(concat!(
         trace_doc!(),
         "; name? (default Motion TraceN) - keeps the trace as a 3D sketch spline through its points (a new sketch with 3D Sketch \
          on, in the root component, where no joint moves it; a fixed curve, it does not follow later changes) → sketch, name, curves, points"
     )),
-    CommandSpec::new("motion.plot", "Plot Motion Study", analysis::plot).noundo().params(analysis::PLOT_DOC),
-    CommandSpec::new("motion.interference", "Motion Interference", analysis::interference).noundo().params(analysis::INTERFERENCE_DOC),
-    CommandSpec::new("motion.list", "List Motion Studies", list_studies).noundo(),
-    CommandSpec::new("motion.delete", "Delete Motion Study", delete_study).params("study"),
-    CommandSpec::new("explode.create", "Exploded View", explode_create).at("SOLID", "ASSEMBLE").icon("joint").params(
+    CommandSpec::new("motion.plot", "Plot Motion Study", analysis::plot).icon("graph").noundo().params(analysis::PLOT_DOC),
+    CommandSpec::new("motion.interference", "Motion Interference", analysis::interference).icon("interference").noundo().params(analysis::INTERFERENCE_DOC),
+    CommandSpec::new("motion.list", "List Motion Studies", list_studies).icon("list").noundo(),
+    CommandSpec::new("motion.delete", "Delete Motion Study", delete_study).icon("delete").params("study"),
+    CommandSpec::new("explode.create", "Exploded View", explode_create).at("SOLID", "ASSEMBLE").icon("explode").params(
         "name?; scale? (automatic: each occurrence pushed away from the assembly's centre by scale × its offset, default 1); \
          moves?: [{occurrence, translate: [x,y,z]}] (instead of automatic)",
     ),
     CommandSpec::new("explode.show", "Show Exploded View", explode_show)
+        .icon("explode")
         .noundo()
         .params("view: id|name (or none: back to the assembled placement) — shown only; the design keeps its placements"),
-    CommandSpec::new("explode.list", "List Exploded Views", explode_list).noundo(),
-    CommandSpec::new("explode.delete", "Delete Exploded View", explode_delete).params("view"),
+    CommandSpec::new("explode.list", "List Exploded Views", explode_list).icon("list").noundo(),
+    CommandSpec::new("explode.delete", "Delete Exploded View", explode_delete).icon("delete").params("view"),
 ];
 
 const MAX_ITEMS: usize = 10_000;

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Render image</title>
+  <path d="M11 12L53 12A5 5 0 0 1 58 17L58 47A5 5 0 0 1 53 52L11 52A5 5 0 0 1 6 47L6 17A5 5 0 0 1 11 12Z" fill="#e2e8ef"/>
+  <path d="M7 46L7 44L22 28L33 40L40 33L57 49L57 47A5 5 0 0 1 52 52L12 52A5 5 0 0 1 7 46Z" fill="#328bd3"/>
+  <path d="M11 12L53 12A5 5 0 0 1 58 17L58 47A5 5 0 0 1 53 52L11 52A5 5 0 0 1 6 47L6 17A5 5 0 0 1 11 12Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M46 14Q47.2 22.8 56 24Q47.2 25.2 46 34Q44.8 25.2 36 24Q44.8 22.8 46 14Z" fill="#236ead"/>
+</svg>

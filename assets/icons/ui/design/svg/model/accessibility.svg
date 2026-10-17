@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Accessibility</title>
+  <path d="M7.65 35.4L32 49.46L32 61.76L7.65 47.7Z" fill="#328bd3"/>
+  <path d="M56.35 35.4L32 49.46L32 61.76L56.35 47.7Z" fill="#236ead"/>
+  <path d="M32 21.34L56.35 35.4L32 49.46L7.65 35.4Z" fill="#e2e8ef"/>
+  <path d="M32 21.34L56.35 35.4L56.35 47.7L32 61.76L7.65 47.7L7.65 35.4Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M7.65 35.4L32 49.46L56.35 35.4" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 49.46L32 61.76" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22.31 26.61L22.31 35.4A9.69 5.59 0 0 0 41.69 35.4L41.69 26.61Z" fill="#328bd3"/>
+  <path d="M35.39 26.61L35.39 40.64A9.69 5.59 0 0 0 41.69 35.4L41.69 26.61Z" fill="#236ead"/>
+  <path d="M22.31 26.61L22.31 35.4A9.69 5.59 0 0 0 41.69 35.4L41.69 26.61Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22.31 26.61A9.69 5.59 0 1 0 41.69 26.61A9.69 5.59 0 1 0 22.31 26.61Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M38.66 3.76L38.66 25.73A2.48 1.43 0 0 0 43.61 25.73L43.61 3.76Z" fill="#236ead"/>
+  <path d="M38.66 25.73L41.13 33.73L43.61 25.73Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M38.66 3.76L38.66 25.73A2.48 1.43 0 0 0 43.61 25.73L43.61 3.76Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M38.66 3.76A2.48 1.43 0 1 0 43.61 3.76A2.48 1.43 0 1 0 38.66 3.76Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

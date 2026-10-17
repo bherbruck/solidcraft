@@ -7,7 +7,7 @@ use solidcraft_engine::Sel;
 use solidcraft_engine::geom::{Vec2, Vec3};
 use solidcraft_engine::render::{Camera, Mat4, Rgb};
 use solidcraft_engine::sketch::CurveKind;
-use solidcraft_engine::view::{colors, grid_plane, grid_step, sketch_lines_with_sampler};
+use solidcraft_engine::view::{GridPlane, colors, grid_plane, grid_step, sketch_lines_with_sampler};
 use std::hash::{Hash, Hasher};
 
 use crate::gpu::{Frame, GpuScene, GpuTarget, SceneSlot, ViewportCallback};
@@ -130,6 +130,9 @@ pub struct ViewportState {
     pub(crate) text_drag: Option<(u64, String)>,
     /// A part that joints place, being dragged.
     pub(crate) joint_drag: Option<crate::joint_drag::Drag>,
+    /// The plane the grid was last drawn on while Preferences ▸ Grid follows the view is on
+    /// (#1470), kept so the choice is hysteretic near the thresholds (#1993).
+    pub(crate) grid_plane: std::sync::Mutex<GridPlane>,
 }
 
 /// Something under the cursor.
@@ -267,7 +270,7 @@ pub fn scene_radius(app: &SolveApp) -> f64 {
 
 pub fn projection(app: &SolveApp, rect: Rect) -> Proj {
     let mut cam = app.cam;
-    cam.fov = if app.ui.perspective { 0.6 } else { 0.0 };
+    cam.fov = if app.perspective_view() { 0.6 } else { 0.0 };
     let aspect = rect.width() as f64 / rect.height().max(1.0) as f64;
     Proj { cam, vp: cam.view_proj(aspect, scene_radius(app)), rect }
 }
@@ -316,6 +319,9 @@ fn scene_key(app: &SolveApp) -> u64 {
 fn sketch_scene_key(app: &SolveApp, proj: &Proj) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     scene_key(app).hash(&mut h);
+    // The grid this scene draws follows the view when the preference says so (#1470): turning it
+    // on or off redraws even while the camera holds still.
+    app.preferences.grid_follows_view.hash(&mut h);
     (std::sync::Arc::as_ptr(&app.session.world_state()) as usize).hash(&mut h);
     crate::sketch_display::projection_key(proj, app.viewport.pixels_per_point()).hash(&mut h);
     h.finish()
@@ -695,7 +701,7 @@ fn build_scene(app: &SolveApp) -> GpuScene {
     // Continuity analysis: each seam `inspect.continuity` measured, drawn over the model in the
     // colour of its worst verdict.
     for seam in &s.continuity {
-        let col = continuity_color(seam.verdict);
+        let col = c4(continuity_color(&tk, seam.verdict));
         for w in seam.points.windows(2) {
             if let (Some(a), Some(b)) = (w.first(), w.get(1)) {
                 sc.line(a.to_f32(), b.to_f32(), col, 2.6, true);
@@ -706,16 +712,17 @@ fn build_scene(app: &SolveApp) -> GpuScene {
     sc
 }
 
-/// The colour of a measured seam: green within every tolerance, yellow where the faces only
-/// meet at an angle (over G1), red where they do not meet at all or the curvature jumps across
-/// them (over G2, the defect no chord tolerance shows). The greens, yellows and reds are the
-/// ones the shader's own analyses use (`assets/shaders/viewport.wgsl`).
-fn continuity_color(verdict: solidcraft_engine::kernel::SeamVerdict) -> [u8; 4] {
+/// The colour of a measured seam, one per verdict from the theme's `continuity` tokens: within
+/// every tolerance (G2), tangent with a curvature jump (G1), a crease (G0), and faces that do
+/// not meet.
+fn continuity_color(t: &Tokens, verdict: solidcraft_engine::kernel::SeamVerdict) -> Color32 {
     use solidcraft_engine::kernel::SeamVerdict as V;
+    let [smooth, jump, sharp, gap] = t.continuity;
     match verdict {
-        V::Smooth => [51, 191, 77, 255],
-        V::Sharp => [242, 204, 38, 255],
-        V::CurvatureJump | V::Gap => [217, 56, 51, 255],
+        V::Smooth => smooth,
+        V::CurvatureJump => jump,
+        V::Sharp => sharp,
+        V::Gap => gap,
     }
 }
 
@@ -732,7 +739,16 @@ fn build_sketch_scene(app: &SolveApp, proj: &Proj) -> GpuScene {
         // The ground plane: XY with Z up, XZ with Y up (laid out in the camera's Z-up frame), or
         // the upright origin plane facing the view when the ground is seen edge-on.
         let tf = app.cam.to_frame(app.cam.target);
-        let (u, v) = grid_plane(app.cam.to_frame(app.cam.back()));
+        // On the ground (XY) unless the Grid follows the view preference is on (#1470); then on
+        // the plane the last frame drew, so the choice is hysteretic near the thresholds (#1993).
+        let (u, v) = if app.preferences.grid_follows_view {
+            app.viewport.grid_plane.lock().map_or((Vec3::X, Vec3::Y), |mut last| {
+                *last = grid_plane(app.cam.to_frame(app.cam.back()), *last);
+                last.axes()
+            })
+        } else {
+            (Vec3::X, Vec3::Y)
+        };
         let snap = |a: Vec3| a * ((tf.dot(a) / major).round() * major);
         let c = snap(u) + snap(v);
         let w3 = |p: Vec3| app.cam.from_frame(p).to_f32();
@@ -1102,7 +1118,7 @@ pub(crate) fn pick_cached(app: &mut SolveApp, proj: &Proj, pos: Pos2) -> Vec<Hit
     app.dialog.as_ref().and_then(|d| d.active_input()).map(|i| i.accept).hash(&mut h);
     app.session.visibility.hidden_bodies.hash(&mut h);
     app.session.visibility.hidden_occurrences.hash(&mut h);
-    app.ui.perspective.hash(&mut h);
+    app.perspective_view().hash(&mut h);
     (proj.rect.width().to_bits(), proj.rect.height().to_bits()).hash(&mut h);
     crate::sketch_display::projection_key(proj, app.viewport.pixels_per_point()).hash(&mut h);
     let key = h.finish();
@@ -1666,6 +1682,12 @@ pub fn hit_sel(h: &Hit) -> Option<Sel> {
         Hit::Plane { name, .. } => Sel::Plane { name: name.clone() },
         Hit::Axis { name } => Sel::Axis { name: name.clone() },
     })
+}
+
+/// What lights up under the pointer while a tool runs: the nearest hit its click takes.
+fn tool_hover(app: &SolveApp, hits: &[Hit]) -> Option<Hit> {
+    let cmd = app.tool.as_ref()?.cmd;
+    hits.iter().find(|h| crate::sketch_tools::takes(cmd, h)).cloned()
 }
 
 /// What a click would pick: the first hit the open dialog's active input accepts, or with no
@@ -2314,7 +2336,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
     // corner drawn from the origin is the fixed origin, which ends no two curves.
     let corner = hover.filter(|_| inside && !navigating).and_then(|p| crate::sketch_modify_ui::corner_hit(app, &proj, p));
     let cand = if app.tool.is_some() {
-        hits.first().cloned().map(|h| (h, None))
+        tool_hover(app, &hits).map(|h| (h, None))
     } else if let Some((hit, sel)) = corner {
         Some((hit, Some(sel)))
     } else {
@@ -2439,7 +2461,11 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
             crate::tools::on_click(app, &proj, a);
             app.viewport.draw_drag = app.tool.as_ref().is_some_and(|t| t.pts.len() == 1);
         }
-        if resp.clicked() && !held {
+        let reference_pick = (resp.clicked() || resp.double_clicked())
+            && !held
+            && app.dialog.is_none()
+            && crate::dim_view::pick_reference(ui.ctx(), p, resp.double_clicked());
+        if resp.clicked() && !held && !reference_pick {
             if app.tool.is_some() {
                 crate::tools::on_click(app, &proj, p);
             } else if app.dialog.as_ref().is_some_and(|d| d.wants_picks()) {
@@ -2486,6 +2512,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
         // Double-click a dimension: edit its value in place.
         let dim_edit = resp.double_clicked()
             && !held
+            && !crate::dim_view::editing()
             && app.tool.is_none()
             && app.dialog.is_none()
             && (crate::sketch_modify_ui::double_click_pattern(app, p) || crate::dim_view::double_click(app, p));
@@ -3150,6 +3177,7 @@ fn overlays(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
             painter.rect_filled(Rect::from_center_size(sp, vec2(5.0, 5.0)), 0.0, c);
         }
     }
+    loose_end_markers(sk, &ss.ends, &ss.plane, painter, proj, &t);
     // Sketch status.
     if let Some(r) = app.viewport.rect {
         let msg = if !ss.report.ok() {
@@ -3161,6 +3189,28 @@ fn overlays(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
         };
         let c = if ss.report.ok() { t.sketch_accent } else { t.error };
         painter.text(pos2(r.left() + 12.0, r.top() + 12.0), Align2::LEFT_TOP, msg, FontId::proportional(13.0), c);
+    }
+}
+
+/// Where a profile can fail: a ring round each open end (it touches no other curve) and a
+/// diamond round each untied one (it touches another curve only by position), told apart by
+/// shape. Both are warnings, not errors: an open sketch (a sweep path, an axis) is valid.
+fn loose_end_markers(
+    sk: &solidcraft_engine::sketch::Sketch,
+    ends: &solidcraft_engine::sketch::EndReport,
+    plane: &solidcraft_engine::geom::Plane,
+    painter: &egui::Painter,
+    proj: &Proj,
+    t: &Tokens,
+) {
+    let screen = |i: usize| sk.point(i).and_then(|p| proj.to_screen(plane.to_world(p)));
+    for sp in ends.open.iter().filter_map(|&i| screen(i)) {
+        painter.circle_stroke(sp, 7.0, Stroke::new(1.8, t.warning));
+    }
+    for sp in ends.untied.iter().filter_map(|u| screen(u.point)) {
+        let r = 7.5;
+        let diamond = vec![pos2(sp.x, sp.y - r), pos2(sp.x + r, sp.y), pos2(sp.x, sp.y + r), pos2(sp.x - r, sp.y)];
+        painter.add(egui::Shape::closed_line(diamond, Stroke::new(1.8, t.warning)));
     }
 }
 
@@ -3348,7 +3398,8 @@ pub(crate) fn nearest_quarter_turn(yaw: f64) -> f64 {
 }
 
 /// Navigation bar (bottom centre).
-/// Turn the view to face the selected planar face or plane, else the active sketch.
+/// Turn the view to face the selected planar face or plane, else the active sketch; asked again
+/// while it already faces it, from the other side (#1886).
 pub fn look_at_selection(app: &mut SolveApp) {
     let target = app.session.selection.iter().find_map(|s| match s {
         Sel::Face { body, index, point } => crate::dialogs::planar_face(&app.session, body, *index).map(|(_, n)| (*point, n)),
@@ -3357,11 +3408,11 @@ pub fn look_at_selection(app: &mut SolveApp) {
     });
     match target {
         Some((p, n)) => {
-            let mut to = app.cam.looking_from(n);
+            let mut to = app.cam.looking_from(crate::dialogs::facing(app, n, true));
             to.target = p;
             app.animate_to(to);
         }
-        None => crate::dialogs::look_at_sketch(app),
+        None => crate::dialogs::look_at_sketch_again(app),
     }
 }
 
@@ -3505,6 +3556,127 @@ fn view_menu(app: &mut SolveApp, ui: &mut egui::Ui, button: Rect) -> bool {
 mod tests {
     use super::*;
     use crate::navigation::*;
+
+    /// Every tangent seam Continuity Analysis reports keeps its colour while the pointer rests on
+    /// a face (#1247): a 60 x 40 x 20 box with its four top edges rounded (6 mm) has eight, four
+    /// against the sides and four against the top face. The tool lit the face under the pointer,
+    /// though its click takes only edges, and the face's outline covered the colours of its
+    /// edges. Rendered offscreen with bodies built on the CPU and evaluated on the GPU (skipped
+    /// without a GPU adapter); with `SOLIDCRAFT_CONTINUITY_TOP_SHOT` set, the pictures are
+    /// written there (`-cpu.png`, `-gpu.png`).
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn continuity_colours_stay_on_the_edges_of_the_face_under_the_pointer() {
+        use solidcraft_engine::kernel::SeamVerdict;
+        let mut s = solidcraft_engine::Session::default();
+        s.execute("solid.box", &json!({"length": 60, "width": 40, "height": 20, "body_name": "B"})).unwrap();
+        s.execute("solid.fillet", &json!({"edges": [[30, 0, 20], [30, 40, 20], [0, 20, 20], [60, 20, 20]], "radius": 6})).unwrap();
+        let mut app = SolveApp::new(s, crate::Services::default());
+        app.fit_view();
+        // The toolbar button: every seam shaded, the tool left picking edges.
+        app.start("inspect.continuity");
+        let tangent = |app: &SolveApp| app.session.continuity.iter().filter(|seam| seam.verdict == SeamVerdict::CurvatureJump).count();
+        assert_eq!(tangent(&app), 8);
+        const SIZE: u32 = 512; // rows of 256-byte multiples (the copy alignment)
+        let rect = Rect::from_min_size(Pos2::ZERO, vec2(SIZE as f32, SIZE as f32));
+        // The pointer rests in the middle of the top face, away from its edges: the tool takes
+        // only edges, so nothing there lights up over the analysis.
+        let proj = projection(&app, rect);
+        let middle = proj.to_screen(Vec3::new(30.0, 20.0, 20.0)).unwrap();
+        let hits = pick_cached(&mut app, &proj, middle);
+        assert!(matches!(hits.first(), Some(Hit::Face { .. })), "{hits:?}");
+        app.viewport.hover = tool_hover(&app, &hits);
+        assert_eq!(app.viewport.hover, None);
+        let t = Tokens::get();
+        let g1 = t.continuity[1];
+        // Each tangent seam lies in one flat face (the top, or a side under its round): that
+        // face's outward normal, and the seam shows where it faces the eye (the body is convex).
+        let flat_normal = |e: &[Vec3]| {
+            let on = |f: fn(&Vec3) -> f64, at: f64| e.iter().all(|p| (f(p) - at).abs() < 1e-6);
+            [
+                (on(|p| p.z, 20.0), Vec3::Z),
+                (on(|p| p.y, 0.0), -Vec3::Y),
+                (on(|p| p.y, 40.0), Vec3::Y),
+                (on(|p| p.x, 0.0), -Vec3::X),
+                (on(|p| p.x, 60.0), Vec3::X),
+            ]
+            .into_iter()
+            .find_map(|(lies, n)| lies.then_some(n))
+        };
+        for tess in [false, true] {
+            app.viewport.gpu = Some(GpuTarget { format: egui_wgpu::wgpu::TextureFormat::Rgba8Unorm, depth: None, samples: 1, tess });
+            let proj = projection(&app, rect);
+            let e = proj.cam.eye().to_f32();
+            let eye = [e[0], e[1], e[2], if proj.cam.fov > 0.0 { 1.0 } else { 0.0 }];
+            let Some(img) = crate::gpu::render_offscreen(
+                build_scene(&app).merged(),
+                Some(build_highlight(&app)),
+                proj.vp.to_f32(),
+                proj.cam.back().to_f32(),
+                eye,
+                SIZE,
+                tess.then_some(solidcraft_gpu::SHADER),
+                [0.0; 8],
+                crate::gpu::analysis_colors(&t.analysis),
+            ) else {
+                eprintln!("skipping: no GPU adapter");
+                return;
+            };
+            if let Ok(path) = std::env::var("SOLIDCRAFT_CONTINUITY_TOP_SHOT")
+                && let Some(png) = image::RgbaImage::from_raw(SIZE, SIZE, img.clone())
+            {
+                png.save(path.replace(".png", if tess { "-gpu.png" } else { "-cpu.png" })).unwrap();
+            }
+            let lit = |x: i64, y: i64| {
+                (0..SIZE as i64).contains(&x)
+                    && (0..SIZE as i64).contains(&y)
+                    && img[((y * SIZE as i64 + x) * 4) as usize..][..3].iter().zip([g1.r(), g1.g(), g1.b()]).all(|(a, b)| a.abs_diff(b) <= 12)
+            };
+            let mut seen = 0;
+            for seam in app.session.continuity.iter().filter(|seam| seam.verdict == SeamVerdict::CurvatureJump) {
+                let (a, b) = (seam.points[0], seam.points[seam.points.len() - 1]);
+                let normal = flat_normal(&seam.points).unwrap_or_else(|| panic!("a tangent seam off the flat faces: {a:?}..{b:?}"));
+                if normal.dot(proj.cam.eye() - a.lerp(b, 0.5)) <= 0.0 {
+                    continue;
+                }
+                seen += 1;
+                // In its colour a quarter, half and three quarters along.
+                for f in [0.25, 0.5, 0.75] {
+                    let p = a.lerp(b, f);
+                    let q = proj.to_screen(p).unwrap();
+                    let (x, y) = (q.x.round() as i64, q.y.round() as i64);
+                    let drawn = (-2..=2).any(|dy| (-2..=2).any(|dx| lit(x + dx, y + dy)));
+                    assert!(drawn, "tess {tess}: tangent seam {a:?}..{b:?} is not drawn in its colour at {p:?} ({x}, {y})");
+                }
+            }
+            assert_eq!(seen, 6, "the four top seams and the two sides facing the eye");
+        }
+        // On an edge, the edge lights up: what a click measures.
+        let proj = projection(&app, rect);
+        let on_edge = proj.to_screen(Vec3::new(30.0, 6.0, 20.0)).unwrap();
+        let hits = pick_cached(&mut app, &proj, on_edge);
+        assert!(matches!(tool_hover(&app, &hits), Some(Hit::Edge { .. })), "{hits:?}");
+    }
+
+    /// Continuity Analysis draws each seam in its verdict's `continuity` token (#770): a box
+    /// with one edge rounded shows the round's two tangent seams (G1) and the creases (G0), and
+    /// nothing in the smooth or gap colours.
+    #[test]
+    fn continuity_seams_take_their_colours_from_the_theme() {
+        let mut s = solidcraft_engine::Session::default();
+        s.execute("solid.box", &json!({"length": 20, "width": 20, "height": 20})).unwrap();
+        s.execute("solid.fillet", &json!({"edges": [[20, 20, 10]], "radius": 4})).unwrap();
+        s.execute("inspect.continuity", &json!({})).unwrap();
+        let app = SolveApp::new(s, crate::Services::default());
+        let sc = build_scene(&app);
+        // An overlay line is two points, a colour and a width: 32 bytes.
+        let colours: Vec<[u8; 4]> = sc.overlay.as_chunks::<32>().0.iter().map(|r| [r[24], r[25], r[26], r[27]]).collect();
+        let t = Tokens::get();
+        let count = |c: Color32| colours.iter().filter(|x| **x == c4(c)).count();
+        let [smooth, jump, sharp, gap] = t.continuity.map(count);
+        assert!(jump > 0 && sharp > 0, "tangent seams {jump}, creases {sharp} segments");
+        assert_eq!((smooth, gap), (0, 0));
+    }
 
     /// Bodies drawn from their display plans, evaluated on the GPU, look like the same bodies
     /// built into triangles on the CPU: the sample design rendered both ways through the
@@ -4108,6 +4280,40 @@ mod tests {
             app.viewport.gpu = Some(GpuTarget { format: egui_wgpu::wgpu::TextureFormat::Rgba8Unorm, depth: None, samples: 1, tess: false });
         }
         app
+    }
+
+    fn space(pressed: bool) -> egui::Event {
+        egui::Event::Key { key: egui::Key::Space, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::default() }
+    }
+
+    /// Holding Space is a momentary pan: the drag moves the view rather than the geometry under the
+    /// pointer, in every preset. The point is over the sketch's own point, so without Space this
+    /// drag would drag it (and the undo stack would grow).
+    #[test]
+    fn holding_space_pans_instead_of_dragging_geometry() {
+        for preset in crate::prefs::NAV_PRESETS.iter().map(|p| p.id) {
+            let ctx = egui::Context::default();
+            let mut app = hover_app(false);
+            app.preferences.nav = preset.into();
+            app.ui.show_origin = false;
+            hover_frame(&mut app, &ctx, vec![]);
+            let point = projection(&app, app.viewport.rect.unwrap()).to_screen(Vec3::ZERO).unwrap();
+            let before = app.cam;
+            let undo = app.session.undo.len();
+            let press = |pressed: bool, at: Pos2| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            hover_frame(&mut app, &ctx, vec![space(true)]);
+            hover_frame(&mut app, &ctx, vec![space(true), egui::Event::PointerMoved(point), press(true, point)]);
+            hover_frame(&mut app, &ctx, vec![space(true), egui::Event::PointerMoved(point + vec2(40.0, 25.0))]);
+            assert_ne!(app.cam, before, "{preset}: holding Space must pan the view");
+            assert_eq!(app.session.undo.len(), undo, "{preset}: holding Space must not edit the design");
+            assert!(app.viewport.point_drag.is_none(), "{preset}: holding Space must not drag geometry");
+            hover_frame(&mut app, &ctx, vec![press(false, point + vec2(40.0, 25.0)), space(false)]);
+        }
     }
 
     #[test]
@@ -5892,8 +6098,14 @@ mod grid_plane_tests {
     fn plane(view: StandardView, up: UpAxis) -> (Vec3, Vec3) {
         let (yaw, pitch) = view.angles();
         let cam = Camera { yaw, pitch, up, ..Camera::default() };
-        let (u, v) = grid_plane(cam.to_frame(cam.back()));
+        let (u, v) = grid_plane(cam.to_frame(cam.back()), GridPlane::default()).axes();
         (cam.from_frame(u), cam.from_frame(v))
+    }
+
+    /// The camera frame's direction toward the eye for a view at `yaw` and `pitch` degrees.
+    fn back_at(yaw_deg: f64, pitch_deg: f64) -> Vec3 {
+        let cam = Camera { yaw: yaw_deg.to_radians(), pitch: pitch_deg.to_radians(), ..Camera::default() };
+        cam.to_frame(cam.back())
     }
 
     /// #1470: the grid lies on the ground unless the view sees the ground edge-on; then it lies on
@@ -5913,6 +6125,83 @@ mod grid_plane_tests {
                 assert!((n.dot(back).abs() - 1.0).abs() < 1e-9, "{view:?} {up:?}: facing the view");
             }
         }
+    }
+
+    /// #1993: the view has to turn clearly off the ground before the grid leaves it, and clearly
+    /// away from a wall before it goes back, so a view wobbling at the threshold does not flicker.
+    #[test]
+    fn the_grid_plane_thresholds_have_hysteresis() {
+        // 9°: edge-on enough to enter the wall.
+        assert_eq!(grid_plane(back_at(0.0, 9.0), GridPlane::Ground), GridPlane::Xz);
+        // 12°: past the entering limit, but not enough to leave a wall the grid is already on.
+        assert_eq!(grid_plane(back_at(0.0, 12.0), GridPlane::Ground), GridPlane::Ground);
+        assert_eq!(grid_plane(back_at(0.0, 12.0), GridPlane::Xz), GridPlane::Xz);
+        // 16°: clearly off the ground, so even a wall goes back.
+        assert_eq!(grid_plane(back_at(0.0, 16.0), GridPlane::Xz), GridPlane::Ground);
+        // Below the ground the same, and a view straight down stays on the ground.
+        assert_eq!(grid_plane(back_at(30.0, -12.0), GridPlane::Yz), GridPlane::Yz);
+        assert_eq!(grid_plane(Vec3::new(0.0, 0.0, 1.0), GridPlane::Xz), GridPlane::Ground);
+        assert_eq!(grid_plane(Vec3::new(0.0, 0.0, -1.0), GridPlane::Xz), GridPlane::Ground);
+    }
+
+    /// #1993: orbiting at a low elevation keeps the wall until a side view is near; the other
+    /// wall takes over only there, never at the 45° crossing.
+    #[test]
+    fn a_low_orbit_switches_walls_only_near_a_side_view() {
+        let low = |yaw_deg: f64| back_at(yaw_deg, 3.0);
+        // Entering from the ground still picks the wall facing the view.
+        assert_eq!(grid_plane(low(44.0), GridPlane::Ground), GridPlane::Xz);
+        assert_eq!(grid_plane(low(50.0), GridPlane::Ground), GridPlane::Yz);
+        // A wall is kept across the crossing and only changes near the side view it faces.
+        assert_eq!(grid_plane(low(44.0), GridPlane::Xz), GridPlane::Xz);
+        assert_eq!(grid_plane(low(50.0), GridPlane::Xz), GridPlane::Xz, "no swap at the 45° crossing");
+        assert_eq!(grid_plane(low(70.0), GridPlane::Xz), GridPlane::Xz);
+        assert_eq!(grid_plane(low(80.0), GridPlane::Xz), GridPlane::Yz, "the Left view's wall takes over near it");
+        assert_eq!(grid_plane(low(10.0), GridPlane::Yz), GridPlane::Xz, "the Front view's wall takes over near it");
+    }
+
+    /// #1993: a hostile view direction (a design file, a control request) never panics and never
+    /// leaves the grid off the ground's axes.
+    #[test]
+    fn a_hostile_view_direction_stays_on_the_ground() {
+        for back in [Vec3::new(f64::NAN, 0.0, 0.0), Vec3::new(0.0, f64::NEG_INFINITY, 0.0), Vec3::new(0.0, 0.0, f64::INFINITY), Vec3::ZERO] {
+            assert_eq!(grid_plane(back, GridPlane::Xz), GridPlane::Ground, "{back:?}");
+        }
+    }
+
+    /// #1993: the viewport keeps the plane it drew, so the next frame's choice is hysteretic.
+    #[test]
+    fn the_viewport_keeps_the_grid_plane_between_frames() {
+        let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(800.0, 600.0));
+        let mut app = SolveApp::new(solidcraft_engine::Session::default(), crate::Services::default());
+        app.preferences.grid_follows_view = true;
+        app.cam.yaw = 0.0;
+        app.cam.pitch = 0.0;
+        let _ = build_sketch_scene(&app, &projection(&app, rect));
+        assert_eq!(*app.viewport.grid_plane.lock().unwrap(), GridPlane::Xz, "the Front view takes the wall");
+        // Wobble past the entering limit: the wall stays (before #1993 it flipped to the ground).
+        app.cam.pitch = 0.23;
+        let _ = build_sketch_scene(&app, &projection(&app, rect));
+        assert_eq!(*app.viewport.grid_plane.lock().unwrap(), GridPlane::Xz, "a wobble does not flicker");
+        app.cam.pitch = 0.3;
+        let _ = build_sketch_scene(&app, &projection(&app, rect));
+        assert_eq!(*app.viewport.grid_plane.lock().unwrap(), GridPlane::Ground, "a clear turn off the ground returns");
+    }
+
+    /// A sketch is drawn in a parallel view even when the preference asks for perspective; the
+    /// preference comes back when the sketch is finished.
+    #[test]
+    fn an_open_sketch_is_drawn_orthographic() {
+        let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(800.0, 600.0));
+        let mut app = SolveApp::new(solidcraft_engine::Session::default(), crate::Services::default());
+        app.ui.perspective = true;
+        assert!(projection(&app, rect).cam.fov > 0.0);
+        app.run("sketch.create", json!({"plane": "XZ"})).unwrap();
+        assert!(!app.perspective_view());
+        assert_eq!(projection(&app, rect).cam.fov, 0.0);
+        app.finish_sketch();
+        assert!(app.ui.perspective, "the preference is left alone");
+        assert!(projection(&app, rect).cam.fov > 0.0);
     }
 
     /// Create Sketch shows the Origin even when the browser hides it, and draws its planes

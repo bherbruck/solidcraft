@@ -23,6 +23,7 @@
   <link data-trunk rel="copy-file" href="../../assets/fonts/biz-udp-gothic/BIZUDPGothic-Regular.ttf" data-target-path="fonts" />
   <link data-trunk rel="copy-file" href="../../assets/fonts/biz-udp-gothic/OFL.txt" data-target-path="fonts" />
   <link data-trunk rel="css" href="../../assets/styles/web/loading.css" />
+  <link data-trunk rel="copy-file" href="../../assets/styles/web/loading-logo.svg" />
   <!-- Installable as an app (manifest.webmanifest); the icons are the Linux exports of the app mark. -->
   <meta name="theme-color" content="#343840">
   <link rel="manifest" href="manifest.webmanifest">
@@ -35,7 +36,7 @@
 </head>
 <body>
   <canvas id="solidcraft_canvas"></canvas>
-  <div id="solidcraft_loading">Loading SolidCraft&hellip;</div>
+  <div id="solidcraft_loading" role="status"><img src="loading-logo.svg" alt=""><span class="sr-only">Loading SolidCraft&hellip;</span></div>
   <script>
     // Offline use and updates (sw.js; written into release builds by `cargo xtask web-offline`).
     if ("serviceWorker" in navigator) {

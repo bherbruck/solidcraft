@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Edit</title>
+  <path d="M10.08 53.92L23.52 50.38L53.92 19.98L44.02 10.08L13.62 40.48Z" fill="#328bd3"/>
+  <path d="M18.57 45.43L48.97 15.03L44.02 10.08L13.62 40.48Z" fill="#b9ddf8"/>
+  <path d="M10.08 53.92L23.52 50.38L13.62 40.48Z" fill="#b8c3cf"/>
+  <path d="M10.08 53.92L15.67 52.44L11.56 48.33Z" fill="#34465b"/>
+  <path d="M47.56 26.34L53.92 19.98L44.02 10.08L37.66 16.44Z" fill="#8e9faf"/>
+  <path d="M10.08 53.92L23.52 50.38L53.92 19.98L44.02 10.08L13.62 40.48Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M23.52 50.38L13.62 40.48" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M47.56 26.34L37.66 16.44" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

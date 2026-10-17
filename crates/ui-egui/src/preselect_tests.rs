@@ -6,6 +6,51 @@ use solidcraft_engine::doc::expr::Kind as ValueKind;
 use solidcraft_engine::geom::Vec3;
 use solidcraft_engine::{Sel, Session};
 
+#[test]
+fn confirming_coplanar_body_faces_uses_one_atomic_extrusion() {
+    let mut h = crate::scenario::Harness::new();
+    let parent = h.app.run("component.create", json!({"name":"Imported assembly"})).unwrap()["component"].clone();
+    h.app.run("component.create", json!({"name":"Part"})).unwrap();
+    h.app.run("solid.box", json!({"length":30,"width":20,"height":20,"body_name":"Plate"})).unwrap();
+    h.app.run("sketch.create", json!({"plane":{"origin":[0,0,20],"x_dir":[1,0,0],"y_dir":[0,1,0]}})).unwrap();
+    for x in [2, 10] {
+        h.app.run("sketch.rectangle.two_point", json!({"p0":[x,2],"p1":[x+4,6]})).unwrap();
+    }
+    h.app.run("sketch.finish", json!({})).unwrap();
+    h.app.run("solid.extrude", json!({"distance":6,"operation":"join"})).unwrap();
+    h.app.run("component.activate", json!({"component":parent})).unwrap();
+    let world = h.app.session.world_state();
+    let body = world.body("Plate").unwrap();
+    h.app.session.selection = body
+        .body
+        .faces(0.01)
+        .unwrap()
+        .into_iter()
+        .filter(|face| face.plane_normal.is_some_and(|normal| normal.z > 0.99) && (face.centroid.z - 26.0).abs() < 1e-8)
+        .map(|face| Sel::Face { body: "Plate".into(), index: face.index, point: face.centroid })
+        .collect();
+    assert_eq!(h.app.session.selection.len(), 2);
+    h.app.start("solid.extrude");
+    if let Kind::Extrude { distance, .. } = &mut h.app.dialog.as_mut().unwrap().kind {
+        *distance = "-7".into();
+    }
+    h.frames(3);
+    let commands = apply_commands(&h.app, h.app.dialog.as_ref().unwrap()).unwrap();
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands.first().unwrap().1["faces"].as_array().unwrap().len(), 2);
+    assert_eq!(commands.first().unwrap().1["face_body"], "Plate");
+    assert_eq!(commands.first().unwrap().1["operation"], "cut");
+    assert!(h.app.preview.error.is_none(), "{:?}", h.app.preview.error);
+    let undo = h.app.session.undo.len();
+    h.frames(3);
+    h.step(&json!({"key":"Enter"})).unwrap();
+    assert!(h.app.dialog.is_none(), "busy={}, dialog={:?}", h.app.applying.is_some(), h.app.dialog);
+    assert_eq!(h.app.session.doc.features.len(), 5);
+    assert_eq!(h.app.session.undo.len(), undo + 1);
+    let volume = solidcraft_engine::doc::kernel::measure(&h.app.session.model.state().body("Plate").unwrap().body).unwrap().volume;
+    assert!((volume - 11_968.0).abs() < 1e-5, "{volume}");
+}
+
 use crate::dialogs::{Dialog, Kind, apply_commands};
 use crate::{Services, SolveApp};
 
@@ -1648,4 +1693,27 @@ fn patch_dialog_rows_are_translated() {
         assert!(h.widget(continuity).is_some(), "{lang}: the Continuity row must show {continuity:?}");
         assert!(h.widget(through).is_some(), "{lang}: the points input must show {through:?}");
     }
+}
+
+/// Midplane opens a two-plane dialog. Starting it with nothing selected used to run the
+/// command and report that `a` is required.
+#[test]
+fn midplane_asks_for_two_planes_then_builds_the_one_between_them() {
+    let mut h = crate::scenario::Harness::new();
+    h.app.run("construct.plane.offset", json!({"base":"XY","offset":"20 mm","name":"Shelf"})).unwrap();
+    h.app.start("construct.plane.midplane");
+    h.frames(2);
+    let d = h.app.dialog.as_ref().unwrap();
+    assert!(matches!(d.kind, Kind::Midplane));
+    assert_eq!(d.inputs.len(), 2);
+    let status = h.app.status.as_ref().map(|s| s.0.clone()).unwrap_or_default();
+    assert!(!status.contains("is required"), "{status}");
+    h.app.dialog.as_mut().unwrap().inputs[0].items = vec![Sel::Plane { name: "XY".into() }];
+    h.app.dialog.as_mut().unwrap().inputs[1].items = vec![Sel::Plane { name: "Shelf".into() }];
+    h.step(&json!({"key":"Enter"})).unwrap();
+    assert!(h.app.dialog.is_none(), "{:?}", h.app.dialog.as_ref().and_then(|d| d.error.clone()));
+    let (_, _, pl) =
+        solidcraft_engine::view::construction_planes(&h.app.session).into_iter().find(|(_, name, _)| name != "Shelf").expect("the midplane");
+    assert!(pl.normal().cross(Vec3::Z).len() < 1e-6, "{pl:?}");
+    assert!((pl.origin.z - 10.0).abs() < 1e-6, "{pl:?}");
 }

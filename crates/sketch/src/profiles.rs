@@ -639,7 +639,9 @@ fn find_profiles_bounded(sk: &Sketch, max_edges: usize) -> Vec<Profile> {
         _ => false,
     };
     let grid = Grid::new(&boxes);
-    let mut cuts: Vec<Vec<f64>> = vec![Vec::new(); shapes.len()];
+    // Each cut's parameter, and whether it is weak: a crossing next to an end that misses one of
+    // the two curves (below), which gives way to any other cut it is merged with.
+    let mut cuts: Vec<Vec<(f64, bool)>> = vec![Vec::new(); shapes.len()];
     // End points of other curves lying on each shape.
     let mut end_cells: std::collections::HashMap<(i64, i64), Vec<usize>> = std::collections::HashMap::new();
     for (k, p) in ends.iter().enumerate() {
@@ -657,7 +659,7 @@ fn find_profiles_bounded(sk: &Sketch, max_edges: usize) -> Vec<Profile> {
                 && let Some(t) = sh.param_on(*p, tol)
                 && let Some(cu) = cuts.get_mut(i)
             {
-                cu.push(t);
+                cu.push((t, false));
             }
         }
     }
@@ -752,30 +754,35 @@ fn find_profiles_bounded(sk: &Sketch, max_edges: usize) -> Vec<Profile> {
                 for p in pts {
                     let on_x = x.param_on(p, tol).or_else(|| end_param(x, p, tol));
                     let on_y = y.param_on(p, tol).or_else(|| end_param(y, p, tol));
-                    // Crossings at (or next to) curve ends are already cuts.
-                    let near_end = || {
+                    // Crossings at (or next to) curve ends are already cuts. Not next to an end of
+                    // one of the two curves that misses the other: nothing cut the other curve
+                    // there, and it would cross without meeting it (a line 3e-5 from the
+                    // junction of two curves of a loop, #755). Such a crossing is a weak cut.
+                    let on = |sh: &Shape, e: Vec2| sh.param_on(e, tol).is_some() || end_param(sh, e, tol).is_some();
+                    let misses = |e: Vec2| (end_param(x, e, tol).is_some() && !on(y, e)) || (end_param(y, e, tol).is_some() && !on(x, e));
+                    let near_ends = || {
                         let (cx, cy) = grid.cell(p);
-                        (-1..=1).any(|dx| {
-                            (-1..=1).any(|dy| {
-                                end_cells
-                                    .get(&(cx + dx, cy + dy))
-                                    .is_some_and(|v| v.iter().any(|k| ends.get(*k).is_some_and(|e| e.dist(p) < tol * 100.0)))
-                            })
-                        })
+                        (-1..=1)
+                            .flat_map(|dx| (-1..=1).map(move |dy| (cx + dx, cy + dy)))
+                            .flat_map(|c| end_cells.get(&c).map(Vec::as_slice).unwrap_or(&[]))
+                            .filter_map(|k| ends.get(*k).copied())
+                            .filter(|e| e.dist(p) < tol * 100.0)
+                            .fold((false, false), |(cut, weak), e| if misses(e) { (cut, true) } else { (true, weak) })
                     };
-                    if on_x.is_none() || on_y.is_none() || near_end() {
+                    let (already, weak) = near_ends();
+                    if on_x.is_none() || on_y.is_none() || already {
                         continue;
                     }
                     if let (Some(tx), Some(ty)) = (on_x, on_y) {
                         if x.param_on(p, tol).is_some()
                             && let Some(c) = cuts.get_mut(i)
                         {
-                            c.push(tx);
+                            c.push((tx, weak));
                         }
                         if y.param_on(p, tol).is_some()
                             && let Some(c) = cuts.get_mut(j)
                         {
-                            c.push(ty);
+                            c.push((ty, weak));
                         }
                         if (gi, gj) != (i, j) {
                             anchors.push(p);
@@ -815,21 +822,33 @@ fn find_profiles_bounded(sk: &Sketch, max_edges: usize) -> Vec<Profile> {
     let mut edges: Vec<Edge> = Vec::new();
     for (k, (ci, sh)) in shapes.iter().enumerate() {
         let mut ts = cuts.get(k).cloned().unwrap_or_default();
-        ts.sort_by(f64::total_cmp);
+        ts.sort_by(|a, b| a.0.total_cmp(&b.0));
         // Cuts closer than a few tolerances are one cut (tangent touches give near-double roots).
+        // A weak cut gives way to the other: it only adds a cut where there was none.
         let scale = match *sh {
             Shape::Line { a, b } => a.dist(b),
             Shape::Round { r, .. } => r,
         };
         let close = (tol * 100.0 / scale.max(1e-12)).max(1e-9);
-        ts.dedup_by(|a, b| (*a - *b).abs() < close);
+        ts.dedup_by(|a, b| {
+            let same = (a.0 - b.0).abs() < close;
+            if same && b.1 && !a.1 {
+                *b = *a;
+            }
+            same
+        });
         if let (Shape::Round { sweep, .. }, Some(&first), Some(&last)) = (*sh, ts.first(), ts.last())
             && sweep >= TAU - 1e-12
             && ts.len() > 1
-            && (first + TAU - last).abs() < close
+            && (first.0 + TAU - last.0).abs() < close
         {
-            ts.pop();
+            if first.1 && !last.1 {
+                ts.remove(0);
+            } else {
+                ts.pop();
+            }
         }
+        let ts: Vec<f64> = ts.into_iter().map(|(t, _)| t).collect();
         let id = sk.curves.get(*ci).map(|c| c.id.clone()).unwrap_or_default();
         let analytic = analytic(*ci);
         let coverage = tags.get(k).copied().flatten().or_else(|| {

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Joint origin</title>
+  <path d="M26.03 34.5L26.03 11.5" fill="none" stroke="#ffffff" stroke-width="9.75" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.03 4.5L32.03 15.5L20.03 15.5Z" fill="#ffffff" stroke="#ffffff" stroke-width="5.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.03 34.5L43.24 30.2" fill="none" stroke="#ffffff" stroke-width="9.75" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M50.03 28.5L40.81 36.99L37.9 25.35Z" fill="#ffffff" stroke="#ffffff" stroke-width="5.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.03 34.5L17.85 53.09" fill="none" stroke="#ffffff" stroke-width="9.75" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M15.03 59.5L13.97 47.02L24.95 51.85Z" fill="#ffffff" stroke="#ffffff" stroke-width="5.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.03 34.5L26.03 11.5" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.03 4.5L32.03 15.5L20.03 15.5Z" fill="#236ead"/>
+  <path d="M26.03 34.5L43.24 30.2" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M50.03 28.5L40.81 36.99L37.9 25.35Z" fill="#236ead"/>
+  <path d="M26.03 34.5L17.85 53.09" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M15.03 59.5L13.97 47.02L24.95 51.85Z" fill="#236ead"/>
+  <circle cx="26.03" cy="34.5" r="9" fill="#ffffff"/>
+  <circle cx="26.03" cy="34.5" r="6.3" fill="#34465b"/>
+</svg>

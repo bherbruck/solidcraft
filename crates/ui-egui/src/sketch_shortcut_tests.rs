@@ -67,6 +67,29 @@ fn a_sketch_key_with_nothing_selected_asks_for_the_plane_then_starts_the_tool() 
     assert!(h.app.dialog.is_none());
 }
 
+/// #1804: Escape puts down the sketch tool. Another Escape does not leave the sketch.
+#[test]
+fn a_second_escape_stays_in_the_sketch() {
+    let mut h = Harness::new();
+    h.app.run("sketch.create", json!({"plane":"XY"})).unwrap();
+    let sketch = h.app.session.active_sketch;
+    h.app.start("sketch.line");
+    h.settle();
+    assert_eq!(tool(&h), Some("sketch.line"));
+    press(&mut h, "Escape");
+    assert!(tool(&h).is_none(), "the first Escape puts the tool down");
+    assert_eq!(h.app.session.active_sketch, sketch);
+    press(&mut h, "Escape");
+    assert_eq!(h.app.session.active_sketch, sketch, "a second Escape stays in the sketch");
+    h.app.run("sketch.line", json!({"points":[[0,0],[10,0]]})).unwrap();
+    h.app.session.selection = vec![Sel::SketchCurve { id: "l1".into() }];
+    press(&mut h, "Escape");
+    assert!(h.app.session.selection.is_empty(), "Escape still clears a selection");
+    assert_eq!(h.app.session.active_sketch, sketch);
+    press(&mut h, "Escape");
+    assert_eq!(h.app.session.active_sketch, sketch, "Escape after clearing the selection stays in the sketch");
+}
+
 #[test]
 fn escape_drops_the_tool_waiting_for_a_sketch() {
     let mut h = Harness::new();

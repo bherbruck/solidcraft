@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Offset surface</title>
+  <path d="M32 28.21L56.25 42.21L32 56.21L7.75 42.21Z" fill="#e2e8ef"/>
+  <path d="M32 28.21L56.25 42.21L32 56.21L7.75 42.21Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 8.21L56.25 22.21L32 36.21L7.75 22.21Z" fill="#b9ddf8" stroke="#236ead" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

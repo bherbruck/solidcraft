@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Restore</title>
+  <path d="M18 33A14 14 0 1 0 46 33A14 14 0 1 0 18 33Z" fill="#e2e8ef"/>
+  <path d="M18 33A14 14 0 1 0 46 33A14 14 0 1 0 18 33Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 25L32 33L38 37" fill="none" stroke="#236ead" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M51.92 44.5A23 23 0 1 0 10.39 40.87" fill="none" stroke="#236ead" stroke-width="3.83" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M12.03 45.38L5.06 39.4L13.52 36.32Z" fill="#236ead"/>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Folder</title>
+  <path d="M5 17Q5 12 10 12L24 12L30 18L54 18Q59 18 59 23L59 50Q59 55 54 55L10 55Q5 55 5 50Z" fill="#8e9faf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M5 31Q5 26 10 26L54 26Q59 26 59 31L59 50Q59 55 54 55L10 55Q5 55 5 50Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

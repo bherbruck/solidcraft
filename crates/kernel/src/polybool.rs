@@ -227,13 +227,36 @@ impl NotPlanar {
     }
 }
 
+/// The kind of curved surface `face` lies on, or None when it lies on a plane. `flat`: whether
+/// its mesh is flat. The meshes here are as coarse as a thousandth of the body, which spans a
+/// round much smaller than that (a 2 mm corner of a 1.2 m channel) with one flat strip of
+/// facets: the surface decides, and the mesh only for a surface none of these kinds fits.
+fn curved_kind(face: &mt::Face, flat: bool, tol: f64) -> Option<&'static str> {
+    use crate::offset::{Surf, surf_of};
+    if matches!(face.surface(), mt::Surface::Plane(_)) {
+        return None;
+    }
+    match surf_of(face, tol) {
+        Some(Surf::Plane { .. }) => None,
+        Some(Surf::Cylinder { .. }) => Some("cylinder"),
+        Some(Surf::Cone { .. }) => Some("cone"),
+        Some(Surf::Sphere { .. }) => Some("sphere"),
+        Some(Surf::Torus { .. }) => Some("torus"),
+        None => (!flat).then_some("freeform"),
+    }
+}
+
+/// The tolerance [`curved_kind`] tells surfaces apart by: face_surface's, with the body's
+/// bounds computed once. Walking to each indexed face separately made curved-body diagnostics
+/// quadratic.
+fn kind_tol(b: &Body) -> f64 {
+    (b.size() * 1e-7).max(1e-9) * 100.0
+}
+
 /// The plane of each face (from its mesh, which must be flat), or what stands in the way: the
 /// curved faces by the kind of surface they lie on.
 fn face_planes(b: &Body, faces: &[crate::FaceInfo]) -> std::result::Result<Vec<PlaneEq>, NotPlanar> {
-    use crate::offset::{Surf, surf_of};
-    // Match face_surface's classification tolerance, but compute the body bounds only
-    // once. Walking to each indexed face separately made curved-body diagnostics quadratic.
-    let surface_tol = (b.size() * 1e-7).max(1e-9) * 100.0;
+    let surface_tol = kind_tol(b);
     let mut surfaces = b.solid.face_iter();
     let mut curved: std::collections::BTreeMap<&'static str, usize> = std::collections::BTreeMap::new();
     let mut out = Vec::with_capacity(faces.len());
@@ -247,19 +270,10 @@ fn face_planes(b: &Body, faces: &[crate::FaceInfo]) -> std::result::Result<Vec<P
         if f.area <= 0.0 {
             return Err(NotPlanar::Other(format!("face {} could not be meshed", f.index)));
         }
-        match f.plane_normal {
-            Some(n) => out.push(PlaneEq { n, w: n.dot(f.centroid) }),
-            None => {
-                let kind = match surf_of(surface, surface_tol) {
-                    Some(Surf::Cylinder { .. }) => "cylinder",
-                    Some(Surf::Cone { .. }) => "cone",
-                    Some(Surf::Sphere { .. }) => "sphere",
-                    Some(Surf::Torus { .. }) => "torus",
-                    Some(Surf::Plane { .. }) => return Err(NotPlanar::Other(format!("face {} is planar but its mesh is not flat", f.index))),
-                    None => "freeform",
-                };
-                *curved.entry(kind).or_insert(0) += 1;
-            }
+        match (f.plane_normal, curved_kind(surface, f.plane_normal.is_some(), surface_tol)) {
+            (Some(n), None) => out.push(PlaneEq { n, w: n.dot(f.centroid) }),
+            (None, None) => return Err(NotPlanar::Other(format!("face {} is planar but its mesh is not flat", f.index))),
+            (_, Some(kind)) => *curved.entry(kind).or_insert(0) += 1,
         }
     }
     if surfaces.next().is_some() {
@@ -437,9 +451,14 @@ pub(crate) fn sliced_planar_boolean(a: &Body, b: &Body, op: BoolOp) -> Option<Re
     let tol = (a.size() * 1e-3).max(1e-3);
     let infos = a.faces(tol).ok()?;
     let mesh = a.tessellate(tol).ok()?;
+    // Each face's plane normal where it is planar (see [`curved_kind`]): a small round meshed
+    // flat is no plane, and taken for one the middle piece would rebuild it as a chamfer.
+    let surface_tol = kind_tol(a);
+    let planes: Vec<Option<Vec3>> =
+        a.solid.face_iter().zip(&infos).map(|(f, info)| info.plane_normal.filter(|_| curved_kind(f, true, surface_tol).is_none())).collect();
     let mut curved: BTreeMap<u32, solidcraft_geom::Aabb3> = BTreeMap::new();
     for (t, fi) in mesh.triangles.iter().zip(&mesh.tri_face) {
-        if infos.get(*fi as usize)?.plane_normal.is_some() {
+        if planes.get(*fi as usize)?.is_some() {
             continue;
         }
         let bx = curved.entry(*fi).or_insert(solidcraft_geom::Aabb3::EMPTY);
@@ -458,7 +477,7 @@ pub(crate) fn sliced_planar_boolean(a: &Body, b: &Body, op: BoolOp) -> Option<Re
     let at = |v: Vec3, k: usize| [v.x, v.y, v.z].get(k).copied().unwrap_or(0.0);
     let axes = [Vec3::X, Vec3::Y, Vec3::Z];
     // Planar faces of `a` square to an axis: a cut must not land in one of their planes.
-    let flat: Vec<(Vec3, Vec3)> = infos.iter().filter_map(|f| Some((f.plane_normal?, f.centroid))).collect();
+    let flat: Vec<(Vec3, Vec3)> = planes.iter().zip(&infos).filter_map(|(n, f)| Some(((*n)?, f.centroid))).collect();
     let gap = size * 1e-4;
     let place = |k: usize, near: f64, far: f64| -> Option<f64> {
         let axis = *axes.get(k)?;
@@ -1221,5 +1240,61 @@ mod diagnostic_tests {
         assert_eq!(face_planes(&body, &faces).err().unwrap(), NotPlanar::Other("face 0 could not be meshed".into()));
         faces[0].index = 999;
         assert_eq!(face_planes(&body, &faces).err().unwrap(), NotPlanar::Other("mesh is inconsistent".into()));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod small_round_tests {
+    use std::f64::consts::FRAC_PI_2;
+
+    use solidcraft_geom::{Loop2, Plane, Region2, Seg2, Vec2};
+
+    use super::*;
+
+    /// An `l` x `w` x 1 plate on XY with its four corners rounded (radius `r`), and a hole of
+    /// diameter 4 through it 100 from one end when `hole`.
+    fn rounded_plate(l: f64, w: f64, r: f64, hole: bool) -> Body {
+        let (x, y) = (l / 2.0, w / 2.0);
+        let corners = [(x - r, y - r), (r - x, y - r), (r - x, r - y), (x - r, r - y)];
+        let mut segs = Vec::new();
+        for (k, (cx, cy)) in corners.iter().enumerate() {
+            let start = k as f64 * FRAC_PI_2;
+            let at = |t: f64| Vec2::new(cx + r * t.cos(), cy + r * t.sin());
+            segs.push(Seg2::Arc { center: Vec2::new(*cx, *cy), radius: r, start, sweep: FRAC_PI_2 });
+            let (nx, ny) = corners[(k + 1) % 4];
+            let next = start + FRAC_PI_2;
+            segs.push(Seg2::Line { a: at(next), b: Vec2::new(nx + r * next.cos(), ny + r * next.sin()) });
+        }
+        let holes = if hole { vec![Loop2::circle(Vec2::new(x - 100.0, 0.0), 2.0).reversed()] } else { Vec::new() };
+        crate::extrude_planar_regions(&Plane::XY, &[Region2 { outer: Loop2 { segs }, holes }], 0.0, 1.0).unwrap()
+    }
+
+    /// Faces of `b` on cylinders of radius `r`.
+    fn cylinders(b: &Body, r: f64) -> usize {
+        (0..b.face_count())
+            .filter(|&i| matches!(crate::face_surface(b, i), Some(crate::FaceSurface::Cylinder { radius, .. }) if (radius - r).abs() < 1e-9))
+            .count()
+    }
+
+    /// A pocket cut into the middle of a long plate by the exact fallback leaves the plate's
+    /// small corner rounds round. Meshed at a thousandth of the 1200 mm plate (1.2 mm), each
+    /// 2 mm quarter round (its chord 0.59 mm inside the arc) is one flat strip of facets, which
+    /// was taken for a plane: the whole plate went to the polygon boolean (and, beside a round
+    /// hole, the rounds went into the planar slab around the pocket), and the rounds came back
+    /// flat chamfers, each taking r^2 (pi/4 - 1/2) = 1.14 mm^3 more than its round.
+    #[test]
+    fn a_long_plates_small_rounds_stay_round_beside_a_pocket() {
+        for hole in [false, true] {
+            let plate = rounded_plate(1200.0, 40.0, 2.0, hole);
+            assert_eq!(cylinders(&plate, 2.0), 4 + 2 * usize::from(hole));
+            // 10 x 5, 0.1 deep from the top.
+            let tool = crate::box_solid(Vec3::new(-5.0, -2.5, 0.9), Vec3::new(5.0, 2.5, 1.0)).unwrap();
+            let r = planar_boolean(&plate, &tool, BoolOp::Cut).unwrap().unwrap();
+            assert_eq!(cylinders(&r, 2.0), 4 + 2 * usize::from(hole), "hole {hole}");
+            // The pocket's 10 x 5 x 0.1 and nothing else (a flattened round takes 1.14 more).
+            let removed = crate::measure(&plate).unwrap().volume - crate::measure(&r).unwrap().volume;
+            assert!((removed - 5.0).abs() < 1e-3, "hole {hole}: removed {removed}");
+        }
     }
 }

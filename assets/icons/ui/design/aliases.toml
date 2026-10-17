@@ -1,0 +1,37 @@
+# App icon ids that reuse another master instead of carrying a copy.
+#   alias = "master"                              same artwork, default (Solid) colours
+#   alias = { master = "m", accent = "surface" }  same artwork in another accent (palette.toml)
+# Icons that mean the same operation in another workspace belong here, so they stay identical.
+[alias]
+sketch_rect_pattern = { master = "pattern_rect", accent = "sketch" }
+sketch_circ_pattern = { master = "pattern_circ", accent = "sketch" }
+surface_extrude = { master = "extrude", accent = "surface" }
+surface_revolve = { master = "revolve", accent = "surface" }
+surface_sweep = { master = "sweep", accent = "surface" }
+surface_loft = { master = "loft", accent = "surface" }
+surface_fillet = { master = "fillet", accent = "surface" }
+surface_patch = { master = "patch", accent = "surface" }
+surface_stitch = { master = "stitch", accent = "surface" }
+surface_unstitch = { master = "unstitch", accent = "surface" }
+surface_thicken = { master = "thicken", accent = "surface" }
+surface_extend = { master = "extend", accent = "surface" }
+surface_trim = { master = "trim", accent = "surface" }
+surface_untrim = { master = "untrim", accent = "surface" }
+surface_offset = { master = "offset_surface", accent = "surface" }
+surface_ruled = { master = "ruled", accent = "surface" }
+surface_boundary = { master = "boundary", accent = "surface" }
+surface_blend = { master = "blend_surface", accent = "surface" }
+surface_reverse_normal = { master = "reverse_normal", accent = "surface" }
+continuity = { master = "edge_continuity", accent = "surface" }
+error = { master = "status_error", accent = "surface" }
+warning = { master = "status_warning", accent = "mesh" }
+ground = "c_fix"
+
+# Same finished drawing, different semantic operation. Colours live only in palette.toml.
+sketch_break = { master = "break", accent = "sketch" }
+sketch_dxf = { master = "dxf", accent = "sketch" }
+sketch_move = { master = "move", accent = "sketch" }
+sketch_scale = { master = "scale", accent = "sketch" }
+sketch_text = { master = "text", accent = "sketch" }
+surface_fair = { master = "spline_cv", accent = "surface" }
+mesh_export = { master = "export", accent = "mesh" }

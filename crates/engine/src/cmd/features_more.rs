@@ -25,22 +25,22 @@ pub static COMMANDS: &[CommandSpec] = &[
     CommandSpec::new("solid.rib", "Rib", rib)
         .at("SOLID", "CREATE")
         .icon("rib")
-        .params("sketch, curves: [open curve ids, in order]; thickness (across the sketch plane); depth? (default: to the next face); flip?: bool (fill to the other side)"),
+        .params("sketch, curves: [open curve ids, in order]; thickness (across the sketch plane, or across the curves when normal); depth? (default: to the next face); flip?: bool (fill to the other side); direction?: in_plane|normal (grow across the sketch plane, the default, or along its normal)"),
     CommandSpec::new("solid.web", "Web", web)
         .at("SOLID", "CREATE")
-        .icon("rib")
-        .params("sketch, curves: [open curve ids] (one wall each); thickness; depth? (default: to the next face); flip?: bool"),
+        .icon("web")
+        .params("sketch, curves: [open curve ids] (one wall each); thickness; depth? (default: to the next face); flip?: bool; direction?: in_plane|normal"),
     CommandSpec::new("solid.emboss", "Emboss", emboss)
         .at("SOLID", "CREATE")
         .icon("emboss")
         .params("sketch, profiles?; depth; mode?: emboss|deboss; targets?; face?: world point [x,y,z] selecting a planar or complete exterior cylindrical wall (inferred when exactly one supported tangent cylinder matches the selected profiles)"),
     CommandSpec::new("solid.replace_face", "Replace Face", replace_face)
         .at("SOLID", "MODIFY")
-        .icon("offset_face")
+        .icon("replace_face")
         .params("faces: [[x,y,z] points on planar faces, or face names from model.faces]; target: plane (XY|XZ|YZ|construction plane|{origin, normal}) | target_face: [x,y,z] on a parallel planar face; body?"),
     CommandSpec::new("solid.align", "Align", align)
         .at("SOLID", "MODIFY")
-        .icon("move")
+        .icon("align")
         .params("bodies: [names]; from: [x,y,z] | {snap: vertex|edge_mid|face_center|circle_center, at: [x,y,z]} | from_face: [x,y,z]; to: (the same) | to_face: [x,y,z] (faces also turn to meet); flip?: bool"),
     CommandSpec::new("solid.remove", "Remove", remove).at("SOLID", "MODIFY").icon("delete").params("bodies: [names] (removed from here on in the timeline)"),
 ];
@@ -133,7 +133,12 @@ fn rib_like(s: &mut Session, p: &Value, cmd: &str, web: bool) -> Result<Value> {
         check_expr(s, d, Kind::Length, cmd, "depth")?;
     }
     let flip = bool_(p, "flip").unwrap_or(false);
-    add_feature(s, p, FeatureKind::Rib { sketch: SketchId(sketch), curves, thickness, depth, flip, web })
+    let normal = match str_(p, "direction").map(str::to_ascii_lowercase).as_deref() {
+        None | Some("in_plane" | "plane") => false,
+        Some("normal") => true,
+        Some(o) => return Err(bad(cmd, format!("unknown direction `{o}` (in_plane or normal)"))),
+    };
+    add_feature(s, p, FeatureKind::Rib { sketch: SketchId(sketch), curves, thickness, depth, flip, web, normal })
 }
 
 fn rib(s: &mut Session, p: &Value) -> Result<Value> {

@@ -417,6 +417,18 @@ fn revolved(plane: &Plane, regions: &[Region2], axis_origin: Vec2, axis_dir: Vec
             out.push(sphere_solid(plane.to_world(c), rad, [Vec3::X, Vec3::Y, Vec3::Z], &arcs)?);
             continue;
         }
+        // A full turn of a profile that comes back to the axis along a curve (a half slot about
+        // its centreline, a dome at the far end): truck's cone gives the faces
+        // swept from it the wrong region (their pole is at the end of their curve), and cuts with
+        // such a body failed (#1853). It is built as part turns are, a third of a turn at a time.
+        if angle.abs() >= std::f64::consts::TAU - 1e-9
+            && r.holes.is_empty()
+            && pole_at_end(&r.outer, axis_origin, d)
+            && let Some(b) = revolve_on_axis(plane, &given.outer, axis_origin, d, angle)?
+        {
+            out.push(b);
+            continue;
+        }
         // A full revolution of a profile with one edge on the axis: sweep the rest of the loop
         // as a cone-like shell (no zero-area faces, which booleans can't handle).
         if angle.abs() >= std::f64::consts::TAU - 1e-9
@@ -436,7 +448,7 @@ fn revolved(plane: &Plane, regions: &[Region2], axis_origin: Vec2, axis_dir: Vec
         let angle = if toward < 0.0 { -angle } else { angle };
         // A profile with an edge on the axis: no zero-area face where that edge turns on itself.
         if r.holes.is_empty()
-            && let Some(b) = revolve_partial_on_axis(plane, &given.outer, axis_origin, d, angle)?
+            && let Some(b) = revolve_on_axis(plane, &given.outer, axis_origin, d, angle)?
         {
             out.push(b);
             continue;
@@ -1285,11 +1297,47 @@ fn half_disc(lp: &Loop2, axis_origin: Vec2, d: Vec2) -> Option<(Vec2, f64)> {
     (same && (total - std::f64::consts::PI).abs() < 1e-6).then_some((c, r))
 }
 
-/// A partial revolve of a loop with one edge on the axis: the other edges sweep their faces,
-/// the two caps (the profile at the start and at the end) share the axis edge. `None` when the
-/// loop isn't like that.
-fn revolve_partial_on_axis(plane: &Plane, numbered: &NumberedLoop, axis_origin: Vec2, d: Vec2, angle: f64) -> Result<Option<Body>> {
-    use mt::{BoundedCurve, Invertible, ParametricCurve, ParametricSurface3D, SearchNearestParameter, Transformed};
+/// Whether the loop has one edge on the axis and comes back to it along a curve (the segment
+/// before the axis edge is not a line). A line there (a drill point) sweeps a cone, which
+/// truck's cone builds right.
+fn pole_at_end(lp: &Loop2, axis_origin: Vec2, d: Vec2) -> bool {
+    let on_axis = |p: Vec2| d.cross(p - axis_origin).abs() < 1e-9;
+    let n = lp.segs.len();
+    let axis_segs: Vec<usize> =
+        (0..n).filter(|i| lp.segs.get(*i).is_some_and(|s| matches!(s, Seg2::Line { a, b } if on_axis(*a) && on_axis(*b)))).collect();
+    let [k] = axis_segs[..] else { return false };
+    lp.segs.get((k + n - 1) % n).is_some_and(|s| !on_axis(s.start()) && !matches!(s, Seg2::Line { .. }))
+}
+
+/// The edge from `a` to `b` along the profile segment `sg` (in `plane`), for a revolve's sweep.
+/// One that ends on the axis (`ends_on_axis`) is built from there and turned round, so that the
+/// surface swept from its curve has its pole at the curve's start. truck's revolved surface
+/// reads a point on its axis at the start of its curve with the angle of the point before it,
+/// but one at the end with an angle of 2π when it has no hint, past a part turn's span: the face
+/// came out as another region (#1853).
+fn swept_edge(plane: &Plane, sg: &Seg2, a: &mt::Vertex, b: &mt::Vertex, ends_on_axis: bool) -> mt::Edge {
+    if ends_on_axis {
+        return swept_edge(plane, &sg.reversed(), b, a, false).inverse();
+    }
+    match *sg {
+        Seg2::Line { .. } => builder::line(a, b),
+        Seg2::Arc { .. } => builder::circle_arc(a, b, p3(plane.to_world(sg.mid()))),
+        Seg2::Cubic { .. } | Seg2::Conic { .. } | Seg2::Bezier { .. } => {
+            crate::freeform::edge(plane, sg, a, b).unwrap_or_else(|| builder::line(a, b))
+        }
+    }
+}
+
+/// Where [`revolve_on_axis`]'s full turns start, from the profile: an angle no plane a part is
+/// commonly cut along lies at (as full circles start, see `reseam`).
+const FULL_TURN_START: f64 = 0.4142;
+
+/// A revolve of a loop with one edge on the axis: the other edges sweep their faces, a third of a
+/// turn at most each. A partial turn is closed by two caps (the profile at the start and at the
+/// end), which share the axis edge; a full turn ends where it started. `None` when the loop
+/// isn't like that.
+fn revolve_on_axis(plane: &Plane, numbered: &NumberedLoop, axis_origin: Vec2, d: Vec2, angle: f64) -> Result<Option<Body>> {
+    use mt::{BoundedCurve, ParametricCurve, ParametricSurface3D, SearchNearestParameter, Transformed};
     let lp = &numbered.lp;
     let on_axis = |p: Vec2| d.cross(p - axis_origin).abs() < 1e-9;
     let n = lp.segs.len();
@@ -1301,102 +1349,171 @@ fn revolve_partial_on_axis(plane: &Plane, numbered: &NumberedLoop, axis_origin: 
     if chain.is_empty() || chain.iter().skip(1).any(|s| on_axis(s.start())) || chain.iter().any(|s| on_axis(s.mid())) {
         return Ok(None);
     }
+    let full = angle.abs() >= std::f64::consts::TAU - 1e-9;
+    // Faces of a third of a turn at most, as truck sweeps a full turn: a boolean could not
+    // intersect a half turn's faces and the half circles bounding them (a half slot turned half a
+    // turn into a plate, #1853), and a sphere's face needs room for its poles (below).
+    let pieces = (angle.abs() / (std::f64::consts::TAU / 3.0) - 1e-9).ceil().max(1.0) as usize;
+    let step = angle / pieces as f64;
     // Built with the axis through the world origin, then moved into place.
     let shift = plane.to_world(axis_origin);
     let local = Plane { origin: plane.origin - shift, ..*plane };
     let plane = &local;
     let axis = plane.dir_to_world(d);
-    let rot = mt::Matrix4::from_axis_angle(v3(axis), mt::Rad(angle));
-    let half = mt::Matrix4::from_axis_angle(v3(axis), mt::Rad(angle * 0.5));
+    let turned = |by: f64| mt::Matrix4::from_axis_angle(v3(axis), mt::Rad(by));
     let turn = |m: &mt::Matrix4, p: Vec3| from_p3(mt::EuclideanSpace::from_vec((m * p3(p).to_homogeneous()).truncate()));
     guard("revolve", || {
         let fail = |m: &str| KernelError::Failed(format!("revolve: {m}"));
         let pts: Vec<Vec3> = chain.iter().map(|s| plane.to_world(s.start())).chain(chain.last().map(|s| plane.to_world(s.end()))).collect();
         let last = pts.len() - 1;
         let pv: Vec<mt::Vertex> = pts.iter().map(|p| builder::vertex(p3(*p))).collect();
-        // The ends stay where they are (on the axis).
-        let qv: Vec<mt::Vertex> = pts
-            .iter()
-            .enumerate()
-            .map(|(i, p)| {
-                if i == 0 || i == last { pv.get(i).cloned().unwrap_or_else(|| builder::vertex(p3(*p))) } else { builder::vertex(p3(turn(&rot, *p))) }
-            })
-            .collect();
         let mut e: Vec<mt::Edge> = Vec::new();
-        let mut er: Vec<mt::Edge> = Vec::new();
         for (i, sg) in chain.iter().enumerate() {
-            let (Some(a), Some(b), Some(qa), Some(qb)) = (pv.get(i), pv.get(i + 1), qv.get(i), qv.get(i + 1)) else { return Err(fail("chain")) };
-            let edge = match *sg {
-                Seg2::Line { .. } => builder::line(a, b),
-                Seg2::Arc { .. } => builder::circle_arc(a, b, p3(plane.to_world(sg.mid()))),
-                Seg2::Cubic { .. } | Seg2::Conic { .. } | Seg2::Bezier { .. } => {
-                    crate::freeform::edge(plane, sg, a, b).unwrap_or_else(|| builder::line(a, b))
-                }
-            };
-            let curve = edge.oriented_curve().transformed(rot);
-            er.push(mt::Edge::new(qa, qb, curve));
-            e.push(edge);
+            let (Some(a), Some(b)) = (pv.get(i), pv.get(i + 1)) else { return Err(fail("chain")) };
+            e.push(swept_edge(plane, sg, a, b, on_axis(sg.end())));
         }
-        // Arcs swept by the vertices off the axis.
-        let mut arcs: Vec<Option<mt::Edge>> = vec![None; pts.len()];
-        for i in 1..last {
-            let (Some(a), Some(b), Some(p)) = (pv.get(i), qv.get(i), pts.get(i)) else { continue };
-            if let Some(slot) = arcs.get_mut(i) {
-                *slot = Some(builder::circle_arc(a, b, p3(turn(&half, *p))));
+        // The profile's vertices and edges where each piece starts and ends: turned by the step,
+        // the ends staying where they are (on the axis). A part turn starts on the profile. A full
+        // turn starts at an odd angle and ends where it started: the profile lies in the plane
+        // it was drawn on, often a face of the body cut, and a seam lying in that face as well
+        // left the cut nothing it could intersect there (#1853).
+        let start = if full { FULL_TURN_START } else { 0.0 };
+        let mut levels: Vec<(Vec<mt::Vertex>, Vec<mt::Edge>)> = Vec::new();
+        for j in 0..=pieces {
+            if j == 0 && !full {
+                levels.push((pv.clone(), e.clone()));
+                continue;
             }
+            if let (true, Some(first)) = (j == pieces && full, levels.first()) {
+                levels.push(first.clone());
+                continue;
+            }
+            let rot = turned(start + step * j as f64);
+            let qv: Vec<mt::Vertex> = pts
+                .iter()
+                .enumerate()
+                .map(|(i, p)| {
+                    if i == 0 || i == last {
+                        pv.get(i).cloned().unwrap_or_else(|| builder::vertex(p3(*p)))
+                    } else {
+                        builder::vertex(p3(turn(&rot, *p)))
+                    }
+                })
+                .collect();
+            let mut er: Vec<mt::Edge> = Vec::new();
+            for (i, edge) in e.iter().enumerate() {
+                let (Some(qa), Some(qb)) = (qv.get(i), qv.get(i + 1)) else { return Err(fail("chain")) };
+                let curve = edge.curve().transformed(rot);
+                er.push(if edge.orientation() { mt::Edge::new(qa, qb, curve) } else { mt::Edge::new(qb, qa, curve).inverse() });
+            }
+            levels.push((qv, er));
         }
         // Side faces: each edge's swept surface, oriented to agree with its boundary, from the
         // profile segment the edge was built from.
         let mut faces: Vec<(mt::Face, FaceProv)> = Vec::new();
-        for (i, sg) in chain.iter().enumerate() {
-            let (Some(ei), Some(eri)) = (e.get(i), er.get(i)) else { return Err(fail("edges")) };
-            let mut ws: Vec<mt::Edge> = vec![ei.clone()];
-            if let Some(Some(c)) = arcs.get(i + 1) {
-                ws.push(c.clone());
+        for (j, piece) in levels.windows(2).enumerate() {
+            let [(pv, e), (qv, er)] = piece else { return Err(fail("pieces")) };
+            let half = turned(start + step * (j as f64 + 0.5));
+            // Arcs swept by the vertices off the axis.
+            let mut arcs: Vec<Option<mt::Edge>> = vec![None; pts.len()];
+            for i in 1..last {
+                let (Some(a), Some(b), Some(p)) = (pv.get(i), qv.get(i), pts.get(i)) else { continue };
+                if let Some(slot) = arcs.get_mut(i) {
+                    *slot = Some(builder::circle_arc(a, b, p3(turn(&half, *p))));
+                }
             }
-            ws.push(eri.inverse());
-            if let Some(Some(c)) = arcs.get(i) {
-                ws.push(c.inverse());
-            }
-            let wire: mt::Wire = ws.into();
-            let radial = matches!(*sg, Seg2::Line { a, b } if (b - a).normalized().is_some_and(|u| u.dot(d).abs() < 1e-9));
-            let f = if radial {
-                builder::try_attach_plane(&[wire]).map_err(|er| fail(&er.to_string()))?
-            } else {
-                let template = builder::rsweep(ei, mt::Point3::new(0.0, 0.0, 0.0), v3(axis), mt::Rad(angle));
-                let mut surface = template.face_iter().next().map(|f| f.oriented_surface()).ok_or_else(|| fail("swept face"))?;
-                // The loop's turning (Newell) against the surface normal halfway round.
-                let mut nw = Vec3::ZERO;
-                let poly: Vec<Vec3> = wire
-                    .edge_iter()
-                    .flat_map(|ed| {
-                        let c = ed.oriented_curve();
-                        let (t0, t1) = c.range_tuple();
-                        (0..8).map(move |j| from_p3(c.subs(t0 + (t1 - t0) * j as f64 / 8.0))).collect::<Vec<_>>()
-                    })
-                    .collect();
-                for (j, p) in poly.iter().enumerate() {
-                    if let Some(q) = poly.get((j + 1) % poly.len()) {
-                        nw += p.cross(*q);
+            for (i, sg) in chain.iter().enumerate() {
+                let (Some(ei), Some(eri)) = (e.get(i), er.get(i)) else { return Err(fail("edges")) };
+                let mut ws: Vec<mt::Edge> = vec![ei.clone()];
+                if let Some(Some(c)) = arcs.get(i + 1) {
+                    ws.push(c.clone());
+                }
+                ws.push(eri.inverse());
+                if let Some(Some(c)) = arcs.get(i) {
+                    ws.push(c.inverse());
+                }
+                let wire: mt::Wire = ws.into();
+                let radial = matches!(*sg, Seg2::Line { a, b } if (b - a).normalized().is_some_and(|u| u.dot(d).abs() < 1e-9));
+                let f = if radial {
+                    builder::try_attach_plane(&[wire]).map_err(|er| fail(&er.to_string()))?
+                } else {
+                    // The surface turns from the piece's start through |step|, so its angle runs
+                    // from 0 across the face. Inverting it turns its axis round, which puts the
+                    // face at 2π - |step| to 2π: its start then lies on the angle's seam, where
+                    // points (and a pole without a hint) read as 0, the far side, and the face
+                    // meshed and intersected as the wrong region (#1853). The face is turned
+                    // round instead.
+                    let (dir, by) = if step < 0.0 { (-axis, -step) } else { (axis, step) };
+                    let surface = match *sg {
+                        // An arc about a centre on the axis that reaches it sweeps part of a sphere
+                        // with its pole there, and a boolean can't follow an intersection into a
+                        // pole: a cut by the plane through the axis (the face the profile was drawn
+                        // on) failed (#1853). The face lies on the sphere turned about the axis
+                        // square to the revolve's and to the face's middle, as `sphere_solid`'s
+                        // patches do: its poles are a quarter turn from that middle, past the
+                        // face's third of a turn, and its seam runs round the back.
+                        Seg2::Arc { center, radius, .. } if on_axis(center) && (on_axis(sg.start()) || on_axis(sg.end())) => {
+                            let c = plane.to_world(center);
+                            let out = turn(&half, plane.to_world(sg.mid())) - c;
+                            let out = (out - axis * out.dot(axis)).normalized().ok_or_else(|| fail("sphere"))?;
+                            let pole = axis.cross(out);
+                            let meridian = builder::circle_arc(
+                                &builder::vertex(p3(c + pole * radius)),
+                                &builder::vertex(p3(c - pole * radius)),
+                                p3(c - out * radius),
+                            );
+                            mt::Surface::RevolutedCurve(mt::Processor::new(mt::RevolutedCurve::by_revolution(
+                                meridian.oriented_curve(),
+                                p3(c),
+                                v3(pole),
+                            )))
+                        }
+                        _ => {
+                            let template = builder::rsweep(ei, mt::Point3::new(0.0, 0.0, 0.0), v3(dir), mt::Rad(by));
+                            template.face_iter().next().map(|f| f.surface()).ok_or_else(|| fail("swept face"))?
+                        }
+                    };
+                    // The loop's turning (Newell) against the surface normal halfway round.
+                    let mut nw = Vec3::ZERO;
+                    let poly: Vec<Vec3> = wire
+                        .edge_iter()
+                        .flat_map(|ed| {
+                            let c = ed.oriented_curve();
+                            let (t0, t1) = c.range_tuple();
+                            (0..8).map(move |j| from_p3(c.subs(t0 + (t1 - t0) * j as f64 / 8.0))).collect::<Vec<_>>()
+                        })
+                        .collect();
+                    for (j, p) in poly.iter().enumerate() {
+                        if let Some(q) = poly.get((j + 1) % poly.len()) {
+                            nw += p.cross(*q);
+                        }
                     }
-                }
-                let probe = turn(&half, plane.to_world(sg.mid()));
-                let sn = surface.search_nearest_parameter(p3(probe), None, 100).map(|(u, v)| surface.normal(u, v));
-                if sn.is_some_and(|m| nw.dot(Vec3::new(m.x, m.y, m.z)) < 0.0) {
-                    surface = surface.inverse();
-                }
-                mt::Face::try_new(vec![wire], surface).map_err(|er| fail(&er.to_string()))?
-            };
-            faces.push((f, record::profile(numbered.numbers((k + 1 + i) % n))));
+                    let probe = turn(&half, plane.to_world(sg.mid()));
+                    let sn = surface.search_nearest_parameter(p3(probe), None, 100).map(|(u, v)| surface.normal(u, v));
+                    if sn.is_some_and(|m| nw.dot(Vec3::new(m.x, m.y, m.z)) < 0.0) {
+                        mt::Face::try_new(vec![wire.inverse()], surface).map_err(|er| fail(&er.to_string()))?.inverse()
+                    } else {
+                        mt::Face::try_new(vec![wire], surface).map_err(|er| fail(&er.to_string()))?
+                    }
+                };
+                faces.push((f, record::profile(numbered.numbers((k + 1 + i) % n))));
+            }
+        }
+        let (faces, mut history): (Vec<mt::Face>, Vec<FaceProv>) = faces.into_iter().unzip();
+        let close = |solid: Solid, history: Vec<FaceProv>| {
+            let solid = if shift.len() > 0.0 { builder::translated(&solid, v3(shift)) } else { solid };
+            record::attach(Body::new(solid)?, &[], Some(history), Default::default()).map(Some)
+        };
+        if full {
+            return close(Solid::try_new(vec![faces.into()]).map_err(|er| fail(&er.to_string()))?, history);
         }
         // Caps: the profile at the start and at the end, sharing the axis edge.
-        let (Some(a0), Some(an)) = (pv.first(), pv.get(last)) else { return Err(fail("ends")) };
+        let ((Some(a0), Some(an)), Some((_, er))) = ((pv.first(), pv.get(last)), levels.last()) else { return Err(fail("ends")) };
         let axis_edge = builder::line(an, a0);
         let start: mt::Wire = e.iter().rev().map(|x| x.inverse()).chain(std::iter::once(axis_edge.inverse())).collect::<Vec<_>>().into();
         let end: mt::Wire = er.iter().cloned().chain(std::iter::once(axis_edge.clone())).collect::<Vec<_>>().into();
         let cs = builder::try_attach_plane(&[start]).map_err(|er| fail(&er.to_string()))?;
         let ce = builder::try_attach_plane(&[end]).map_err(|er| fail(&er.to_string()))?;
-        let (faces, mut history): (Vec<mt::Face>, Vec<FaceProv>) = faces.into_iter().unzip();
         history.extend([record::cap(false), record::cap(true)]);
         let mut last_err = String::new();
         for flip in 0..4 {
@@ -1404,10 +1521,7 @@ fn revolve_partial_on_axis(plane: &Plane, numbered: &NumberedLoop, axis_origin: 
             all.push(if flip & 1 == 0 { cs.clone() } else { cs.inverse() });
             all.push(if flip & 2 == 0 { ce.clone() } else { ce.inverse() });
             match Solid::try_new(vec![all.into()]) {
-                Ok(solid) => {
-                    let solid = if shift.len() > 0.0 { builder::translated(&solid, v3(shift)) } else { solid };
-                    return record::attach(Body::new(solid)?, &[], Some(history), Default::default()).map(Some);
-                }
+                Ok(solid) => return close(solid, history),
                 Err(er) => last_err = er.to_string(),
             }
         }
@@ -1560,6 +1674,15 @@ pub(crate) fn cap_and_close(sides: Vec<Side>, w0: &[mt::Wire], w1: &[mt::Wire], 
         faces = keep;
     }
     Err(KernelError::Failed(format!("closing the shell: {last}")))
+}
+
+/// A sweep whose walls already close, including separate shells around profile holes.
+pub(crate) fn close_sweep(sides: Vec<Side>) -> Result<Body> {
+    let sources: std::collections::HashMap<_, _> = sides.iter().map(|(f, p)| (f.id(), p.clone())).collect();
+    let shell: mt::Shell = sides.into_iter().map(|(f, _)| f).collect();
+    let solid = Solid::try_new(shell.connected_components()).map_err(|e| KernelError::Failed(format!("closing the sweep: {e}")))?;
+    let history = solid.face_iter().map(|f| sources.get(&f.id()).cloned().flatten()).collect();
+    record::attach(Body::new(solid)?, &[], history, Default::default())
 }
 
 /// Ruled loft through two or more planar sections (outer loops only). The sections and the
@@ -1835,7 +1958,7 @@ pub(crate) fn rotate_about(p: Vec3, center: Vec3, k: Vec3, angle: f64) -> Vec3 {
 
 /// The path as a polyline: its first point, then each segment's points (arcs within 0.01 mm of
 /// their chords).
-pub(crate) fn path_polyline(path: &[PathSeg]) -> Result<Vec<Vec3>> {
+pub fn path_polyline(path: &[PathSeg]) -> Result<Vec<Vec3>> {
     let first = match path.first() {
         Some(PathSeg::Line { a, .. } | PathSeg::Arc { a, .. }) => *a,
         None => return Err(KernelError::Invalid("the path needs 1…1000 segments".into())),
@@ -1881,6 +2004,25 @@ pub fn sweep(plane: &Plane, region: &Region2, path: &[PathSeg]) -> Result<Body> 
     if corner {
         return crate::sweep_path::sweep_path(plane, region, &path_polyline(path)?);
     }
+    let points = path_polyline(path)?;
+    if crate::sweep_path::closed_path(&points) {
+        // Sketch circles have two half arcs. Sweep the whole turn in one operation so truck
+        // shares the closing edges itself. Other closed paths use stations with shared ends.
+        if let Some((center, axis, angle)) = full_circle(path) {
+            return guard("closed sweep", || {
+                let profile = region_wires(plane, &oriented(region)?)?;
+                let mut sides = Vec::new();
+                for p in &profile {
+                    let shell: mt::Shell = builder::rsweep(&p.wire, p3(center), v3(axis), mt::Rad(angle));
+                    let numbers = seeds(std::slice::from_ref(p));
+                    let prov = record::columns(shell.face_iter(), &numbers, None, record::Column::ToEnd, &[]);
+                    sides.extend(shell.face_iter().enumerate().map(|(i, f)| (f.clone(), prov.as_ref().and_then(|p| p.get(i)).cloned().flatten())));
+                }
+                close_sweep(sides)
+            });
+        }
+        return crate::sweep_path::sweep_path(plane, region, &points);
+    }
     // The outer loop and each hole, swept along the path; the ends are capped with holes.
     let profile = region_wires(plane, &oriented(region)?)?;
     let starts = wires_of(&profile);
@@ -1925,6 +2067,23 @@ pub fn sweep(plane: &Plane, region: &Region2, path: &[PathSeg]) -> Result<Body> 
         };
         cap_and_close(sides, &starts, &ends, false)
     })
+}
+
+/// A connected, single turn about one centre and axis, possibly split into sketch arcs.
+fn full_circle(path: &[PathSeg]) -> Option<(Vec3, Vec3, f64)> {
+    let PathSeg::Arc { a: first, center, axis, .. } = *path.first()? else { return None };
+    let axis = axis.normalized()?;
+    let mut end = first;
+    let mut total = 0.0;
+    for seg in path {
+        let PathSeg::Arc { a, center: c, axis: k, angle } = *seg else { return None };
+        if a.dist(end) > 1e-7 || c.dist(center) > 1e-7 || k.normalized()?.dist(axis) > 1e-9 || !angle.is_finite() {
+            return None;
+        }
+        total += angle;
+        end = rotate_about(a, c, axis, angle);
+    }
+    ((total.abs() - std::f64::consts::TAU).abs() < 1e-9).then_some((center, axis, total))
 }
 
 /// Cox–de Boor basis values N_{j,3}(u) for all j.
@@ -2063,6 +2222,15 @@ pub fn sphere_patches_rotated(center: Vec3, radius: f64, rot: [Vec3; 3]) -> Resu
 
 /// [`sphere_patches_rotated`], every patch swept from profile segments `arcs`.
 fn sphere_solid(center: Vec3, radius: f64, rot: [Vec3; 3], arcs: &[usize]) -> Result<Body> {
+    guard("sphere", || {
+        let shell: mt::Shell = sphere_patch_faces(center, radius, rot)?.into();
+        let solid = Solid::try_new(vec![shell]).map_err(|e| KernelError::Failed(format!("sphere: {e}")))?;
+        record::attach(Body::new(solid)?, &[], Some(vec![record::profile(arcs); 6]), Default::default())
+    })
+}
+
+/// The six outward patch faces of [`sphere_patches_rotated`]; truck calls, so callers guard them.
+pub(crate) fn sphere_patch_faces(center: Vec3, radius: f64, rot: [Vec3; 3]) -> Result<Vec<mt::Face>> {
     let radius = finite(radius, "radius")?;
     let turn = |v: Vec3| rot[0] * v.x + rot[1] * v.y + rot[2] * v.z;
     if radius <= 1e-6 || !center.is_finite() {
@@ -2080,50 +2248,46 @@ fn sphere_solid(center: Vec3, radius: f64, rot: [Vec3; 3], arcs: &[usize]) -> Re
         (Vec3::Z, Vec3::X, [[-1.0, -1.0, 1.0], [1.0, -1.0, 1.0], [1.0, 1.0, 1.0], [-1.0, 1.0, 1.0]]),
         (-Vec3::Z, Vec3::X, [[-1.0, 1.0, -1.0], [1.0, 1.0, -1.0], [1.0, -1.0, -1.0], [-1.0, -1.0, -1.0]]),
     ];
-    guard("sphere", || {
-        let key = |s: [f64; 3]| ((s[0] > 0.0) as usize) | (((s[1] > 0.0) as usize) << 1) | (((s[2] > 0.0) as usize) << 2);
-        let mut verts: std::collections::HashMap<usize, mt::Vertex> = std::collections::HashMap::new();
-        let mut vert = |s: [f64; 3]| verts.entry(key(s)).or_insert_with(|| builder::vertex(p3(corner(s[0], s[1], s[2])))).clone();
-        let mut edges: std::collections::HashMap<(usize, usize), mt::Edge> = std::collections::HashMap::new();
-        let mut out: Vec<mt::Face> = Vec::new();
-        for (dir, axis, cs) in faces {
-            let (dir, axis) = (turn(dir), turn(axis));
-            let mut wire: Vec<mt::Edge> = Vec::new();
-            for i in 0..4 {
-                let (a, b) = (cs[i], cs[(i + 1) % 4]);
-                let (ka, kb) = (key(a), key(b));
-                let e = match edges.get(&(ka.min(kb), ka.max(kb))) {
-                    Some(e) => e.clone(),
-                    None => {
-                        let (lo, hi) = if ka < kb { (a, b) } else { (b, a) };
-                        let (va, vb) = (vert(lo), vert(hi));
-                        let mid = (corner(lo[0], lo[1], lo[2]) + corner(hi[0], hi[1], hi[2])) * 0.5 - center;
-                        let transit = center + mid.normalized().unwrap_or(dir) * radius;
-                        let e = builder::circle_arc(&va, &vb, p3(transit));
-                        edges.insert((ka.min(kb), ka.max(kb)), e.clone());
-                        e
-                    }
-                };
-                wire.push(if ka < kb { e } else { e.inverse() });
-            }
-            // The meridian runs pole to pole through the side away from the patch.
-            let (np, sp, back) = (center + axis * radius, center - axis * radius, center - dir * radius);
-            let meridian = builder::circle_arc(&builder::vertex(p3(np)), &builder::vertex(p3(sp)), p3(back));
-            let mut surface =
-                mt::Surface::RevolutedCurve(mt::Processor::new(mt::RevolutedCurve::by_revolution(meridian.oriented_curve(), p3(center), v3(axis))));
-            // Outward normal at the patch centre.
-            let probe = p3(center + dir * radius);
-            use mt::{ParametricSurface3D, SearchParameter};
-            if let Some((u, v)) = surface.search_parameter(probe, mt::SPHint2D::None, 100) {
-                let n = surface.normal(u, v);
-                if mt::InnerSpace::dot(n, v3(dir)) < 0.0 {
-                    mt::Invertible::invert(&mut surface);
+    let key = |s: [f64; 3]| ((s[0] > 0.0) as usize) | (((s[1] > 0.0) as usize) << 1) | (((s[2] > 0.0) as usize) << 2);
+    let mut verts: std::collections::HashMap<usize, mt::Vertex> = std::collections::HashMap::new();
+    let mut vert = |s: [f64; 3]| verts.entry(key(s)).or_insert_with(|| builder::vertex(p3(corner(s[0], s[1], s[2])))).clone();
+    let mut edges: std::collections::HashMap<(usize, usize), mt::Edge> = std::collections::HashMap::new();
+    let mut out: Vec<mt::Face> = Vec::new();
+    for (dir, axis, cs) in faces {
+        let (dir, axis) = (turn(dir), turn(axis));
+        let mut wire: Vec<mt::Edge> = Vec::new();
+        for i in 0..4 {
+            let (a, b) = (cs[i], cs[(i + 1) % 4]);
+            let (ka, kb) = (key(a), key(b));
+            let e = match edges.get(&(ka.min(kb), ka.max(kb))) {
+                Some(e) => e.clone(),
+                None => {
+                    let (lo, hi) = if ka < kb { (a, b) } else { (b, a) };
+                    let (va, vb) = (vert(lo), vert(hi));
+                    let mid = (corner(lo[0], lo[1], lo[2]) + corner(hi[0], hi[1], hi[2])) * 0.5 - center;
+                    let transit = center + mid.normalized().unwrap_or(dir) * radius;
+                    let e = builder::circle_arc(&va, &vb, p3(transit));
+                    edges.insert((ka.min(kb), ka.max(kb)), e.clone());
+                    e
                 }
-            }
-            out.push(mt::Face::new(vec![wire.into()], surface));
+            };
+            wire.push(if ka < kb { e } else { e.inverse() });
         }
-        let shell: mt::Shell = out.into();
-        let solid = Solid::try_new(vec![shell]).map_err(|e| KernelError::Failed(format!("sphere: {e}")))?;
-        record::attach(Body::new(solid)?, &[], Some(vec![record::profile(arcs); 6]), Default::default())
-    })
+        // The meridian runs pole to pole through the side away from the patch.
+        let (np, sp, back) = (center + axis * radius, center - axis * radius, center - dir * radius);
+        let meridian = builder::circle_arc(&builder::vertex(p3(np)), &builder::vertex(p3(sp)), p3(back));
+        let mut surface =
+            mt::Surface::RevolutedCurve(mt::Processor::new(mt::RevolutedCurve::by_revolution(meridian.oriented_curve(), p3(center), v3(axis))));
+        // Outward normal at the patch centre.
+        let probe = p3(center + dir * radius);
+        use mt::{ParametricSurface3D, SearchParameter};
+        if let Some((u, v)) = surface.search_parameter(probe, mt::SPHint2D::None, 100) {
+            let n = surface.normal(u, v);
+            if mt::InnerSpace::dot(n, v3(dir)) < 0.0 {
+                mt::Invertible::invert(&mut surface);
+            }
+        }
+        out.push(mt::Face::new(vec![wire.into()], surface));
+    }
+    Ok(out)
 }

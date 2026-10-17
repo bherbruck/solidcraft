@@ -53,6 +53,12 @@ Changes:
   farther from the leader's point than the curve's tolerance (the projection settled on another
   part of a surface, such as the far side of a small hole) is dropped for the search from
   nothing, as before. `crates/kernel/src/issue_1038_tests.rs` holds it to that search.
+- `decorators/revolved_curve.rs`: a point on a revolved surface's seam (angle 0, the same place
+  as 2π) takes the end of the period nearer the hinted angle. The angle was decided by the sign of
+  a cross product that is rounding noise there, so a boundary followed point by point could come
+  back to the seam at the other end of the period and fold its parameter polygon over itself (no
+  intersection loop then lay inside the face). `crates/kernel/src/seam_faces_tests.rs` holds it
+  to a cone read from STEP.
 
 ## truck-stepio 0.3.0 (Apache-2.0, © RICOS Co. Ltd., https://github.com/ricosjp/truck)
 
@@ -77,6 +83,13 @@ Changes:
 ## truck-meshalgo 0.4.0 (Apache-2.0, © RICOS Co. Ltd., https://github.com/ricosjp/truck)
 
 Changes:
+- `tessellation/triangulation.rs`, `closed.rs`: retry nearest trim projections outside a
+  spline's knot domain without the preceding point's hint, preferring a bounded fit within
+  the caller's chord tolerance, with a bounded damped least-squares fallback where
+  Newton's method diverges. Affine plane charts remain unbounded; modelling surfaces may
+  retain genuine continuation when no bounded fit is accurate enough. Geometrically closed,
+  smooth spline seams get a local periodic chart during meshing, with wrapped evaluation,
+  so a trim crossing the seam stays a small patch. The stored geometry is unchanged (#1974).
 - `tessellation/mod.rs`, `triangulation.rs`: a separate provisional `preview_face`
   path accepts at most 4,096 already sampled boundary points and a fixed grid of
   at most 16 subdivisions per direction, including periodic seam connections.
@@ -164,6 +177,17 @@ Changes:
   (`onto_edges`). Points within `TOLERANCE` stay on the surface, so exact geometry meshes as
   before. The meshes Boolean operations intersect keep truck's points.
 
+- `tessellation/triangulation.rs`: in display and export meshes (`Deflection::rulings`), a
+  direction left undivided along the rulings of a face ruled one way also gets a grid line
+  through each point of the face's boundary that lies inside the face along it
+  (`with_boundary_lines`), when there are at most 16 such points: corners standing into the
+  face, not a boundary curve running through it, which the triangulation already follows. A hole in a cone or cylinder smaller than one cell (a notch into a
+  chamfer) or a trim crossing the rulings of a narrow band (an oblique plane through a bore's
+  chamfer) had no grid point beside it, and the triangulation fanned from it to the far ends of
+  the face, many degrees round: those triangles cut through the surface and folded over each
+  other (a cone face with a small hole meshed several mm² too large, and the boolean that made
+  it was refused for its volume).
+
 ## matext4cgmath 0.1.0 (Apache-2.0, © RICOS Co. Ltd., https://github.com/ricosjp/matext4cgmath)
 
 truck-geometry uses it for a matrix's operator norm (an intersection curve scales its tolerance
@@ -204,3 +228,5 @@ SolidCraft changes:
   clamped to it (`clamp_surface_extent`, aspect ratio kept) and egui is drawn at the matching
   smaller scale, instead of a `Surface::configure` validation panic (#869). The resize path and
   an unsupported surface no longer unwrap.
+- `src/winit.rs`: acquire a drawable before preparing paint callbacks, so a skipped
+  surface frame cannot discard initialization commands for cached viewport meshes.

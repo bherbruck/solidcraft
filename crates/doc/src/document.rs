@@ -299,6 +299,31 @@ impl SweepOrientation {
     }
 }
 
+/// A sweep's guide rail: a chain of curves of a sketch, followed from the end nearest the path's
+/// start.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, solidcraft_derive::Walk)]
+pub struct SweepRail {
+    pub sketch: SketchId,
+    pub curves: Vec<String>,
+}
+
+/// How a sweep's guide rails reshape its profile.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RailFit {
+    /// Evenly, with the distance across to the rail (between the rails).
+    #[default]
+    Scale,
+    /// Only across to the rail (between the rails).
+    Stretch,
+}
+
+impl RailFit {
+    pub fn is_scale(&self) -> bool {
+        *self == RailFit::Scale
+    }
+}
+
 /// Where a thin wall lies against its curves. A closed loop's inside is the area it encloses;
 /// an open chain's is the side it bends toward (a straight one's, the left of its first
 /// curve as drawn).
@@ -657,6 +682,11 @@ pub enum FeatureKind {
         /// Join each mirrored body with its original.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         combine: bool,
+        /// Where each of `bodies` is mirrored from: the occurrence path of the placement it was
+        /// picked at. The body is mirrored where that placement shows it, as the feature's own
+        /// component sees it. Empty in older designs, which mirror the bodies' own geometry.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        placements: Vec<Vec<u64>>,
     },
     /// A drilled hole (simple, counterbore or countersink) at a point, into the material.
     Hole {
@@ -729,6 +759,12 @@ pub enum FeatureKind {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[walk(unitless = "Scale")]
         scale: Option<Expr>,
+        /// Guide rails (one or two) the profile follows, instead of orientation, twist and scale.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        rails: Vec<SweepRail>,
+        /// How the rails reshape the profile.
+        #[serde(default, skip_serializing_if = "RailFit::is_scale")]
+        rail_fit: RailFit,
         #[serde(default)]
         operation: Operation,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -865,7 +901,8 @@ pub enum FeatureKind {
         targets: Vec<BodyName>,
     },
     /// A thin wall from open sketch curves: `thickness` across the sketch plane, filling from
-    /// the curves toward the body (to the next face, or `depth`). A web makes one per curve.
+    /// the curves toward the body (to the next face, or `depth`), or with `normal` along the
+    /// sketch normal. A web makes one per curve.
     Rib {
         sketch: SketchId,
         curves: Vec<String>,
@@ -881,6 +918,10 @@ pub enum FeatureKind {
         /// Web: each curve is its own wall.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         web: bool,
+        /// Grow the wall along the sketch normal (thickness across the curves, in the sketch
+        /// plane) instead of across the plane from the curves.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        normal: bool,
     },
     /// Move planar faces (at the given points) onto a target plane parallel to them.
     ReplaceFace {
@@ -1316,6 +1357,12 @@ pub enum FeatureKind {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[walk(unitless = "Scale")]
         scale: Option<Expr>,
+        /// Guide rails (one or two) the curves follow, instead of orientation, twist and scale.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        rails: Vec<SweepRail>,
+        /// How the rails reshape the curves.
+        #[serde(default, skip_serializing_if = "RailFit::is_scale")]
+        rail_fit: RailFit,
     },
     /// A surface body lofted through sections in order, each one open or closed chain of
     /// sketch curves: walls only, no caps.

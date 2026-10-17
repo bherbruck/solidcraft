@@ -17,14 +17,14 @@ use crate::params::{bad, string_list, vec2};
 use crate::{Result, Sel, Session};
 
 pub static COMMANDS: &[CommandSpec] = &[
-    CommandSpec::new("sketch.copy", "Copy Sketch Entities", copy)
+    CommandSpec::new("sketch.copy", "Copy Sketch Entities", copy).icon("copy")
         .noundo()
         .enabled(in_sketch)
         .params("entities?: [curve or point ids] (default: the selected sketch geometry); the constraints and dimensions among them come along"),
-    CommandSpec::new("sketch.cut", "Cut Sketch Entities", cut)
+    CommandSpec::new("sketch.cut", "Cut Sketch Entities", cut).icon("cut")
         .enabled(in_sketch)
         .params("entities?: [curve or point ids] (default: the selected sketch geometry): copies them as sketch.copy does, then deletes them (one undo step)"),
-    CommandSpec::new("sketch.paste", "Paste Sketch Entities", paste).enabled(in_sketch).params(
+    CommandSpec::new("sketch.paste", "Paste Sketch Entities", paste).icon("paste").enabled(in_sketch).params(
         "at?: [x, y] (sketch point the copy's centre goes to) | translate?: [x, y]; without either, offset from the original in its own sketch and at the same coordinates in another; sketch?: target (default: the active sketch)",
     ),
 ];

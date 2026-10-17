@@ -4,8 +4,9 @@
 //! The instruments are checked first: CIEDE2000 on the 34 pairs Sharma, Wu and Dalal published
 //! with their paper, Brettel on white and its own anchors.
 //!
-//! When a token edit breaks a mode here, give that token a value in the mode's table
-//! (`assets/styles/ui/palettes.rs`) that passes.
+//! When a token edit breaks a mode here, adjust its measured variant. Shared icon accents live
+//! in `assets/icons/ui/design/palette.toml`; `assets/styles/ui/palettes.rs` links those generated
+//! values to UI tokens and owns the remaining UI-only colour-vision adjustments.
 
 use std::collections::BTreeSet;
 
@@ -291,11 +292,22 @@ fn groups(t: &Tokens) -> Vec<Group> {
                 ("body_selected", t.body_selected),
                 ("hover_face_lift", lift(t.body)),
                 ("preview_add", t.preview_add),
+                ("preview_new", t.preview_new),
             ],
             &[],
         ),
         group("section", &[("section_cap", t.section_cap)], &[("body", t.body)]),
         group("interference", &[("interference", t.interference)], &[("body", t.body)]),
+        group(
+            "continuity seams",
+            &[
+                ("continuity[0]", t.continuity[0]),
+                ("continuity[1]", t.continuity[1]),
+                ("continuity[2]", t.continuity[2]),
+                ("continuity[3]", t.continuity[3]),
+            ],
+            &[("body", t.body), ("viewport_top", t.viewport_top)],
+        ),
         // The scale's three stops, unlit. Shaded (a stop at one angle to the light, the next at
         // another), middle and tight merge for a red-green loss (3.3 protan, 5.2 deutan) and flat
         // and middle for tritan (4.6). That is the scale's own fault, in Off too: #975.
@@ -627,14 +639,14 @@ fn each_mode_changes_only_its_table() {
         "preview_sketch",
     ];
     let mut red_green_light = red_green_both.to_vec();
-    red_green_light.extend(["sketch_projected", "sketch_locked", "timeline_item_error"]);
+    red_green_light.extend(["sketch_projected", "sketch_locked", "timeline_item_error", "construction_geom"]);
     for (dark, mode, want) in [
         (false, ColorVision::Protan, set(&red_green_light)),
         (true, ColorVision::Protan, set(&red_green_both)),
         (false, ColorVision::Deutan, set(&red_green_light)),
         (true, ColorVision::Deutan, set(&red_green_both)),
-        (false, ColorVision::Tritan, set(&["sketch_locked", "box_crossing", "preview_sketch", "analysis.hatch"])),
-        (true, ColorVision::Tritan, set(&["sketch_locked", "box_crossing", "glyph_text", "preview_sketch", "analysis.hatch"])),
+        (false, ColorVision::Tritan, set(&["sketch_locked", "box_crossing", "construction_geom", "preview_sketch", "analysis.hatch"])),
+        (true, ColorVision::Tritan, set(&["sketch_locked", "box_crossing", "construction_geom", "glyph_text", "preview_sketch", "analysis.hatch"])),
     ] {
         let base = Tokens::themed(dark, ColorVision::Off);
         assert_eq!(changed_fields(&base, &Tokens::themed(dark, mode)), want, "{mode:?}, dark {dark}");
@@ -709,6 +721,7 @@ fn the_sections_messages_are_in_every_catalog() {
         .chain(["ui.colour_vision", "ui.colour_vision_mode", "ui.colour_vision_sample", "ui.colour_vision_note"])
         .collect();
     for (lang, text) in [
+        ("cs", include_str!("../../../assets/locales/cs.json")),
         ("de", include_str!("../../../assets/locales/de.json")),
         ("ja", include_str!("../../../assets/locales/ja.json")),
         ("ko", include_str!("../../../assets/locales/ko.json")),

@@ -2,11 +2,11 @@
 //! axis tags, the surface analysis colours and every colour an icon draws. These tests hold that
 //! the tokens equal what was drawn before, and that a new colour cannot skip them.
 
-use egui::{Color32, Pos2, Rect, vec2};
+use egui::Color32;
 use solidcraft_engine::render::Rgb;
 use solidcraft_engine::view::colors;
 
-use crate::theme::{IconColors, Tokens};
+use crate::theme::Tokens;
 
 fn rgb(c: Rgb) -> Color32 {
     Color32::from_rgb(c.0, c.1, c.2)
@@ -56,103 +56,10 @@ fn analysis_colours_reach_the_shader_in_its_order() {
     assert_eq!(crate::gpu::analysis_colors(&striped)[32], 1.0);
 }
 
-/// Every name a `match` arm in the icon source draws.
-fn icon_names() -> Vec<&'static str> {
-    let src = include_str!("../../../assets/icons/ui/source/icons.rs");
-    let body = src.split("#[cfg(test)]").next().unwrap_or(src);
-    let mut names = Vec::new();
-    for line in body.lines() {
-        let line = line.trim_start();
-        if !line.starts_with('"') {
-            continue;
-        }
-        let Some((pattern, _)) = line.split_once("=>") else { continue };
-        let pattern = pattern.split(" if ").next().unwrap_or(pattern);
-        for part in pattern.split('|') {
-            let part = part.trim();
-            if part.len() > 2 && part.starts_with('"') && part.ends_with('"') {
-                names.push(&part[1..part.len() - 1]);
-            }
-        }
-    }
-    names.sort_unstable();
-    names.dedup();
-    names
-}
-
-/// Marker icon colours: every field its own colour, from `seed`.
-fn marker_icons(seed: u8) -> IconColors {
-    let c = |i: u8| Color32::from_rgb(seed, i, seed ^ i);
-    IconColors {
-        sheet: c(1),
-        sheet_2: c(2),
-        sheet_light: c(3),
-        sheet_line: c(4),
-        highlight: c(5),
-        glint: c(6),
-        folder: c(7),
-        plane: c(8),
-        fold: c(9),
-        stripe: c(10),
-        sky: c(11),
-        floor: c(12),
-        paint: [c(13), c(14), c(15)],
-        axes: [c(16), c(17), c(18)],
-        access: [c(19), c(20)],
-        draft: [c(21), c(22)],
-        curvature: [c(23), c(24), c(25)],
-        interference: c(26),
-        warning: c(27),
-        agent: c(28),
-        marker_halo: c(29),
-    }
-}
-
-/// The colours an icon draws (premultiplied `#RR_GG_BB_AA`, in drawing order).
-fn drawn_colours(name: &str, seed: u8) -> Vec<String> {
-    let ctx = egui::Context::default();
-    let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(100.0, 100.0))), ..Default::default() };
-    let icons = marker_icons(seed);
-    let out = ctx.run_ui(input, |ui| {
-        let r = Rect::from_min_size(Pos2::ZERO, vec2(24.0, 24.0));
-        let ink = Color32::from_rgb(seed, 101, 1);
-        let fill = Color32::from_rgb(seed, 102, 2);
-        let accent = Color32::from_rgb(seed, 103, 3);
-        crate::icons::paint_with(ui.painter(), r, name, ink, fill, accent, &icons);
-    });
-    let text = format!("{:?}", out.shapes);
-    let b = text.as_bytes();
-    let mut colours = Vec::new();
-    for i in 0..b.len() {
-        let hex = |k: usize| b.get(i + k).is_some_and(u8::is_ascii_hexdigit);
-        if b[i] == b'#' && (1..=11).all(|k| if k % 3 == 0 { b.get(i + k) == Some(&b'_') } else { hex(k) }) {
-            colours.push(text[i..i + 12].to_string());
-        }
-    }
-    colours
-}
-
-/// "All icons past, present and future" follow the colour vision mode: an icon may draw only the
-/// colours its caller passes (ink, fill, accent) and the `IconColors` tokens, or colours made
-/// from them. Each icon is drawn twice with different marker colours; a colour that comes out the
-/// same both times was written into the icon, and a mode could not reach it.
-#[test]
-fn every_icon_draws_only_colours_a_mode_can_reach() {
-    let names = icon_names();
-    assert!(names.len() > 150, "icon names were not found in the icon source: {}", names.len());
-    let mut fixed = Vec::new();
-    for name in &names {
-        let (a, b) = (drawn_colours(name, 40), drawn_colours(name, 200));
-        assert_eq!(a.len(), b.len(), "{name}: the two drawings differ in shape");
-        for (x, y) in a.iter().zip(&b) {
-            if x == y && !x.ends_with("_00") {
-                fixed.push(format!("{name}: {x}"));
-            }
-        }
-    }
-    fixed.dedup();
-    assert!(fixed.is_empty(), "icons that draw a colour of their own: {fixed:?}");
-}
+// Icons no longer take their colours from the caller or from `IconColors`: the SVG masters name
+// palette roles (`assets/icons/ui/design/palette.toml`, light and dark, plus accents) that
+// `icon_svg` resolves. `icon_svg`'s own tests hold that every master parses and that only the
+// palette's colours exist; the colour vision modes do not reach them yet.
 
 /// The most colour literals each UI file may hold, and why. None of them carries a meaning that a
 /// colour vision mode must change. A file with more fails here: make the new colour a token in
@@ -171,6 +78,7 @@ const ALLOWED_LITERALS: &[(&str, usize, &str)] = &[
     ("documents.rs", 4, "white hover overlays on document tabs"),
     ("frame.rs", 1, "the window shadow"),
     ("gizmo.rs", 2, "the gizmo's neutral grey ball"),
+    ("icons.rs", 1, "the white tint that carries an icon image's opacity"),
     ("home.rs", 4, "white ink on accent buttons, and thumbnail tints"),
     ("ref_images.rs", 1, "a reference image's opacity tint"),
     ("sketch_palette.rs", 1, "white text on the accent button"),

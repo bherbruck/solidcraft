@@ -20,7 +20,7 @@ section: graphics
 priority: optional
 maintainer: ${SOLIDCRAFT_MAINTAINER}
 vendor: SolidCraft contributors
-homepage: https://bherbruck.github.io/solidcraft/
+homepage: https://docs.solidcraft.io/
 license: MIT OR Apache-2.0
 description: |-
   Open-source parametric 3D CAD in the style of Fusion

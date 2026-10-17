@@ -13,7 +13,9 @@ assets/
       macos/exports/                 # paired Assets.car and icon.icns
       windows/exports/               # executable DIB ICO and installer PNG ICO
       linux/exports/hicolor/         # Linux/FreeBSD package images, 16–512 px
-    ui/source/                       # original drawing library and other UI glyphs
+    ui/design/svg/                   # authoritative original UI icon masters
+    ui/design/tools/                 # authoring bases, checks and included review app
+    ui/source/                       # Rust viewport glyphs, markers and navigation
   branding/web/source/og.png          # shared social preview card
   styles/ui/palettes.rs               # light/dark defaults
   styles/web/loading.css             # web loading/canvas styles
@@ -25,14 +27,15 @@ assets/
   platforms/{macos,linux,windows}/    # bundle, freedesktop and WiX templates
   archive/icons/macos-v1/
     source/icon.vectorcraft          # earlier editable work, retained
-    exports/                         # all historical SVG, PNG and iconset exports
+                                     # redundant historical exports are retired
 ```
 
 ## Editing and regeneration
 
 [UI artwork](icons/ui/README.md) identifies the drawing masters and their consumers.
-Edit geometry and IDs together in the original Rust source and review changes in
-both application themes. Palettes and model presets are also editable Rust data.
+Read the mandatory [UI style guide](icons/ui/STYLE_GUIDE.md) before editing an icon.
+Edit SVG geometry and its command/UI assignments together; inspect both themes
+and small sizes. Temporary media and generated reports belong in ignored target/. Palettes and model presets are also editable Rust data.
 
 The current macOS master is `icons/app/macos/source/SolidCraft.icon/`, including
 its linked SVG layers and appearance settings. The earlier VectorCraft document

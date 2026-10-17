@@ -25,7 +25,7 @@ pub static COMMANDS: &[CommandSpec] = &[
          Thickness, K-factor and bend radius come from the rule (sheet.manage_rules); passing them here is refused, \
          and so is the corner relief on a base or contour flange",
     ),
-    CommandSpec::new("sheet.perforate", "Perforate", perforate).at("SHEET METAL", "CREATE").icon("hem").params(
+    CommandSpec::new("sheet.perforate", "Perforate", perforate).at("SHEET METAL", "CREATE").icon("perforate").params(
         "diameter, pitch: expr; margin?: expr (clear of edges, cut-outs and bends; default: the diameter); pattern?: staggered (60°, default) | square; body? - a perforation field over the whole flat sheet: holes in the flat pattern (perforations), the DXF (layer PERFORATION) and the measured volume, not cut into the B-rep (#732)",
     ),
     CommandSpec::new("sheet.hem", "Hem", hem)
@@ -59,7 +59,7 @@ pub static COMMANDS: &[CommandSpec] = &[
          `corner_relief` across; tear none, each bend's end is cut straight from the corner to its flange's end; default notch); \
          active?: bool; delete?: bool",
     ),
-    CommandSpec::new("sheet.rules", "List Sheet Metal Rules", list_rules).noundo().doc_only().params("→ rules with their expressions and values, and the active one"),
+    CommandSpec::new("sheet.rules", "List Sheet Metal Rules", list_rules).icon("sheet_rules").noundo().doc_only().params("→ rules with their expressions and values, and the active one"),
     CommandSpec::new("sheet.flat_pattern", "Create Flat Pattern", flat_pattern)
         .at("SHEET METAL", "CREATE")
         .icon("flat")
@@ -67,7 +67,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .params(
             "body? → flat size, outline loops and cut-outs (flat coordinates, as point lists), cutout_shapes (the same cut-outs exactly, in the same order: {circle: {center, radius}} for a round hole, else {segments: [{line: [a, b]} | {arc: {center, radius, start_deg, sweep_deg}} | {polyline: [...]}]}), pockets (with their own cutout_shapes), bend lines and the bend table",
         ),
-    CommandSpec::new("sheet.export_dxf", "Export Flat Pattern as DXF", export_dxf)
+    CommandSpec::new("sheet.export_dxf", "Export Flat Pattern as DXF", export_dxf).icon("dxf")
         .noundo()
         .params(
             "body?, path?, curves?: exact|arcs (default exact: an ellipse as ELLIPSE, splines, text outlines and other Béziers as SPLINE; arcs: tangent arcs and lines within 0.001 mm, for machines that read only those), \
@@ -77,7 +77,7 @@ pub static COMMANDS: &[CommandSpec] = &[
              → DXF (AutoCAD 2000, mm): layers OUTLINE (the outer contour), CUT (what is cut out inside it), TEXT or ETCH (letters), BEND_UP and BEND_DOWN (dashed centre lines), BEND_NOTES, \
              POCKET_<BOTTOM|TOP|INTERNAL>_Z<from>_TO_<to>_MM (one per side and depth) and PERFORATION; inner contours come before the outline",
         ),
-    CommandSpec::new("sheet.export_bend_table", "Export Bend Table", export_bend_table)
+    CommandSpec::new("sheet.export_bend_table", "Export Bend Table", export_bend_table).icon("bendtable")
         .noundo()
         .params("body?, format?: csv|json (default csv), path? → bend table in mm and degrees, including rule and flat centre-line coordinates; a bend that cut-outs split has a row for each piece"),
 ];
@@ -892,6 +892,10 @@ fn export_bend_table(s: &mut Session, p: &Value) -> Result<Value> {
 #[cfg(test)]
 #[path = "sheet_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "sheet_batch_cuts_tests.rs"]
+mod batch_cuts_tests;
 
 #[cfg(test)]
 #[path = "sheet_convert_tests.rs"]

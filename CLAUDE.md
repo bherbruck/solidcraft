@@ -27,8 +27,10 @@ new uses of it anywhere else. Public docs/web/Flatpak deployments use project Pa
 ## Never crash
 People trust SolidCraft with their designs; a crash loses their work. **This outranks feature work.**
 - **No panics in non-test code:** no `unwrap()`, `expect()`, `panic!`, `unreachable!`, `todo!`,
-  `unimplemented!`; no `unsafe` (`unsafe_code = "forbid"`). The three exceptions, in the app crate
-  (which denies it instead), have no safe API: two functions in
+  `unimplemented!`; no `unsafe` (`unsafe_code = "forbid"`). The exceptions, in the app crate and in
+  `crates/threedx-client` (which deny it instead), have no safe API: the macOS-only
+  `crates/threedx-client/src/macos.rs` (loads the 3Dconnexion driver's client framework at run time
+  and calls through its function pointers), two functions in
   `apps/solidcraft/src/open_documents.rs` (macOS hands Finder files only to an Objective-C
   method), the Windows-only `apps/solidcraft/src/native_crash.rs` (the exception filter that
   records crashes inside native code such as graphics drivers) and the Windows-only
@@ -65,8 +67,8 @@ People trust SolidCraft with their designs; a crash loses their work. **This out
   nothing from FreeCAD is linked, vendored or shipped.) The sketch solver and the blend
   operations are our own.
 - **Assets — absolutely essential.** SolidCraft contains **no iconography, images, fonts or
-  artwork from commercial CAD products — ever.** Every icon is drawn in code
-  (`crates/ui-egui/src/icons.rs`). Any file asset must be original or openly licensed and **must have a row in ATTRIBUTION.md**
+  artwork from commercial CAD products — ever.** Every UI icon is drawn in collected code
+  (`assets/icons/ui/source/`, compiled through `crates/ui-egui/src/icons.rs`). Any file asset must be original or openly licensed and **must have a row in ATTRIBUTION.md**
   (`cargo xtask assets` enforces it). Screenshots of commercial CAD software are never committed.
   Breaking this rule is the most serious mistake you can make in this repo.
 - **Everything is a command.** User-visible behaviour = a command in `crates/engine/src/cmd/*`
@@ -81,6 +83,10 @@ People trust SolidCraft with their designs; a crash loses their work. **This out
   egui/eframe/winit/wgpu/rfd. **The UI crate is swappable.** Only `crates/kernel` may use `truck`.
 - **The UI is thin**: panels read engine state and act through `app.run(id, params)` /
   `app.start(id)`. Colours come from `theme::Tokens`.
+- **One set of camera controls**: every page or canvas with a camera (viewport, Render
+  preview, future flat pattern or drawing pages) calls `navigation::handle` with its `NavCaps`
+  (orbit off for flat 2D pages). New canvases must use `navigation::handle`; never hand-roll
+  camera input (a test rejects it).
 - **Rust only.** Units are millimetres and radians internally; Z is up. The one exception is
   JavaScript the browser requires: the service worker `apps/solidcraft-web/sw.js` (browsers only
   run service workers as JavaScript) and the small inline scripts in `apps/solidcraft-web/index.html`.
@@ -95,6 +101,29 @@ People trust SolidCraft with their designs; a crash loses their work. **This out
   generated reference data; check `git ls-files` before pushing.
 - **Never break wasm**: everything below the apps must build for `wasm32-unknown-unknown`
   (`cargo xtask wasm`, part of `cargo xtask ci`).
+
+## Showing and following through on changes
+
+- Help reviewers see what is broken or changed. For observable CAD, UI or model behavior,
+  issues and PRs must include actual descriptive screenshots or a short recording from a
+  small reproduction. This includes kernel, geometry, assembly and backend changes whose
+  effects can be shown in the app. Coding agents should run the app and capture this evidence
+  themselves; do not ask a human for evidence the agent can produce. Show the actual failure
+  or result, preferably before and after, with brief reproduction steps, expected/actual
+  behavior and annotations that point out the relevant detail.
+- Flowcharts and Mermaid diagrams cannot substitute for screenshots or recordings of visible
+  behavior. Use diagrams for architectural reasoning when actual screenshots cannot illustrate
+  the point. Changes with no useful observable behavior do not need screenshot or video evidence.
+- Use a small public-safe example and check for private designs, paths, account details or
+  other sensitive content before sharing. Attach media to the issue/PR or link to an accessible
+  recording; do not commit generated screenshots or videos just to provide review evidence.
+- Throughout the work and before handoff, check current upstream commits and the relevant
+  PR's merge status. Keep your branch current with upstream merges, resolve conflicts without
+  discarding others' work, and re-run validation when integration changes the result. Use
+  `git pull --rebase origin main` before pushing as above; never force-push. Report the checked
+  upstream/PR state, any conflicts resolved and the validation performed. If a PR remains open,
+  keep monitoring it while the task is active and make its pending status clear at handoff;
+  do not claim it merged without checking.
 
 ## Claim = a draft PR
 - Before working on issue #N, check nobody has it: `gh pr list -R bherbruck/solidcraft --state open --search "#N"`.

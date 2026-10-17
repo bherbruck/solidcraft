@@ -283,7 +283,8 @@ fn moved(x: &str, y: &str, angle: &str) -> Mod {
 fn the_command_now_has_a_toolbar_placement_and_opens_a_window() {
     let spec = solidcraft_engine::find_command("sketch.move").expect("sketch.move is registered");
     assert_eq!((spec.tab, spec.panel), ("SKETCH", "MODIFY"));
-    assert_eq!(spec.icon, "move");
+    assert_eq!(spec.icon, "sketch_move");
+    assert_eq!(crate::icon_svg::resolve(spec.icon).master, "move", "reuse the finished Move drawing");
 
     let mut h = rectangle();
     let before = curve_ids(&h).len();

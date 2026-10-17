@@ -558,6 +558,7 @@ fn blend_corners_where_edges_meet_on_a_curved_wall() {
 fn a_boundary_found_across_a_seam_is_not_used() {
     let r = fuzz::run(20, 8);
     assert_eq!(r.outcome.kind, "ok", "seed 20: {:?}\n{}", r.outcome, r.script());
+    assert!(r.steps.iter().any(|s| s.kind == "circular pattern"), "the pattern must build, not be skipped as unsupported: {:?}", r.unsupported);
 }
 
 /// Seed 33 ends in a fillet on its second body (#854's corner blends build it differently from

@@ -49,6 +49,7 @@ struct Edit {
     /// Type-first creation: the value took the keyboard as soon as the picks determined the
     /// dimension, and its text follows the pointer until a click pins it or Enter places it.
     live: Option<Live>,
+    selection: Option<egui::text::CCursorRange>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -132,7 +133,9 @@ pub fn begin_dimension(app: &mut SolveApp, entities: Vec<String>, at: Vec2) -> R
         app.set_status("The sketch already determines that dimension, so it was added as a driven (reference) dimension", false);
         return Ok(());
     }
-    EDIT.with(|edit| *edit.borrow_mut() = Some(Edit { param, expr, at: None, fresh: FRESH, wait: 10, draft: Some(draft), live: None }));
+    EDIT.with(|edit| {
+        *edit.borrow_mut() = Some(Edit { param, expr, at: None, fresh: FRESH, wait: 10, draft: Some(draft), live: None, selection: None })
+    });
     PLACEMENT.with(|preview| *preview.borrow_mut() = None);
     Ok(())
 }
@@ -147,7 +150,7 @@ pub fn begin_live(app: &mut SolveApp, entities: Vec<String>, pointer: Option<Pos
         return Ok(false);
     }
     let live = Some(Live { origin: pointer, moved: false, typed: false });
-    EDIT.with(|edit| *edit.borrow_mut() = Some(Edit { param, expr, at: None, fresh: FRESH, wait: 10, draft: Some(draft), live }));
+    EDIT.with(|edit| *edit.borrow_mut() = Some(Edit { param, expr, at: None, fresh: FRESH, wait: 10, draft: Some(draft), live, selection: None }));
     PLACEMENT.with(|preview| *preview.borrow_mut() = None);
     Ok(true)
 }
@@ -351,7 +354,9 @@ pub fn double_click(app: &mut SolveApp, pos: Pos2) -> bool {
         return true;
     };
     let expr = app.session.doc.param(&param).map(|p| p.expr.clone()).unwrap_or_default();
-    EDIT.with(|e| *e.borrow_mut() = Some(Edit { param, expr, at: Some(d.text.center()), fresh: FRESH, wait: 0, draft: None, live: None }));
+    EDIT.with(|e| {
+        *e.borrow_mut() = Some(Edit { param, expr, at: Some(d.text.center()), fresh: FRESH, wait: 0, draft: None, live: None, selection: None })
+    });
     true
 }
 
@@ -577,7 +582,52 @@ fn pos2_mid_top(r: Rect) -> Pos2 {
 /// its value is selected, so typing replaces it).
 pub fn edit_param(app: &SolveApp, param: &str) {
     let expr = app.session.doc.param(param).map(|p| p.expr.clone()).unwrap_or_default();
-    EDIT.with(|e| *e.borrow_mut() = Some(Edit { param: param.to_string(), expr, at: None, fresh: FRESH, wait: 10, draft: None, live: None }));
+    EDIT.with(|e| {
+        *e.borrow_mut() = Some(Edit { param: param.to_string(), expr, at: None, fresh: FRESH, wait: 10, draft: None, live: None, selection: None })
+    });
+}
+
+/// Insert a reference at the expression's selection, using character offsets (not bytes).
+fn insert_reference(ctx: &egui::Context, edit: &mut Edit, name: &str) {
+    let id = egui::Id::new("sc_dim_edit");
+    let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+    let len = edit.expr.chars().count();
+    let (start, end) = edit
+        .selection
+        .or_else(|| state.cursor.char_range())
+        .map(|r| {
+            let a = r.primary.index.0.min(len);
+            let b = r.secondary.index.0.min(len);
+            (a.min(b), a.max(b))
+        })
+        .unwrap_or((len, len));
+    let before: String = edit.expr.chars().take(start).collect();
+    let after: String = edit.expr.chars().skip(end).collect();
+    edit.expr = format!("{before}{name}{after}");
+    state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(start + name.chars().count()))));
+    edit.selection = state.cursor.char_range();
+    state.store(ctx, id);
+    ctx.memory_mut(|m| m.request_focus(id));
+    edit.fresh = FRESH - 1;
+    if let Some(live) = edit.live.as_mut() {
+        live.typed = true;
+    }
+}
+
+/// Consume dimension clicks while editing; only a double-click inserts a reference.
+pub fn pick_reference(ctx: &egui::Context, pos: Pos2, double: bool) -> bool {
+    EDIT.with(|editor| {
+        let mut editor = editor.borrow_mut();
+        let Some(edit) = editor.as_mut() else { return false };
+        let Some(id) = hit(pos) else { return false };
+        let param = DRAWN.with(|d| d.borrow().iter().find(|d| d.id == id).and_then(|d| d.param.clone()));
+        if double && let Some(param) = param.filter(|p| p != &edit.param) {
+            insert_reference(ctx, edit, &param);
+        }
+        // Self references and driven dimensions cannot supply a reference.
+        edit.fresh = FRESH - 1;
+        true
+    })
 }
 
 fn edit_box(app: &mut SolveApp, ctx: &egui::Context) {
@@ -612,8 +662,16 @@ fn edit_box(app: &mut SolveApp, ctx: &egui::Context) {
     crate::frame::area(egui::Id::new("sc_dim_edit_area")).fixed_pos(anchor).order(egui::Order::Foreground).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).inner_margin(egui::Margin::symmetric(3, 1)).show(ui, |ui| {
             ui.set_max_width(popup_width);
-            let r = ui.add(egui::TextEdit::singleline(&mut e.expr).id(id).desired_width(popup_width.min(90.0)));
+            ui.label(egui::RichText::new(format!("Dimension: {}", e.param)).strong())
+                .on_hover_text("Double-click another driving dimension to insert its name");
+            let r = ui.add(egui::TextEdit::singleline(&mut e.expr).id(id).desired_width(popup_width));
+            if r.has_focus() {
+                e.selection = egui::TextEdit::load_state(ctx, id).and_then(|s| s.cursor.char_range());
+            }
             let completed = crate::params_dialog::complete(ui, &r, &mut e.expr);
+            if completed {
+                e.selection = egui::TextEdit::load_state(ctx, id).and_then(|s| s.cursor.char_range());
+            }
             if let Some(live) = e.live.as_mut() {
                 live.typed |= r.changed() || completed;
             }
@@ -625,6 +683,7 @@ fn edit_box(app: &mut SolveApp, ctx: &egui::Context) {
                 let n = e.expr.chars().count();
                 let mut s = egui::text_edit::TextEditState::load(ui.ctx(), id).unwrap_or_default();
                 s.cursor.set_char_range(Some(egui::text_selection::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(n))));
+                e.selection = s.cursor.char_range();
                 s.store(ui.ctx(), id);
             }
             let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));

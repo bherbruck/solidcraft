@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Conic</title>
+  <path d="M8.82 29.6A24 17 0 0 1 55.18 29.6" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="8.82" cy="29.6" r="5.8" fill="#ffffff"/>
+  <circle cx="8.82" cy="29.6" r="3.4" fill="#236ead"/>
+  <circle cx="32" cy="17" r="5.8" fill="#ffffff"/>
+  <circle cx="32" cy="17" r="3.4" fill="#236ead"/>
+  <circle cx="55.18" cy="29.6" r="5.8" fill="#ffffff"/>
+  <circle cx="55.18" cy="29.6" r="3.4" fill="#236ead"/>
+</svg>

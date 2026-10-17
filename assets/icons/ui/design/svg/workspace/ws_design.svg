@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Ws design</title>
+  <path d="M7.62 9L7.62 55L51.62 55ZM15.62 29L15.62 47L33.62 47Z" fill="#e2e8ef" fill-rule="evenodd"/>
+  <path d="M7.62 9L7.62 55L51.62 55ZM15.62 29L15.62 47L33.62 47Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" fill-rule="evenodd"/>
+  <path d="M26.63 38.99L43.48 16.63L51.46 22.65L34.61 45.01Z" fill="#328bd3" stroke="#34465b" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M43.48 16.63L45.88 13.43L53.87 19.45L51.46 22.65Z" fill="#8e9faf" stroke="#34465b" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M47.09 11.84L48.29 10.24A2 2 127 0 1 51.09 9.85L55.88 13.46A2 2 127 0 1 56.28 16.26L55.07 17.86A2 2 127 0 1 52.27 18.25L47.48 14.64A2 2 127 0 1 47.09 11.84Z" fill="#b9ddf8" stroke="#34465b" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M26.63 38.99L24 50.78L34.61 45.01Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M24 50.78L24.85 46.67L27.72 48.83Z" fill="#34465b"/>
+</svg>

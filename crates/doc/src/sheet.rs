@@ -1139,11 +1139,22 @@ impl SheetBody {
             cuts.push(fitted_region(&pocket)?);
         }
         let cuts = material_union(cuts, work)?;
+        let cut_boxes = cuts.iter().map(|c| loop_box(&c.outer)).collect::<Result<Vec<_>>>()?;
         let mut out = Vec::new();
         let mut points = 0usize;
         for (piece, region) in pieces {
             let panel = fitted_region(&planar_region(&region)?)?;
-            let material = if cuts.is_empty() { vec![panel] } else { material_boolean(&[panel], &cuts, kernel::BoolOp::Cut, work)? };
+            // Each piece meets only the cut-outs near it: arranging every cut-out of the sheet (a
+            // label's letters on its base) against each flange and bend zone too would charge the
+            // budget for all of them once per piece.
+            let (lo, hi) = loop_box(&panel.outer)?;
+            let near: Vec<Region2> = cuts
+                .iter()
+                .zip(&cut_boxes)
+                .filter(|(_, (a, b))| a.x <= hi.x && b.x >= lo.x && a.y <= hi.y && b.y >= lo.y)
+                .map(|(c, _)| c.clone())
+                .collect();
+            let material = if near.is_empty() { vec![panel] } else { material_boolean(&[panel], &near, kernel::BoolOp::Cut, work)? };
             for region in material {
                 points = points.saturating_add(region_complexity(std::slice::from_ref(&region))?.1);
                 if points > MAX_FLAT_POINTS || out.len() >= MAX_FLAT_PIECES {
@@ -1545,6 +1556,9 @@ impl SheetBody {
     }
 
     fn machine_pockets(&self, mut body: Body, work: &mut FlatWork) -> Result<Body> {
+        if self.pockets.is_empty() {
+            return Ok(body);
+        }
         if self.pockets.len() > 1000 {
             return Err(flat_budget_error());
         }

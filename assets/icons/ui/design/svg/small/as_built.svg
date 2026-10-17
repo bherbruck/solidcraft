@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>As-built joint</title>
+  <path d="M25.9 14.39L38.1 21.44L38.1 35.52L25.9 28.48Z" fill="#b8c3cf"/>
+  <path d="M50.3 14.39L38.1 21.44L38.1 35.52L50.3 28.48Z" fill="#8e9faf"/>
+  <path d="M38.1 7.35L50.3 14.39L38.1 21.44L25.9 14.39Z" fill="#e2e8ef"/>
+  <path d="M38.1 7.35L50.3 14.39L50.3 28.48L38.1 35.52L25.9 28.48L25.9 14.39Z" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M25.9 14.39L38.1 21.44L50.3 14.39" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M38.1 21.44L38.1 35.52" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M13.7 35.52L25.9 42.56L25.9 56.65L13.7 49.61Z" fill="#b8c3cf"/>
+  <path d="M38.1 35.52L25.9 42.56L25.9 56.65L38.1 49.61Z" fill="#8e9faf"/>
+  <path d="M25.9 28.48L38.1 35.52L25.9 42.56L13.7 35.52Z" fill="#e2e8ef"/>
+  <path d="M25.9 28.48L38.1 35.52L38.1 49.61L25.9 56.65L13.7 49.61L13.7 35.52Z" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M13.7 35.52L25.9 42.56L38.1 35.52" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M25.9 42.56L25.9 56.65" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M25.9 28.48L38.1 35.52" fill="none" stroke="#ffffff" stroke-width="7.3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M25.9 28.48L38.1 35.52" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M21.4 18.39L21.4 11.39L27.46 7.89" fill="none" stroke="#236ead" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M54.8 24.48L54.8 31.48L48.74 34.98" fill="none" stroke="#236ead" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

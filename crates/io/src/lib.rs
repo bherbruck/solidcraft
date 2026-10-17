@@ -18,6 +18,8 @@ pub use design::{
     write_design_container_with_thumbnail,
 };
 mod legacy_dir;
+#[cfg(test)]
+mod mutate;
 mod native_cad;
 pub use native_cad::{NATIVE_CAD_EXTS, is_native_cad_path, native_cad_to_step};
 pub mod safe_write;
@@ -488,7 +490,9 @@ fn mesh_object(b: &solidcraft_doc::ModelBody, tagged: bool) -> Result<MeshObject
 
 /// STEP assembly of a design with components: a product per component holding its bodies in
 /// the component's own frame (`local` is the model before placing occurrences), and an
-/// assembly occurrence per component occurrence.
+/// assembly occurrence per component occurrence. A body with an offset (an imported assembly's
+/// part, built where the file placed it) is taken into its component's frame by that offset,
+/// as the world placement does, so the occurrences above it place it only once.
 pub fn step_assembly(doc: &Document, local: &ModelState, name: &str) -> Result<Vec<u8>> {
     use solidcraft_kernel::{ExportBody, ExportProduct};
     let mut index: std::collections::HashMap<u64, usize> = std::collections::HashMap::new();
@@ -498,10 +502,18 @@ pub fn step_assembly(doc: &Document, local: &ModelState, name: &str) -> Result<V
         index.insert(c.id, products.len());
         products.push(ExportProduct { name: c.name.clone(), bodies: Vec::new(), children: Vec::new() });
     }
-    for b in &local.bodies {
-        let comp = doc.body_component(&b.name, b.feature);
+    let framed: Vec<Option<solidcraft_kernel::Body>> = local
+        .bodies
+        .iter()
+        .map(|b| match doc.model_body_offset(b) {
+            Some(offset) if !solidcraft_doc::is_identity(offset) => solidcraft_kernel::transform_matrix(&b.body, *offset).map(Some),
+            _ => Ok(None),
+        })
+        .collect::<std::result::Result<_, _>>()?;
+    for (b, framed) in local.bodies.iter().zip(&framed) {
+        let comp = doc.model_body_component(b);
         let Some(p) = index.get(&comp).and_then(|i| products.get_mut(*i)) else { continue };
-        p.bodies.push(ExportBody { name: b.name.clone(), body: &b.body, color: b.body.color() });
+        p.bodies.push(ExportBody { name: b.name.clone(), body: framed.as_ref().unwrap_or(&b.body), color: b.body.color() });
     }
     for o in &doc.occurrences {
         let (Some(&parent), Some(&child)) = (index.get(&o.parent), index.get(&o.component)) else { continue };

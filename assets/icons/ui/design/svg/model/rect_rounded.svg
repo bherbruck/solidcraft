@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Rounded rectangle</title>
+  <path d="M19 16L45 16A9 9 0 0 1 54 25L54 39A9 9 0 0 1 45 48L19 48A9 9 0 0 1 10 39L10 25A9 9 0 0 1 19 16Z" fill="#b9ddf8" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="10" cy="16" r="5.8" fill="#ffffff"/>
+  <circle cx="10" cy="16" r="3.4" fill="#236ead"/>
+  <circle cx="54" cy="48" r="5.8" fill="#ffffff"/>
+  <circle cx="54" cy="48" r="3.4" fill="#236ead"/>
+</svg>

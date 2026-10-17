@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Project</title>
+  <path d="M5 46L28 34L59 46L36 58Z" fill="#e2e8ef"/>
+  <path d="M5 46L28 34L59 46L36 58Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M15 42C25 38 34 48 47 44" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M15 8C25 4 34 14 47 10" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M15 16L15 36M47 18L47 38" fill="none" stroke="#6f879c" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M15 40L11.5 33L18.5 33Z" fill="#6f879c"/>
+  <path d="M47 42L43.5 35L50.5 35Z" fill="#6f879c"/>
+</svg>

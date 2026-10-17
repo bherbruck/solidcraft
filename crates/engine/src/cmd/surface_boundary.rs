@@ -21,7 +21,7 @@ const MAX_SAMPLES: usize = 512;
 
 pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new("surface.boundary", "Boundary Surface", boundary)
     .at("SURFACE", "CREATE")
-    .icon("boundary")
+    .icon("surface_boundary")
     .params(
         "sketch?: id|name (default: the sketch being edited); curves: [2 to 4 sketch curve ids in loop order] (each one ends where the next begins and the last where the first does; the patch runs through them and leaves each boundary along the tangent across it); continuity?: g0|g1|g2|g3 | [one per curve] (default g1: how much of the surface across each boundary the patch repeats — a sketch curve's own plane, so g1 and up hold exactly and g0 lets the middle bow); crown?: number -0.9…3 (default 0: how full the middle is, without touching a boundary); samples?: 8…512 stations per boundary (default 25); name?, body_name? (a surface body)",
     )];

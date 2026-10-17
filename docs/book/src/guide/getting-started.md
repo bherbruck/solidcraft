@@ -45,10 +45,15 @@ to the same user installation:
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak remote-add --user --if-not-exists solidcraft https://bherbruck.github.io/solidcraft/flatpak/solidcraft.flatpakrepo
+flatpak remote-add --user --if-not-exists solidcraft https://docs.solidcraft.io/flatpak/solidcraft.flatpakrepo
 flatpak install --user solidcraft ai.storyteller.solidcraft
 flatpak run ai.storyteller.solidcraft
 ```
+
+A SolidCraft remote added before the project moved to `docs.solidcraft.io` (from
+`bherbruck.github.io`) no longer finds updates. Point it at the new address, then update:
+`flatpak remote-modify --user --url=https://docs.solidcraft.io/flatpak/repo/ solidcraft` and
+`flatpak update --user`.
 
 Releases up to 0.7 used the application ID `ai.storyteller.solvecraft`. If you installed one
 of those from the SolidCraft remote, `flatpak update --user` reports it as end-of-life and offers
@@ -110,6 +115,32 @@ cd apps/solidcraft-web && trunk serve --release --no-autoreload
 
 Offline use needs `--no-autoreload`: Trunk's live reload changes the page as it serves it, so it
 no longer matches the build the browser would keep. Debug builds (`trunk serve`) never keep a copy.
+
+### Self-hosting with Docker
+
+The web app is also a container image, `ghcr.io/tangency-labs/solidcraft-web`, for Linux on x86_64
+and ARM64: `latest` is the latest release, `0.14.0` or `0.14` a release, `edge` the newest `main`.
+It serves the app with nginx on port 8080 and keeps nothing on the server: designs stay in each
+visitor's browser.
+
+```sh
+docker run -d --name solidcraft -p 8080:8080 --restart unless-stopped ghcr.io/tangency-labs/solidcraft-web:latest
+```
+
+Or with Docker Compose, using
+[`packaging/docker/compose.yaml`](https://github.com/tangency-labs/solidcraft/blob/main/packaging/docker/compose.yaml)
+(`SOLIDCRAFT_PORT` picks another port):
+
+```sh
+docker compose -f packaging/docker/compose.yaml up -d      # start
+docker compose -f packaging/docker/compose.yaml pull && docker compose -f packaging/docker/compose.yaml up -d   # update
+docker compose -f packaging/docker/compose.yaml up -d --build   # build the image from your checkout instead
+```
+
+Then open `http://localhost:8080/`. On another machine the browser only saves designs over HTTPS,
+so put a reverse proxy with a certificate in front (Caddy, Traefik, nginx); the app works under
+any URL path, such as `https://example.com/cad/`. To build the image without Compose, from the
+repository root: `docker build -f packaging/docker/Dockerfile -t solidcraft-web .`
 
 ### 3D mouse in the browser
 
@@ -211,6 +242,17 @@ depending on its settings, and strict JSON readers such as Python's `json.load` 
 ```sh
 cargo run --release -p solidcraft-cli -- run examples/bracket.json --results --json-out results.json
 cargo run --release -p solidcraft-cli -- eval examples/bracket.json --json-out measures.json
+```
+
+To find the slow steps of a script, `--timings` prints how long each command took instead of
+the measurement: `{"timings": [{"index", "command", "ms"}], "total_ms"}`, with `index` counted
+from 0. `--profile` adds each command's `profile: {"boolean_ms", "tessellate_ms", "other_ms"}`,
+its wall time in the kernel's booleans, in tessellation and in everything else. With
+`--results` as well, the results go in the same object as `results`; `--results` alone still
+prints a plain array.
+
+```sh
+cargo run --release -p solidcraft-cli -- run examples/bracket.json --profile
 ```
 
 A design's history turns into a script that rebuilds it, which makes a bug that only shows

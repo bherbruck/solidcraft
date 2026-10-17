@@ -20,7 +20,7 @@ fn shallow_cut_after_a_pocket_recovers_from_empty_numerical_attempts() {
         Ok((Solid::new_unchecked(Vec::new()), None))
     };
     let (result, diagnostics) =
-        capture_boolean_diagnostics(|| boolean_via(&target, &tool, BoolOp::Cut, &|a, b, op| boolean_whole_with(a, b, op, &empty)));
+        capture_boolean_diagnostics(|| boolean_via(&target, &tool, BoolOp::Cut, &|a, b, op| boolean_whole_with(a, b, op, false, &empty)));
     assert!(attempts.get() >= 2, "the first two numerical tries must really have failed");
     let cut = result.unwrap().expect("a shallow cut leaves the plate");
     assert!(cut.validity().is_empty(), "{:?}", cut.validity());
@@ -37,7 +37,7 @@ fn unrecovered_empty_attempts_keep_the_outer_guard_refusal() {
     let target = sphere(Vec3::ZERO, 10.0).unwrap();
     let tool = sphere(Vec3::new(8.0, 0.0, 0.0), 5.0).unwrap();
     let empty = |_: &Body, _: &Body, _: BoolOp, _: Option<mt::Vector3>, _: f64| Ok((Solid::new_unchecked(Vec::new()), None));
-    let result = boolean_via(&target, &tool, BoolOp::Cut, &|a, b, op| boolean_whole_with(a, b, op, &empty));
+    let result = boolean_via(&target, &tool, BoolOp::Cut, &|a, b, op| boolean_whole_with(a, b, op, false, &empty));
     let error = result.unwrap_err();
     assert!(error.to_string().contains("it came out empty"), "{error}");
 }

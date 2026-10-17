@@ -23,7 +23,23 @@ fn temp_beside(path: &Path, tag: &str) -> PathBuf {
 fn write_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut f = OpenOptions::new().write(true).create_new(true).open(path)?;
     f.write_all(bytes)?;
-    f.sync_all()
+    flush(&f)
+}
+
+/// Flush a written file to the disk. On Apple systems `sync_all` asks the drive itself to flush
+/// (`F_FULLFSYNC`), which a network share refuses (an SMB share: "Operation not supported", os
+/// error 45), so a save there failed before it replaced anything. The plain `fsync` the share
+/// does offer is used then, as SQLite and git do.
+fn flush(f: &fs::File) -> std::io::Result<()> {
+    flush_with(f, fs::File::sync_all)
+}
+
+fn flush_with(f: &fs::File, full: impl FnOnce(&fs::File) -> std::io::Result<()>) -> std::io::Result<()> {
+    match full(f) {
+        #[cfg(target_vendor = "apple")]
+        Err(e) if e.kind() == std::io::ErrorKind::Unsupported || e.raw_os_error() == Some(45) => rustix::fs::fsync(f).map_err(std::io::Error::from),
+        r => r,
+    }
 }
 
 /// Flush the directory entry (the rename) to disk where the platform allows it.
@@ -142,7 +158,7 @@ pub fn create_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let tmp = temp_beside(path, "create");
     // Only remove a temporary file that this invocation successfully created.
     let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
-    let result = file.write_all(bytes).and_then(|_| file.sync_all());
+    let result = file.write_all(bytes).and_then(|_| flush(&file));
     drop(file);
     let result = result.and_then(|_| fs::hard_link(&tmp, path));
     let _ = fs::remove_file(&tmp);
@@ -214,6 +230,29 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    /// A network share (SMB on macOS) refuses the drive flush `sync_all` asks for with "Operation
+    /// not supported" (os error 45). The file is then flushed the plain way and the save goes on;
+    /// any other failure still fails the save.
+    #[test]
+    fn a_share_that_refuses_the_full_flush_gets_a_plain_one() {
+        let d = dir("flush");
+        let p = d.join("a.solidcraft");
+        fs::write(&p, b"saved").unwrap();
+        let f = fs::File::open(&p).unwrap();
+        let refused = |_: &fs::File| Err(std::io::Error::from_raw_os_error(45));
+        #[cfg(target_vendor = "apple")]
+        flush_with(&f, refused).unwrap();
+        #[cfg(not(target_vendor = "apple"))]
+        assert!(flush_with(&f, refused).is_err(), "elsewhere sync_all is the plain flush already");
+        let unsupported = |_: &fs::File| Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
+        assert_eq!(flush_with(&f, unsupported).is_ok(), cfg!(target_vendor = "apple"));
+        let broken = |_: &fs::File| Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        assert_eq!(flush_with(&f, broken).unwrap_err().kind(), std::io::ErrorKind::PermissionDenied);
+        flush_with(&f, |_| Ok(())).unwrap();
+        drop(f);
+        let _ = fs::remove_dir_all(&d);
     }
 
     #[test]

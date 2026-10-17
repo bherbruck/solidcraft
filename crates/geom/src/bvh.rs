@@ -145,6 +145,53 @@ impl Bvh {
         }
         best
     }
+
+    /// Calls `item(i, j)` for pairs of items, `i` from this hierarchy and `j` from `other`, in
+    /// leaves whose boxes, and every pair of boxes above them, `enter` accepts. `enter` is asked
+    /// again for a pair of boxes when it is taken up, so a bound that tightens while items are
+    /// visited (the nearest pair so far) prunes what is still waiting. Of two children, the pair
+    /// whose box centres are nearer is taken up first.
+    pub fn visit_pairs(&self, other: &Bvh, mut enter: impl FnMut(&Aabb3, &Aabb3) -> bool, mut item: impl FnMut(u32, u32)) {
+        if self.nodes.is_empty() || other.nodes.is_empty() {
+            return;
+        }
+        let mut stack = vec![(0usize, 0usize)];
+        while let Some((i, j)) = stack.pop() {
+            let (Some(a), Some(b)) = (self.nodes.get(i), other.nodes.get(j)) else { continue };
+            if !enter(&a.bounds, &b.bounds) {
+                continue;
+            }
+            match (a.count > 0, b.count > 0) {
+                (true, true) => {
+                    let (ia, ib) = (a.first as usize, b.first as usize);
+                    let left = self.order.get(ia..ia + a.count as usize).unwrap_or(&[]);
+                    let right = other.order.get(ib..ib + b.count as usize).unwrap_or(&[]);
+                    for &x in left {
+                        for &y in right {
+                            item(x, y);
+                        }
+                    }
+                }
+                // Split the node that is not a leaf, or the larger one.
+                (leaf_a, leaf_b) => {
+                    let split_a = !leaf_a && (leaf_b || a.bounds.diagonal() >= b.bounds.diagonal());
+                    let pairs =
+                        if split_a { [(a.first as usize, j), (a.first as usize + 1, j)] } else { [(i, b.first as usize), (i, b.first as usize + 1)] };
+                    let gap = |(x, y): (usize, usize)| match (self.nodes.get(x), other.nodes.get(y)) {
+                        (Some(x), Some(y)) => x.bounds.center().dist(y.bounds.center()),
+                        _ => f64::INFINITY,
+                    };
+                    let [p, q] = pairs;
+                    // The nearer pair is popped first.
+                    if gap(p) <= gap(q) {
+                        stack.extend([q, p]);
+                    } else {
+                        stack.extend([p, q]);
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn finite(b: &Aabb3) -> bool {

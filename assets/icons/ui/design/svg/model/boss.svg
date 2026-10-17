@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Boss</title>
+  <path d="M3 35.81L32 52.55L32 58.64L3 41.89Z" fill="#b8c3cf"/>
+  <path d="M61 35.81L32 52.55L32 58.64L61 41.89Z" fill="#8e9faf"/>
+  <path d="M32 19.06L61 35.81L32 52.55L3 35.81Z" fill="#e2e8ef"/>
+  <path d="M32 19.06L61 35.81L61 41.89L32 58.64L3 41.89L3 35.81Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M3 35.81L32 52.55L61 35.81" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 52.55L32 58.64" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22.68 22.11L22.68 35.81A9.32 5.38 0 0 0 41.32 35.81L41.32 22.11Z" fill="#328bd3"/>
+  <path d="M35.26 22.11L35.26 40.85A9.32 5.38 0 0 0 41.32 35.81L41.32 22.11Z" fill="#236ead"/>
+  <path d="M22.68 22.11L22.68 35.81A9.32 5.38 0 0 0 41.32 35.81L41.32 22.11Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22.68 22.11A9.32 5.38 0 1 0 41.32 22.11A9.32 5.38 0 1 0 22.68 22.11Z" fill="#b9ddf8" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

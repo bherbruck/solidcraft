@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Isoparametric analysis</title>
+  <path d="M8 32A24 24 0 1 0 56 32A24 24 0 1 0 8 32Z" fill="#e2e8ef"/>
+  <defs><clipPath id="disc-iso"><path d="M8 32A24 24 0 1 0 56 32A24 24 0 1 0 8 32Z" fill="none"/></clipPath></defs>
+  <g clip-path="url(#disc-iso)">
+  <path d="M32 8L32 56" fill="none" stroke="#236ead" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M17.6 32A14.4 24 0 1 0 46.4 32A14.4 24 0 1 0 17.6 32Z" fill="none" stroke="#236ead" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M56 32A24 7.68 0 0 1 8 32" fill="none" stroke="#236ead" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <path d="M8 32A24 24 0 1 0 56 32A24 24 0 1 0 8 32Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

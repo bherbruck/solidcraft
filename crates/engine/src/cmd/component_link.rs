@@ -20,12 +20,14 @@ pub static COMMANDS: &[CommandSpec] = &[
         "path: a .solidcraft design → a new component linked to it, holding its solid bodies as placed in that design; \
          name? (default: the design's name); parent?: component id or name (default: the active one); translate?: [x,y,z]",
     ),
-    CommandSpec::new("component.update_links", "Update Links", update_links).params(
+    CommandSpec::new("component.update_links", "Update Links", update_links).icon("update").params(
         "component?: id or name (default: every linked component) — reads the linked designs again and replaces their bodies where they changed",
     ),
     CommandSpec::new("component.break_link", "Break Link", break_link)
+        .icon("break")
         .params("component: id or name of a linked component — keeps its bodies as they are and forgets the design file"),
     CommandSpec::new("component.links", "List Links", list_links)
+        .icon("chain")
         .noundo()
         .params("→ linked components: component, name, path, file (resolved), found"),
 ];

@@ -21,5 +21,5 @@ pub fn save(app: &mut SolveApp, slot: &Slot) {
 }
 pub fn open(app: &mut SolveApp, slot: &Slot) {
     let slot = slot.clone();
-    app.services.pick_open = Some(Box::new(move || Box::pin(Manual(slot.clone())) as FilePickerFuture));
+    app.services.pick_open = Some(Box::new(move |_| Box::pin(Manual(slot.clone())) as FilePickerFuture));
 }

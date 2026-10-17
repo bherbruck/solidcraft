@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Library</title>
+  <path d="M11 15.5L20 15.5A2 2 0 0 1 22 17.5L22 49.5A2 2 0 0 1 20 51.5L11 51.5A2 2 0 0 1 9 49.5L9 17.5A2 2 0 0 1 11 15.5Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M12 23.5L19 23.5" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M17 25.5L20.7 25.5L20.7 50.2L17 50.2Z" fill="#8e9faf"/>
+  <path d="M27 7.5L36 7.5A2 2 0 0 1 38 9.5L38 49.5A2 2 0 0 1 36 51.5L27 51.5A2 2 0 0 1 25 49.5L25 9.5A2 2 0 0 1 27 7.5Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M28 15.5L35 15.5" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M33 17.5L36.7 17.5L36.7 50.2L33 50.2Z" fill="#236ead"/>
+  <path d="M43 18.5L52 18.5A2 2 0 0 1 54 20.5L54 49.5A2 2 0 0 1 52 51.5L43 51.5A2 2 0 0 1 41 49.5L41 20.5A2 2 0 0 1 43 18.5Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44 26.5L51 26.5" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M49 28.5L52.7 28.5L52.7 50.2L49 50.2Z" fill="#8e9faf"/>
+  <path d="M7.5 51.5L56.5 51.5A1.5 1.5 0 0 1 58 53L58 55A1.5 1.5 0 0 1 56.5 56.5L7.5 56.5A1.5 1.5 0 0 1 6 55L6 53A1.5 1.5 0 0 1 7.5 51.5Z" fill="#8e9faf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

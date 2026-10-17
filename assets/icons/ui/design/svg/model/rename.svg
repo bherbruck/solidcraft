@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Rename</title>
+  <path d="M11.5 19L52.5 19A4 4 0 0 1 56.5 23L56.5 42A4 4 0 0 1 52.5 46L11.5 46A4 4 0 0 1 7.5 42L7.5 23A4 4 0 0 1 11.5 19Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M13.5 23L50.5 23A2 2 0 0 1 52.5 25L52.5 40A2 2 0 0 1 50.5 42L13.5 42A2 2 0 0 1 11.5 40L11.5 25A2 2 0 0 1 13.5 23Z" fill="#e2e8ef"/>
+  <path d="M16.5 33L31.5 33" fill="none" stroke="#34465b" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44.5 11L44.5 53M39.5 11L49.5 11M39.5 53L49.5 53" fill="none" stroke="#ffffff" stroke-width="6.45" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44.5 11L44.5 53M39.5 11L49.5 11M39.5 53L49.5 53" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

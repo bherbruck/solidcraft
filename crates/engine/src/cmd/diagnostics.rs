@@ -8,20 +8,21 @@ use crate::params::{bad, str_};
 use crate::{EngineError, Result, Session, crash};
 
 pub static COMMANDS: &[CommandSpec] = &[
-    CommandSpec::new("diagnostics.crash_reports", "Crash Reports", list).noundo().params(
+    CommandSpec::new("diagnostics.crash_reports", "Crash Reports", list).icon("bug_report").noundo().params(
         "limit?: number (default 20). Lists this computer's crash reports, newest first: {dir, reports: [{id, kind, time, message, \
          command, count, version, path, replayable}]}. kind: command_panic | panic | kernel_panic_recovered | unclean_exit. \
          Read one with diagnostics.crash_report; reproduce it with `solidcraft-cli crashes replay <id>`",
     ),
-    CommandSpec::new("diagnostics.crash_report", "Crash Report", read).noundo().params(
+    CommandSpec::new("diagnostics.crash_report", "Crash Report", read).icon("bug_report").noundo().params(
         "id: report id. The whole report: message, location, backtrace, app version and commit, system, the command that \
          crashed and the recent ones, notes, and design_path / replay_path when the crash can be replayed \
          (`solidcraft-cli run <replay_path> --in <design_path>`)",
     ),
     CommandSpec::new("diagnostics.crash_reports.clear", "Delete Crash Reports", clear)
+        .icon("delete")
         .noundo()
         .params("id?: one report (default: all). Returns {deleted}"),
-    CommandSpec::new("diagnostics.crash_test", "Crash Test", crash_test).noundo().enabled(crash_test_enabled).params(
+    CommandSpec::new("diagnostics.crash_test", "Crash Test", crash_test).icon("bug_report").noundo().enabled(crash_test_enabled).params(
         "mode: panic | kernel | abort. Checks that crash reports work: panic = an internal error in this command (caught; \
          the design is unchanged), kernel = one inside the geometry kernel (caught), abort = the app ends at once (reported \
          at the next start). Only when the SOLIDCRAFT_CRASH_TEST environment variable is set",

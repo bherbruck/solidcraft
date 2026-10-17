@@ -253,6 +253,21 @@ fn parse_document(json: &[u8]) -> Result<gltf::Document> {
         }
         // The ones left only change looks (or are the quantized attributes read below).
         root.extensions_required.clear();
+        // gltf-json's primitive check reads the POSITION accessor without a bounds check, so one
+        // naming an accessor the file lacks panics inside it. The guard catches that on the
+        // desktop, but in the browser a panic aborts the app: refuse such a file before (#469).
+        let accessors = root.accessors.len();
+        let positions = gltf::json::validation::Checked::Valid(gltf::json::mesh::Semantic::Positions);
+        for (m, mesh) in root.meshes.iter().enumerate() {
+            for (p, primitive) in mesh.primitives.iter().enumerate() {
+                if let Some(a) = primitive.attributes.get(&positions).filter(|a| a.value() >= accessors) {
+                    return Ok(Err(format!(
+                        "invalid glTF: mesh {m}, primitive {p}: POSITION names accessor {}, but the file has {accessors}",
+                        a.value()
+                    )));
+                }
+            }
+        }
         Ok(gltf::Document::from_json(root).map_err(|e| format!("invalid glTF: {e}")))
     });
     match parsed {
@@ -868,4 +883,4 @@ pub fn glb_container(json: &[u8], bin: &[u8]) -> Vec<u8> {
 
 #[cfg(test)]
 #[path = "gltf_in_tests.rs"]
-mod tests;
+pub(crate) mod tests;

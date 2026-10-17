@@ -14,17 +14,17 @@ pub static COMMANDS: &[CommandSpec] = &[
     ),
     CommandSpec::new("config.table", "Display Configuration Table", show)
         .at("SOLID", "CONFIGURE")
-        .icon("params")
+        .icon("configuration_table")
         .noundo()
         .params("→ columns (param:<name> or suppress:<feature>), rows, the active row and whether the design still matches it"),
-    CommandSpec::new("config.column", "Configuration Column", column).params("param? | feature? | material? | appearance? (target name); delete?: bool"),
-    CommandSpec::new("config.row", "Configuration Row", row).params(
+    CommandSpec::new("config.column", "Configuration Column", column).icon("configuration_table").params("param? | feature? | material? | appearance? (target name); delete?: bool"),
+    CommandSpec::new("config.row", "Configuration Row", row).icon("configuration_table").params(
         "name; from? (row to copy; default current values); values?: {column key: expression, suppression, material name, appearance name or Look object}; rename?; delete?: bool",
     ),
-    CommandSpec::new("config.activate", "Activate Configuration", activate).params("row: name — sets its parameter values and suppressions"),
-    CommandSpec::new("config.preview", "Preview Configuration", preview).noundo().params("row: name — validates a rebuild without changing the design or history"),
-    CommandSpec::new("config.rule", "Configuration Rule", rule).params("rule?: {id,name,enabled,condition,effect}; id? + delete?; id? + index? (ordered move)"),
-    CommandSpec::new("config.rules", "Configuration Rules", show).noundo().params("ordered typed rules, rows and active state"),
+    CommandSpec::new("config.activate", "Activate Configuration", activate).icon("activate").params("row: name — sets its parameter values and suppressions"),
+    CommandSpec::new("config.preview", "Preview Configuration", preview).icon("eye").noundo().params("row: name — validates a rebuild without changing the design or history"),
+    CommandSpec::new("config.rule", "Configuration Rule", rule).icon("configuration_table").params("rule?: {id,name,enabled,condition,effect}; id? + delete?; id? + index? (ordered move)"),
+    CommandSpec::new("config.rules", "Configuration Rules", show).icon("list").noundo().params("ordered typed rules, rows and active state"),
 ];
 
 fn column_of(s: &Session, p: &Value, cmd: &str) -> Result<Column> {

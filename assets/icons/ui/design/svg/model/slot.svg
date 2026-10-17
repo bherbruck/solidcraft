@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Slot</title>
+  <path d="M18 21L46 21A11 11 0 0 1 57 32L57 32A11 11 0 0 1 46 43L18 43A11 11 0 0 1 7 32L7 32A11 11 0 0 1 18 21Z" fill="#b9ddf8" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="18" cy="32" r="5.8" fill="#ffffff"/>
+  <circle cx="18" cy="32" r="3.4" fill="#236ead"/>
+  <circle cx="46" cy="32" r="5.8" fill="#ffffff"/>
+  <circle cx="46" cy="32" r="3.4" fill="#236ead"/>
+  <circle cx="46" cy="21" r="5.8" fill="#ffffff"/>
+  <circle cx="46" cy="21" r="3.4" fill="#236ead"/>
+</svg>

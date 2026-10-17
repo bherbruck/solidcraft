@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Perforate</title>
+  <path d="M3 28L35.78 46.92L35.78 50.56L3 31.64Z" fill="#b8c3cf"/>
+  <path d="M61 32.36L35.78 46.92L35.78 50.56L61 36Z" fill="#8e9faf"/>
+  <path d="M28.22 13.44L61 32.36L35.78 46.92L3 28Z" fill="#e2e8ef"/>
+  <path d="M28.22 13.44L61 32.36L61 36L35.78 50.56L3 31.64L3 28Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M3 28L35.78 46.92L61 32.36" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M35.78 46.92L35.78 50.56" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M24.47 20.72A3.74 2.16 0 1 0 31.96 20.72A3.74 2.16 0 1 0 24.47 20.72Z" fill="#236ead"/>
+  <path d="M24.47 20.72A3.74 2.16 0 1 0 31.96 20.72A3.74 2.16 0 1 0 24.47 20.72Z" fill="none" stroke="#34465b" stroke-width="2.04" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M11.86 28A3.74 2.16 0 1 0 19.35 28A3.74 2.16 0 1 0 11.86 28Z" fill="#236ead"/>
+  <path d="M11.86 28A3.74 2.16 0 1 0 19.35 28A3.74 2.16 0 1 0 11.86 28Z" fill="none" stroke="#34465b" stroke-width="2.04" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M34.56 26.54A3.74 2.16 0 1 0 42.05 26.54A3.74 2.16 0 1 0 34.56 26.54Z" fill="#236ead"/>
+  <path d="M34.56 26.54A3.74 2.16 0 1 0 42.05 26.54A3.74 2.16 0 1 0 34.56 26.54Z" fill="none" stroke="#34465b" stroke-width="2.04" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M21.95 33.82A3.74 2.16 0 1 0 29.44 33.82A3.74 2.16 0 1 0 21.95 33.82Z" fill="#236ead"/>
+  <path d="M21.95 33.82A3.74 2.16 0 1 0 29.44 33.82A3.74 2.16 0 1 0 21.95 33.82Z" fill="none" stroke="#34465b" stroke-width="2.04" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44.65 32.36A3.74 2.16 0 1 0 52.14 32.36A3.74 2.16 0 1 0 44.65 32.36Z" fill="#236ead"/>
+  <path d="M44.65 32.36A3.74 2.16 0 1 0 52.14 32.36A3.74 2.16 0 1 0 44.65 32.36Z" fill="none" stroke="#34465b" stroke-width="2.04" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32.04 39.64A3.74 2.16 0 1 0 39.53 39.64A3.74 2.16 0 1 0 32.04 39.64Z" fill="#236ead"/>
+  <path d="M32.04 39.64A3.74 2.16 0 1 0 39.53 39.64A3.74 2.16 0 1 0 32.04 39.64Z" fill="none" stroke="#34465b" stroke-width="2.04" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

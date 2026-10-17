@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Material</title>
+  <path d="M16 58A16 3.6 0 1 0 48 58A16 3.6 0 1 0 16 58Z" fill="#b8c3cf"/>
+  <path d="M8 31A24 24 0 1 0 56 31A24 24 0 1 0 8 31Z" fill="#328bd3"/>
+  <path d="M8 31A24 24 0 1 0 56 31A24 24 0 1 0 8 31Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="23" cy="22" r="6" fill="#b9ddf8"/>
+</svg>

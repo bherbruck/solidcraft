@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Align</title>
+  <path d="M20.92 10L48.92 10A2 2 0 0 1 50.92 12L50.92 19A2 2 0 0 1 48.92 21L20.92 21A2 2 0 0 1 18.92 19L18.92 12A2 2 0 0 1 20.92 10Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.92 26L38.92 26A2 2 0 0 1 40.92 28L40.92 35A2 2 0 0 1 38.92 37L20.92 37A2 2 0 0 1 18.92 35L18.92 28A2 2 0 0 1 20.92 26Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.92 42L53.92 42A2 2 0 0 1 55.92 44L55.92 51A2 2 0 0 1 53.92 53L20.92 53A2 2 0 0 1 18.92 51L18.92 44A2 2 0 0 1 20.92 42Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8.92 8L8.92 56" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

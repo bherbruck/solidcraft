@@ -29,5 +29,5 @@ web-sys = { version = "0.3", features = [
     "Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "Location", "Navigator", "StorageManager",
     "FileSystemHandle", "FileSystemDirectoryHandle", "FileSystemFileHandle", "FileSystemGetFileOptions", "FileSystemWritableFileStream",
     "WritableStream", "File", "FileList", "Blob", "BlobPropertyBag", "Url", "HtmlAnchorElement", "HtmlInputElement", "Storage",
-    "BeforeUnloadEvent", "Event", "EventTarget", "Response", "MediaQueryList", "Gamepad",
+    "BeforeUnloadEvent", "Event", "EventTarget", "Response", "MediaQueryList", "Gamepad", "Performance",
 ] }

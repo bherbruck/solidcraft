@@ -183,6 +183,13 @@ pub(crate) fn selected_entity(app: &SolveApp) -> Option<String> {
     selected
 }
 
+/// The link of the one text the selection belongs to (see [`selected_entity`]).
+pub(crate) fn selected_link(app: &SolveApp) -> Option<String> {
+    let entity = selected_entity(app)?;
+    let sk = app.session.doc.sketch(app.session.active_sketch?).ok()?;
+    sk.curves.iter().find(|curve| curve.id == entity)?.link.clone()
+}
+
 /// Show every outline affected by the open editor without changing feature selections.
 pub(crate) fn highlighted(app: &SolveApp) -> Vec<Sel> {
     let Some(Kind::Text(tx)) = app.dialog.as_ref().map(|dialog| &dialog.kind) else { return Vec::new() };
@@ -750,6 +757,45 @@ mod tests {
         }
         h.step(&json!({"widget":"Cancel"})).unwrap();
         assert!(highlighted(&h.app).is_empty());
+    }
+
+    /// Explode Text (#1842): the text's outlines stay where they are as ordinary sketch curves,
+    /// the text itself goes, and one undo brings it back.
+    #[test]
+    fn explode_text_leaves_its_outlines_as_normal_curves() {
+        let (mut h, link, _) = setup();
+        h.app.run("sketch.edit_text", json!({"link":link,"text":"TO"})).unwrap();
+        let sid = h.app.session.active_sketch.unwrap();
+        let outline = |h: &Harness| {
+            let sk = h.app.session.doc.sketch(sid).unwrap();
+            let mut ids: Vec<(String, Option<String>)> = sk.curves.iter().map(|c| (c.id.clone(), c.link.clone())).collect();
+            ids.sort();
+            ids
+        };
+        let before = outline(&h);
+        assert!(before.len() > 4 && before.iter().all(|(_, l)| l.as_deref() == Some(link.as_str())));
+        let profiles = h.app.session.world_state().sketch(sid).unwrap().profiles.len();
+        h.app.session.selection = vec![Sel::SketchCurve { id: before[0].0.clone() }];
+        let undo = h.app.session.undo.len();
+        let item = crate::context_menu::items(&h.app, &crate::context_menu::Target::Viewport)
+            .into_iter()
+            .find(|item| item.label == "Explode Text")
+            .expect("Explode Text is offered for a selected text");
+        assert!(item.enabled);
+        crate::context_menu::run_item(&mut h.app, &item, egui::Pos2::ZERO);
+        h.frames(2);
+        let after = outline(&h);
+        assert_eq!(after.iter().map(|c| &c.0).collect::<Vec<_>>(), before.iter().map(|c| &c.0).collect::<Vec<_>>(), "every outline stays");
+        assert!(after.iter().all(|(_, l)| l.is_none()), "no outline belongs to the text");
+        let sk = h.app.session.doc.sketch(sid).unwrap();
+        assert!(sk.link(&link).is_none(), "the text is gone");
+        assert_eq!(h.app.session.world_state().sketch(sid).unwrap().profiles.len(), profiles, "the letters still make the same profiles");
+        assert_eq!(h.app.session.undo.len(), undo + 1);
+        // No longer text: nothing to edit or explode.
+        assert!(selected_entity(&h.app).is_none());
+        assert!(!crate::context_menu::items(&h.app, &crate::context_menu::Target::Viewport).iter().any(|item| item.label == "Explode Text"));
+        h.app.run("edit.undo", json!({})).unwrap();
+        assert_eq!(outline(&h), before, "undo brings the text back");
     }
 
     #[test]

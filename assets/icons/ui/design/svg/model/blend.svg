@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Blend curve</title>
+  <path d="M6 48L18 48M46 16L58 16" fill="none" stroke="#8e9faf" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M18 48C36 48 28 16 46 16" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="18" cy="48" r="5.8" fill="#ffffff"/>
+  <circle cx="18" cy="48" r="3.4" fill="#236ead"/>
+  <circle cx="46" cy="16" r="5.8" fill="#ffffff"/>
+  <circle cx="46" cy="16" r="3.4" fill="#236ead"/>
+</svg>

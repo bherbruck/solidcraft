@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Placeholder</title>
+  <path d="M12 8L52 8A4 4 0 0 1 56 12L56 52A4 4 0 0 1 52 56L12 56A4 4 0 0 1 8 52L8 12A4 4 0 0 1 12 8Z" fill="none" stroke="#6f879c" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="0.1 7.5"/>
+  <path d="M26 24L38 24A2 2 0 0 1 40 26L40 38A2 2 0 0 1 38 40L26 40A2 2 0 0 1 24 38L24 26A2 2 0 0 1 26 24Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

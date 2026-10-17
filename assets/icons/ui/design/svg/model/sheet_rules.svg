@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Sheet metal rules</title>
+  <path d="M5.23 39.14L36.02 56.91L36.02 60L5.23 42.23Z" fill="#b8c3cf"/>
+  <path d="M58.77 43.77L36.02 56.91L36.02 60L58.77 46.86Z" fill="#8e9faf"/>
+  <path d="M27.98 26L58.77 43.77L36.02 56.91L5.23 39.14Z" fill="#e2e8ef"/>
+  <path d="M27.98 26L58.77 43.77L58.77 46.86L36.02 60L5.23 42.23L5.23 39.14Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M5.23 39.14L36.02 56.91L58.77 43.77" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M36.02 56.91L36.02 60" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10 12L54 12" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M14 12L14 20" fill="none" stroke="#236ead" stroke-width="2.97" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22 12L22 17" fill="none" stroke="#236ead" stroke-width="2.97" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M30 12L30 20" fill="none" stroke="#236ead" stroke-width="2.97" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M38 12L38 17" fill="none" stroke="#236ead" stroke-width="2.97" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M46 12L46 20" fill="none" stroke="#236ead" stroke-width="2.97" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

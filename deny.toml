@@ -3,6 +3,14 @@
 # The nightly command downgrades only this diagnostic with --warn unmaintained.
 unmaintained = "all"
 yanked = "warn"
+# zip 8.6 comes only through cadmpeg-codec-freecad 0.6.1 (`zip = "^8"`); all three advisories
+# are in ZipArchive::extract / ZipStreamReader::extract, which neither it nor solidcraft-io
+# calls. Remove these when cadmpeg moves to zip 9.
+ignore = [
+    { id = "RUSTSEC-2026-0367", reason = "zip 8 via cadmpeg-codec-freecad; extract() is never called" },
+    { id = "RUSTSEC-2026-0368", reason = "zip 8 via cadmpeg-codec-freecad; extract() is never called" },
+    { id = "RUSTSEC-2026-0369", reason = "zip 8 via cadmpeg-codec-freecad; extract() is never called" },
+]
 
 [bans]
 multiple-versions = "warn"

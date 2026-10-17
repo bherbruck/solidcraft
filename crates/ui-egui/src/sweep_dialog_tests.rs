@@ -99,3 +99,42 @@ fn editing_sweeps_keeps_their_options() {
         assert_eq!(after.param_names, before.param_names, "{name}");
     }
 }
+
+/// A rail picked in the dialog reaches the command with its sketch, the fit with it; editing the
+/// sweep brings both back and keeps them.
+#[test]
+fn a_rail_picked_in_the_dialog_is_kept_through_an_edit() {
+    let mut h = Harness::new();
+    let sketch = setup(&mut h);
+    h.app.run("sketch.create", json!({"plane":"XZ","name":"R"})).unwrap();
+    h.app.run("sketch.line", json!({"points":[[5,0],[10,-40]],"ids":["out"]})).unwrap();
+    h.app.run("sketch.finish", json!({})).unwrap();
+    let rail_sketch = h.app.session.doc.find_feature("R").unwrap().id;
+    h.step(&json!({"call":"ui.start","params":{"command":"solid.sweep"}})).unwrap();
+    h.frames(3);
+    assert!(h.widget("Rail Fit").is_some());
+    let d = h.app.dialog.as_mut().unwrap();
+    d.inputs[0].items = vec![Sel::Profile { sketch, index: 0 }];
+    d.inputs[1].items = vec![Sel::SketchCurve { id: "up".into() }];
+    d.inputs[3].items = vec![Sel::SketchCurve { id: "out".into() }];
+    let Kind::Sweep { opts, .. } = &mut d.kind else { panic!("{:?}", d.kind) };
+    opts.rail_fit = 1;
+    h.frames(2);
+    h.step(&json!({"widget":"OK"})).unwrap();
+    assert!(h.app.dialog.is_none(), "{:?}", h.app.session.log);
+    let name = h.app.session.doc.features.last().unwrap().name.clone();
+    let rails = |h: &Harness| match &h.app.session.doc.find_feature(&name).unwrap().kind {
+        FeatureKind::Sweep { rails, rail_fit, .. } => (rails.clone(), *rail_fit),
+        k => panic!("{k:?}"),
+    };
+    let (stored, fit) = rails(&h);
+    assert_eq!(stored, vec![solidcraft_engine::doc::SweepRail { sketch: solidcraft_engine::doc::SketchId(rail_sketch), curves: vec!["out".into()] }]);
+    assert_eq!(fit, solidcraft_engine::doc::RailFit::Stretch);
+    h.step(&json!({"call":"ui.editFeature","params":{"feature":name}})).unwrap();
+    h.frames(8);
+    let d = h.app.dialog.as_ref().unwrap();
+    assert_eq!(d.inputs[3].items, vec![Sel::SketchCurve { id: "out".into() }]);
+    h.step(&json!({"widget":"OK"})).unwrap();
+    assert!(h.app.dialog.is_none(), "{:?}", h.app.session.log);
+    assert_eq!(rails(&h), (stored, fit));
+}

@@ -13,16 +13,16 @@ use crate::params::{bad, bool_, str_};
 use crate::{Result, Session};
 
 pub static COMMANDS: &[CommandSpec] = &[
-    CommandSpec::new("body.rename", "Rename Body", rename_body).params("body: its name, name: the new name (features that use the body follow)"),
+    CommandSpec::new("body.rename", "Rename Body", rename_body).icon("rename").params("body: its name, name: the new name (features that use the body follow)"),
     CommandSpec::new("sketch.redefine", "Redefine Sketch Plane", redefine_sketch)
         .icon("plane")
         .params("sketch: id or name; plane: as sketch.create; author_path?: exact owner occurrence ids; explicitly rebinds or freezes the plane while preserving geometry and dimension names"),
     CommandSpec::new("browser.group", "New Group", group)
         .icon("folder")
         .params("folder: bodies|sketches|construction; component?: id (default 0); name?; items?: [keys] (they leave other groups)"),
-    CommandSpec::new("browser.ungroup", "Ungroup", ungroup).params("group: id (its items go back to the folder)"),
-    CommandSpec::new("browser.rename_group", "Rename Group", rename_group).params("group: id, name"),
-    CommandSpec::new("browser.move", "Move Browser Items", move_items)
+    CommandSpec::new("browser.ungroup", "Ungroup", ungroup).icon("folder").params("group: id (its items go back to the folder)"),
+    CommandSpec::new("browser.rename_group", "Rename Group", rename_group).icon("rename").params("group: id, name"),
+    CommandSpec::new("browser.move", "Move Browser Items", move_items).icon("reorder")
         .params("folder, component?, items: [keys]; group?: id (into it; omit to take them out of groups); before?: key (position in the group)"),
     CommandSpec::new("document.units", "Change Design Units", document_units)
         .icon("settings")
@@ -30,13 +30,13 @@ pub static COMMANDS: &[CommandSpec] = &[
     CommandSpec::new("view.save", "New Named View", view_save)
         .icon("camera")
         .params("name?; camera: {target: [x,y,z], yaw, pitch, distance, fov?} (replaces a view of the same name)"),
-    CommandSpec::new("view.rename", "Rename Named View", view_rename).params("view: name, name"),
-    CommandSpec::new("view.delete", "Delete Named View", view_delete).params("view: name"),
-    CommandSpec::new("view.list", "List Named Views", view_list).noundo().doc_only(),
+    CommandSpec::new("view.rename", "Rename Named View", view_rename).icon("rename").params("view: name, name"),
+    CommandSpec::new("view.delete", "Delete Named View", view_delete).icon("delete").params("view: name"),
+    CommandSpec::new("view.list", "List Named Views", view_list).icon("list").noundo().doc_only(),
     CommandSpec::new("view.apply", "Restore Named View", view_apply).icon("camera").noundo().params(
         "view?: front|back|top|bottom|left|right|iso|home (frames the model) | a named view's name; or camera?: {target: [x,y,z], yaw, pitch, distance, fov?} (radians, mm) → camera. The viewport (and the MCP screenshot) moves there. View state: not saved, not an undo step",
     ),
-    CommandSpec::new("browser.order", "Order Browser Items", order).params("folder, component?, order: [keys] (the folder's items in display order)"),
+    CommandSpec::new("browser.order", "Order Browser Items", order).icon("reorder").params("folder, component?, order: [keys] (the folder's items in display order)"),
     CommandSpec::new("browser.visibility", "Show/Hide", visibility).icon("eye").noundo().params(
         "visible: bool; items?: [sketch id or name | body name | construction name | joint name | O|X|Y|Z|XY|XZ|YZ]; \
          or joints?: [joint id or name] (their glyphs; they still constrain and move parts); \

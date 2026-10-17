@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Lookat</title>
+  <defs>
+    <mask id="look-at-rear" maskUnits="userSpaceOnUse" x="-32" y="-32" width="128" height="128">
+      <path d="M-34 -32.5L94 -32.5L94 95.5L-34 95.5Z" fill="white"/>
+      <path d="M23 31.5L37 22.5L37 40.5Z" fill="black" stroke="black" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M37 31.5L56 31.5" fill="none" stroke="black" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M11 12.5L36 12.5A3 3 0 0 1 39 15.5L39 48.5A3 3 0 0 1 36 51.5L11 51.5A3 3 0 0 1 8 48.5L8 15.5A3 3 0 0 1 11 12.5Z" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round" mask="url(#look-at-rear)"/>
+  <path d="M37 31.5L56 31.5" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M23 31.5L37 22.5L37 40.5Z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

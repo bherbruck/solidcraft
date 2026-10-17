@@ -84,6 +84,44 @@ fn analysis(app: &mut SolveApp, cmd: &str, p: Value) {
     }
 }
 
+/// A seam from an `inspect.continuity` reply as a marker label: its class and the measure that
+/// decided it (the gap, the angle between the faces' normals, or the curvature jump).
+fn continuity_label(app: &SolveApp, seam: &Value) -> String {
+    let deg = |key: &str| seam[key]["value"].as_f64().map(|x| format!("{x:.3}\u{b0}")).unwrap_or_default();
+    let jump = seam["curvature_jump_per_mm"]["value"].as_f64().map(|k| format!("\u{394}k {k:.4}/mm")).unwrap_or_default();
+    match seam["verdict"].as_str().unwrap_or_default() {
+        "gap" => format!("Gap {}", seam["gap_mm"]["value"].as_f64().map(|g| crate::prefs::show_mm(app, g, 1)).unwrap_or_default()),
+        "sharp" => format!("G0 {}", deg("normal_angle_deg")),
+        "curvature_jump" => format!("G1 {} {jump}", deg("normal_angle_deg")),
+        "smooth" => format!("G2 {} {jump}", deg("normal_angle_deg")),
+        other => other.to_string(),
+    }
+}
+
+/// The Continuity Analysis legend in the viewport's lower left corner: each class in its
+/// colour, while seams are shaded.
+fn continuity_legend(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
+    if app.session.continuity.is_empty() {
+        return;
+    }
+    let tk = crate::theme::Tokens::get();
+    let [smooth, jump, sharp, gap] = tk.continuity;
+    let tr = crate::i18n::tr_label;
+    let rows = [(tr("G2 curvature"), smooth), (tr("G1 tangent"), jump), (tr("G0 crease"), sharp), (tr("Gap"), gap)];
+    let font = egui::FontId::proportional(12.0);
+    let (row, pad, swatch) = (18.0, 8.0, 22.0);
+    let text_width = rows.iter().map(|(label, _)| painter.layout_no_wrap(label.to_string(), font.clone(), tk.text).size().x).fold(0.0, f32::max);
+    let size = egui::vec2(pad + swatch + 8.0 + text_width + pad, rows.len() as f32 * row + 2.0 * pad);
+    let frame = egui::Rect::from_min_size(proj.rect.left_bottom() + egui::vec2(16.0, -(size.y + 16.0)), size);
+    painter.rect_filled(frame, 4.0, tk.panel.gamma_multiply(0.9));
+    crate::scenario::publish_rect("continuity_legend", frame);
+    for (i, (label, col)) in rows.iter().enumerate() {
+        let y = frame.top() + pad + row * (i as f32 + 0.5);
+        painter.line_segment([egui::pos2(frame.left() + pad, y), egui::pos2(frame.left() + pad + swatch, y)], Stroke::new(3.0, *col));
+        painter.text(egui::pos2(frame.left() + pad + swatch + 8.0, y), egui::Align2::LEFT_CENTER, *label, font.clone(), tk.text);
+    }
+}
+
 /// Isocurve analysis lines.
 fn iso_lines(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
     if app.tool.as_ref().map(|t| t.cmd) != Some("inspect.isocurve") {
@@ -104,7 +142,7 @@ fn iso_lines(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
 
 /// Analysis markers: a target with its label.
 fn marks(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
-    if !app.tool.as_ref().is_some_and(|t| matches!(t.cmd, "inspect.minimum_radius" | "inspect.center_of_mass")) {
+    if !app.tool.as_ref().is_some_and(|t| matches!(t.cmd, "inspect.minimum_radius" | "inspect.center_of_mass" | "inspect.continuity")) {
         MARKS.with(|m| m.borrow_mut().clear());
         return;
     }
@@ -148,6 +186,25 @@ pub fn start_hook(app: &mut SolveApp, id: &str) -> bool {
             app.set_status(if on { "Analysis off" } else { "Analysis on (click it again to turn it off)" }, false);
         }
         return false;
+    }
+    if id == "inspect.continuity" {
+        // Every edge of the shown bodies at once; the tool stays for clicking single edges. With
+        // seams shaded, the button turns the analysis off.
+        MARKS.with(|m| m.borrow_mut().clear());
+        if !app.session.continuity.is_empty() {
+            if app.run(id, json!({"clear": true})).is_ok() {
+                app.set_status("Analysis off", false);
+            }
+            return false;
+        }
+        let Ok(v) = app.run(id, json!({})) else { return false };
+        let summary = &v["summary"];
+        let counts: Vec<String> = [("smooth", "G2"), ("curvature_jump", "G1"), ("sharp", "G0"), ("gap", "gap")]
+            .iter()
+            .filter_map(|(key, class)| summary[*key].as_u64().filter(|n| *n > 0).map(|n| format!("{n} {class}")))
+            .collect();
+        app.set_status(format!("Continuity: {} (click the button again to turn it off)", counts.join(", ")), false);
+        return true;
     }
     if id == "inspect.center_of_mass" {
         // The whole model at once; the tool stays for picking single bodies.
@@ -346,11 +403,21 @@ enum Mode {
     Steps,
 }
 
+/// Whether a click with tool `id` acts on `hit`: what is under the pointer lights up only when
+/// the tool takes it, so the hover shows what a click does and lights nothing over a view the
+/// tool draws (Continuity Analysis's seam colours on a face the tool ignores).
+pub fn takes(id: &str, hit: &Hit) -> bool {
+    match id {
+        "inspect.continuity" => matches!(hit, Hit::Edge { .. }),
+        _ => true,
+    }
+}
+
 fn mode(id: &str) -> Option<Mode> {
     Some(match id {
         "sketch.project" | "sketch.intersect" | "sketch.include_3d" | "sketch.fit_curves_to_section" | "sketch.isoparametric_curve" => Mode::ModelRef,
         "inspect.curvature_comb" | "canvas.insert" | "canvas.decal" => Mode::ModelRef,
-        "inspect.minimum_radius" | "inspect.center_of_mass" | "inspect.isocurve" => Mode::ModelRef,
+        "inspect.minimum_radius" | "inspect.center_of_mass" | "inspect.isocurve" | "inspect.continuity" => Mode::ModelRef,
         "sketch.trim" | "sketch.extend" | "sketch.break" => Mode::CurveAt,
         "sketch.line.midpoint" => Mode::Points(2),
         "sketch.arc.tangent" => Mode::Points(2),
@@ -398,6 +465,7 @@ pub fn hint(id: &str) -> Option<String> {
             "inspect.minimum_radius" => "Minimum radius: click sketch curves, edges or faces",
             "inspect.center_of_mass" => "Center of mass of all bodies; click a body for its own",
             "inspect.isocurve" => "Isocurves: click faces",
+            "inspect.continuity" => "Continuity: click an edge for its numbers (the button again turns the colours off)",
             "canvas.insert" => "Canvas: click a plane or a planar face where the image's centre goes",
             "canvas.decal" => "Decal: click a planar face where the image's centre goes",
             "sketch.trim" => "Trim: click the piece of a curve to remove",
@@ -594,6 +662,17 @@ pub fn on_click(app: &mut SolveApp, tool: &mut Tool, proj: &Proj, pos: Pos2) {
                     let teeth: Vec<[Vec3; 2]> = pts.windows(2).map(|w| [w[0], w[1]]).collect();
                     ISO.with(|i| i.borrow_mut().push(teeth));
                 }
+            }
+        }
+        Mode::ModelRef if cmd == "inspect.continuity" => {
+            // The edge measured again, added to the seams shown, and its numbers pinned there.
+            let edge = hits.iter().filter(|h| takes(cmd, h)).find_map(|h| if let Hit::Edge { mid, .. } = h { Some(*mid) } else { None });
+            if let Some(mid) = edge
+                && let Ok(v) = app.run(cmd, json!({"edges": [[mid.x, mid.y, mid.z]], "add": true}))
+                && let Some(seam) = v["bodies"][0]["edges"].get(0)
+            {
+                let label = continuity_label(app, seam);
+                MARKS.with(|m| m.borrow_mut().push((mid, label)));
             }
         }
         Mode::ModelRef if matches!(cmd, "inspect.minimum_radius" | "inspect.center_of_mass") => {
@@ -1134,8 +1213,13 @@ pub fn show(app: &mut SolveApp, ui: &egui::Ui, painter: &egui::Painter, proj: &P
     }
     marks(app, painter, proj);
     iso_lines(app, painter, proj);
+    continuity_legend(app, painter, proj);
 }
 
 #[cfg(test)]
 #[path = "sketch_corner_ui_tests.rs"]
 mod corner_ui_tests;
+
+#[cfg(test)]
+#[path = "sketch_continuity_tests.rs"]
+mod continuity_tests;

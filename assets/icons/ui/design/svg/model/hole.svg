@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Hole</title>
+  <path d="M3 20.35L32 37.1L32 48.74L3 32Z" fill="#b8c3cf"/>
+  <path d="M61 20.35L32 37.1L32 48.74L61 32Z" fill="#8e9faf"/>
+  <path d="M32 3.61L61 20.35L32 37.1L3 20.35Z" fill="#e2e8ef"/>
+  <path d="M32 3.61L61 20.35L61 32L32 48.74L3 32L3 20.35Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M3 20.35L32 37.1L61 20.35" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M32 37.1L32 48.74" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22.19 20.35A9.81 5.66 0 1 0 41.81 20.35A9.81 5.66 0 1 0 22.19 20.35Z" fill="#236ead"/>
+  <path d="M24.74 23.55A7.26 3.51 0 1 0 39.26 23.55A7.26 3.51 0 1 0 24.74 23.55Z" fill="#328bd3"/>
+  <path d="M22.19 20.35A9.81 5.66 0 1 0 41.81 20.35A9.81 5.66 0 1 0 22.19 20.35Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

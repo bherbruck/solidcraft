@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Hem</title>
+  <path d="M9.25 40.5L46.25 40.5A8.5 8.5 0 0 0 46.25 23.5L29.25 23.5" fill="none" stroke="#34465b" stroke-width="11.4" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M9.25 40.5L46.25 40.5" fill="none" stroke="#b8c3cf" stroke-width="6.3" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M46.25 40.5A8.5 8.5 0 0 0 46.25 23.5L29.25 23.5" fill="none" stroke="#328bd3" stroke-width="6.3" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

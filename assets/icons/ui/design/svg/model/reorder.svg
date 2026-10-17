@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Reorder</title>
+  <path d="M30.36 9.86L53.36 9.86A2 2 0 0 1 55.36 11.86L55.36 16.86A2 2 0 0 1 53.36 18.86L30.36 18.86A2 2 0 0 1 28.36 16.86L28.36 11.86A2 2 0 0 1 30.36 9.86Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M30.36 27.86L53.36 27.86A2 2 0 0 1 55.36 29.86L55.36 34.86A2 2 0 0 1 53.36 36.86L30.36 36.86A2 2 0 0 1 28.36 34.86L28.36 29.86A2 2 0 0 1 30.36 27.86Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M30.36 45.86L53.36 45.86A2 2 0 0 1 55.36 47.86L55.36 52.86A2 2 0 0 1 53.36 54.86L30.36 54.86A2 2 0 0 1 28.36 52.86L28.36 47.86A2 2 0 0 1 30.36 45.86Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M13.36 18.86L13.36 44.86" fill="none" stroke="#236ead" stroke-width="4.25" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M13.36 7.86L19.36 18.86L7.36 18.86Z" fill="#236ead"/>
+  <path d="M13.36 55.86L7.36 44.86L19.36 44.86Z" fill="#236ead"/>
+</svg>

@@ -16,9 +16,9 @@ type MeshedShell = Shell<Point3, PolylineCurve, Option<PolygonMesh>>;
 type MeshedCShell = CompressedShell<Point3, PolylineCurve, Option<PolygonMesh>>;
 
 pub(super) trait SP<S>:
-    Fn(&S, Point3, Option<(f64, f64)>) -> Option<(f64, f64)> + Parallelizable {
+    Fn(&S, Point3, Option<(f64, f64)>, f64) -> Option<(f64, f64)> + Parallelizable {
 }
-impl<S, F> SP<S> for F where F: Fn(&S, Point3, Option<(f64, f64)>) -> Option<(f64, f64)> + Parallelizable {}
+impl<S, F> SP<S> for F where F: Fn(&S, Point3, Option<(f64, f64)>, f64) -> Option<(f64, f64)> + Parallelizable {}
 
 /// SolidCraft: a parameter inside the surface's bounded, non-periodic ranges.
 fn in_domain<S: ParametricSurface>(surface: &S, (u, v): (f64, f64)) -> bool {
@@ -93,6 +93,7 @@ pub(super) fn by_search_parameter<S>(
     surface: &S,
     point: Point3,
     hint: Option<(f64, f64)>,
+    _accept: f64,
 ) -> Option<(f64, f64)>
 where
     S: MeshableSurface,
@@ -106,15 +107,97 @@ pub(super) fn by_search_nearest_parameter<S>(
     surface: &S,
     point: Point3,
     hint: Option<(f64, f64)>,
+    accept: f64,
 ) -> Option<(f64, f64)>
-where
-    S: RobustMeshableSurface,
-{
-    surface
-        .search_parameter(point, hint, 100)
-        .or_else(|| surface.search_parameter(point, None, 100))
-        .or_else(|| surface.search_nearest_parameter(point, hint, 100))
-        .or_else(|| surface.search_nearest_parameter(point, None, 100))
+where S: RobustMeshableSurface {
+    nearest_projection(surface, point, hint, accept, 100)
+}
+
+/// A hint can converge to a spline's continuation outside its knot domain. Prefer a
+/// bounded fit within the caller's chord tolerance. Some modelling surfaces really are
+/// extended beyond their stored domain; retain that continuation when no bounded fit is
+/// accurate enough, rather than losing a valid blend face.
+pub(super) fn nearest_projection<S: RobustMeshableSurface>(surface: &S, point: Point3, hint: Option<(f64,f64)>, accept: f64, trials: usize) -> Option<(f64,f64)> {
+    // An affine plane's unit parameter box is only a chart, not a finite support.
+    // Preserve its exact projection even when the trim extends beyond that box.
+    if affine_chart(surface) {
+        return surface.search_parameter(point, hint, trials)
+            .or_else(|| surface.search_parameter(point, None, trials))
+            .or_else(|| surface.search_nearest_parameter(point, hint, trials))
+            .or_else(|| surface.search_nearest_parameter(point, None, trials));
+    }
+    let candidate = |uv| {
+        let uv = sane(surface, point, uv);
+        let error = surface.subs(uv.0, uv.1).distance2(point);
+        (uv.0.is_finite() && uv.1.is_finite() && error.is_finite()).then_some((uv, error))
+    };
+    let fits = |&(uv, error): &((f64, f64), f64)| in_domain(surface, uv) && error <= accept * accept;
+    let exact = surface.search_parameter(point, hint, trials)
+        .or_else(|| surface.search_parameter(point, None, trials)).and_then(candidate);
+    if let Some((uv, _)) = exact.filter(fits) { return Some(uv); }
+    let hinted = surface.search_nearest_parameter(point, hint, trials).and_then(candidate);
+    if let Some((uv, _)) = hinted.filter(fits) { return Some(uv); }
+    let fresh = surface.search_nearest_parameter(point, None, trials).and_then(candidate);
+    if let Some((uv, _)) = fresh.filter(fits) { return Some(uv); }
+    let best = [exact, hinted, fresh].into_iter().flatten().min_by(|a, b| a.1.total_cmp(&b.1));
+    if let Some(uv) = best.map(|x| x.0).or(hint) {
+        if let Some(bounded) = bounded_projection(surface, point, uv).filter(fits) {
+            return Some(bounded.0);
+        }
+    }
+    // Even the unhinted search can fail for shallow patches of very large cylinders.
+    // Their domain midpoint supplies a finite start without trusting a previous failure.
+    if let (Some((a, b)), Some((c, d))) = surface.try_range_tuple() {
+        if [a, b, c, d].iter().all(|x| x.is_finite()) {
+            let start = (a * 0.5 + b * 0.5, c * 0.5 + d * 0.5);
+            if let Some(bounded) = bounded_projection(surface, point, start).filter(fits) {
+                return Some(bounded.0);
+            }
+        }
+    }
+    best.map(|x| x.0)
+}
+
+fn affine_chart<S: ParametricSurface3D>(surface: &S) -> bool {
+    let (Some((a, b)), Some((c, d))) = surface.try_range_tuple() else { return false };
+    [a, b, c, d].iter().all(|x| x.is_finite()) && [0.0, 0.5, 1.0].into_iter().all(|t| {
+        let (u, v) = (a + (b - a) * t, c + (d - c) * t);
+        [surface.uuder(u, v), surface.uvder(u, v), surface.vvder(u, v)]
+            .iter().all(|x| x.magnitude2() <= 1e-24)
+    })
+}
+
+/// Damped least squares constrained to the finite knot domain. An unconstrained Newton
+/// step is unreliable where the two tangents almost coincide. This fallback has fixed work
+/// limits and is used only after the usual searches failed to find a bounded fit.
+fn bounded_projection<S: ParametricSurface3D>(surface: &S, point: Point3, start: (f64, f64)) -> Option<((f64, f64), f64)> {
+    let mut uv = clamped(surface, start);
+    let mut error = surface.subs(uv.0, uv.1).distance2(point);
+    let mut lambda = 1e-6_f64;
+    for _ in 0..60 {
+        let q = surface.subs(uv.0, uv.1);
+        let (du, dv) = (surface.uder(uv.0, uv.1), surface.vder(uv.0, uv.1));
+        let r = point - q;
+        let (a, b, c) = (du.magnitude2(), du.dot(dv), dv.magnitude2());
+        let scale = a + c;
+        if !scale.is_finite() || scale <= 0.0 { break; }
+        let (aa, cc) = (a + lambda * scale, c + lambda * scale);
+        let det = aa * cc - b * b;
+        if !det.is_finite() || det <= 0.0 { break; }
+        let (g, h) = (du.dot(r), dv.dot(r));
+        let next = clamped(surface, (uv.0 + (cc * g - b * h) / det, uv.1 + (aa * h - b * g) / det));
+        let nd = surface.subs(next.0, next.1).distance2(point);
+        if nd.is_finite() && nd <= error {
+            let moved = (next.0 - uv.0).abs() + (next.1 - uv.1).abs();
+            (uv, error) = (next, nd);
+            lambda = (lambda * 0.1).max(1e-12);
+            if moved <= 1e-15 * (1.0 + uv.0.abs() + uv.1.abs()) { break; }
+        } else {
+            lambda *= 10.0;
+            if lambda > 1e8 { break; }
+        }
+    }
+    (error.is_finite() && in_domain(surface, uv)).then_some((uv, error))
 }
 
 /// Tessellates faces
@@ -341,14 +424,18 @@ where
     let edges: Vec<_> = shell.edges.iter().map(tessellate_edge).collect();
     let tessellate_face = |face: &CompressedFace<S>| {
         let boundaries = face.boundaries.clone();
-        let surface = &face.surface;
+        let wrapped = closed::Closed::new(&face.surface);
+        let search = |s: &closed::Closed<'_, S>, point, hint: Option<(f64, f64)>, accept| {
+            sp(s.base, point, hint.map(|p| s.wrap(p)), accept)
+        };
+        let surface = &wrapped;
         let create_edge = |edge_idx: &CompressedEdgeIndex| match edge_idx.orientation {
             true => Some(edges.get(edge_idx.index)?.curve.clone()),
             false => Some(edges.get(edge_idx.index)?.curve.inverse()),
         };
         let create_boundary = |wire: &Vec<CompressedEdgeIndex>| {
             let wire_iter = wire.iter().filter_map(create_edge);
-            PolyBoundaryPiece::try_new(surface, wire_iter, &sp)
+            PolyBoundaryPiece::try_new(surface, wire_iter, &search, tol.chord)
         };
         let preboundary: Option<Vec<_>> = boundaries.iter().map(create_boundary).collect();
         let polygon: Option<PolygonMesh> = (|| {
@@ -380,11 +467,16 @@ fn shell_create_polygon<S: PreMeshableSurface>(
     sp: impl SP<S>,
     cap: usize,
 ) -> Face<Point3, PolylineCurve, Option<PolygonMesh>> {
+    let wrapped = closed::Closed::new(surface);
+    let search = |s: &closed::Closed<'_, S>, point, hint: Option<(f64, f64)>, accept| {
+        sp(s.base, point, hint.map(|p| s.wrap(p)), accept)
+    };
+    let surface = &wrapped;
     let preboundary = wires
         .iter()
         .map(|wire: &Wire<_, _>| {
             let wire_iter = wire.iter().map(Edge::oriented_curve);
-            PolyBoundaryPiece::try_new(surface, wire_iter, &sp)
+            PolyBoundaryPiece::try_new(surface, wire_iter, &search, tol.chord)
         })
         .collect::<Option<Vec<_>>>();
     let polygon: Option<PolygonMesh> = (|| {
@@ -451,6 +543,7 @@ impl PolyBoundaryPiece {
         surface: &S,
         wire: impl Iterator<Item = PolylineCurve>,
         sp: impl SP<S>,
+        accept: f64,
     ) -> Option<Self> {
         let (up, vp) = (surface.u_period(), surface.v_period());
         let (urange, vrange) = surface.try_range_tuple();
@@ -466,7 +559,7 @@ impl PolyBoundaryPiece {
             bdry3d
                 .into_iter()
                 .flat_map(|pt| {
-                    let (mut u, mut v) = match sp(surface, pt, previous) {
+                    let (mut u, mut v) = match sp(surface, pt, previous, accept) {
                         // SolidCraft: validate exact and nearest results alike, once per
                         // boundary point, including the bounded provisional preview.
                         Some(hint) => sane(surface, pt, hint),
@@ -502,7 +595,7 @@ impl PolyBoundaryPiece {
         let mut vec = match walk(bdry3d.clone()) {
             Some(vec) => vec,
             None => {
-                let start = bdry3d.iter().skip(1).position(|pt| sp(surface, *pt, None).is_some())? + 1;
+                let start = bdry3d.iter().skip(1).position(|pt| sp(surface, *pt, None, accept).is_some())? + 1;
                 let mut rotated = bdry3d;
                 rotated.rotate_left(start);
                 walk(rotated)?
@@ -845,14 +938,13 @@ pub(super) fn preview_face<S: RobustMeshableSurface>(surface: &S, loops: &[Vec<P
         || loops.iter().map(Vec::len).sum::<usize>() > 4096 {
         return None;
     }
-    let search = |surface: &S, point, hint| {
-        surface.search_parameter(point, hint, 16)
-            .or_else(|| surface.search_parameter(point, None, 16))
-            .or_else(|| surface.search_nearest_parameter(point, hint, 16))
-            .or_else(|| surface.search_nearest_parameter(point, None, 16))
+    let wrapped = closed::Closed::new(surface);
+    let search = |s: &closed::Closed<'_, S>, point, hint: Option<(f64, f64)>, accept| {
+        nearest_projection(s.base, point, hint.map(|p| s.wrap(p)), accept, 16)
     };
+    let surface = &wrapped;
     let pieces = loops.iter().map(|w| {
-        PolyBoundaryPiece::try_new(surface, std::iter::once(PolylineCurve(w.clone())), search)
+        PolyBoundaryPiece::try_new(surface, std::iter::once(PolylineCurve(w.clone())), search, 1e-3)
     }).collect::<Option<Vec<_>>>()?;
     let boundary = PolyBoundary::with_steps(pieces, surface, Deflection::chord(1e-3), Some(steps));
     // Projection can duplicate points at singularities; periodic seams add at most
@@ -903,6 +995,8 @@ fn insert_surface(
         let (u, v) = balanced_grid(&surface, u, v, cap);
         let v = with_ruling_vertices(v, polyline, 1, tol.rulings && v_ruled, u.len(), cap);
         let u = with_ruling_vertices(u, polyline, 0, tol.rulings && u_ruled, v.len(), cap);
+        let v = with_boundary_lines(v, polyline, 1, tol.rulings && v_ruled && !u_ruled, u.len(), cap);
+        let u = with_boundary_lines(u, polyline, 0, tol.rulings && u_ruled && !v_ruled, v.len(), cap);
         (u, v)
     };
     let insert_res: Vec<Vec<Option<_>>> = udiv
@@ -993,7 +1087,7 @@ pub(super) fn bounded_polyline<C: PolylineableCurve>(curve: &C, range: (f64, f64
 /// `cap` points or after 24 rounds; cells that do not evaluate (NaN) are not refined. A
 /// direction within the chord tolerance is still halved where a cell turns more than the
 /// deflection's angle along it, while the grid stays within `Deflection::MAX_ANGLE_GRID`.
-fn bounded_surface_division<S: PreMeshableSurface>(surface: &S, (ur, vr): ((f64, f64), (f64, f64)), d: Deflection, cap: usize) -> (Vec<f64>, Vec<f64>) {
+pub(super) fn bounded_surface_division<S: PreMeshableSurface>(surface: &S, (ur, vr): ((f64, f64), (f64, f64)), d: Deflection, cap: usize) -> (Vec<f64>, Vec<f64>) {
     let (tol, turn2) = (d.chord, d.turn2());
     let (mut udiv, mut vdiv) = (vec![ur.0, ur.1], vec![vr.0, vr.1]);
     for _ in 0..24 {
@@ -1174,6 +1268,46 @@ fn with_ruling_vertices(div: Vec<f64>, polyline: &PolyBoundary, axis: usize, rul
             }
         }
     }
+    if extra.is_empty() || (div.len() + extra.len()).saturating_mul(other) > cap {
+        return div;
+    }
+    let mut out = div;
+    out.extend(extra);
+    out.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    out
+}
+
+/// SolidCraft: `div` (the grid along coordinate `axis`, 0 for u and 1 for v) with a line through
+/// every point of the face's boundary that lies inside the face along that axis: the points of a
+/// hole cut into a cylinder or a cone, or of a trim that crosses its rulings (an oblique plane
+/// through a cone's narrow chamfer). A ruled direction gets few lines (one cell along a cone's
+/// short side), and a boundary point between them has no grid point beside it: the triangulation
+/// joins it to the far ends of the face, many degrees round, and those triangles cut through the
+/// surface (a cone face with a small hole meshed several mm² too large, and the boolean that made
+/// it was refused for its volume). Only a direction that needs no division of its own (`ruled`)
+/// while the other does gets them (a plane, ruled both ways, maps to its uv space without
+/// stretching and needs none), only for a few such points (corners standing into the face, at
+/// most [`MAX_BOUNDARY_LINES`]), and while the grid stays within `cap`.
+/// SolidCraft: most boundary points inside a ruled face that get grid lines through them.
+const MAX_BOUNDARY_LINES: usize = 16;
+
+fn with_boundary_lines(div: Vec<f64>, polyline: &PolyBoundary, axis: usize, ruled: bool, other: usize, cap: usize) -> Vec<f64> {
+    let (Some(&first), Some(&last)) = (div.first(), div.last()) else { return div };
+    let span = last - first;
+    if !ruled || !(span.is_finite() && span > 0.0) {
+        return div;
+    }
+    // Lines closer than this to another add nothing but slivers.
+    let apart = span * 1e-3;
+    let mut at: Vec<f64> = polyline.0.iter().flatten().map(|p| p[axis]).filter(|t| t.is_finite() && *t > first + apart && *t < last - apart).collect();
+    at.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    at.dedup_by(|a, b| (*a - *b).abs() <= apart);
+    // Many: a boundary curve running through the face, which the triangulation already follows
+    // with short triangles (a cylinder cut by another); lines along it only crowd it.
+    if at.len() > MAX_BOUNDARY_LINES {
+        return div;
+    }
+    let extra: Vec<f64> = at.into_iter().filter(|t| div.iter().all(|d| (d - t).abs() > apart)).collect();
     if extra.is_empty() || (div.len() + extra.len()).saturating_mul(other) > cap {
         return div;
     }

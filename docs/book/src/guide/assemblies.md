@@ -26,7 +26,25 @@ couples two joints. Links can be chained (one joint drives a second, which drive
 third), and a value is carried through a chain of up to 64 links in whatever order they were
 made. Contact sets stop motion where bodies would pass through each other,
 **Motion Study** keys joint values along a timeline, and **Interference** shows overlapping
-volumes in red.
+volumes in red, lists the pairs closer than its **Clearance** and each body's nearest neighbour.
+
+The check behind it, `inspect.clearance`, does all of that in one call for any number of bodies,
+which suits scripts and agents checking a whole assembly:
+
+```json
+{"command": "inspect.clearance", "params": {"clearance": 1, "nearest": 2, "skip_within": "component"}}
+```
+
+It returns `overlaps` (pairs sharing at least `min_volume`, 0.01 mm³ by default, with the shared
+volume, area, box and centre), `near` (pairs closer than `clearance`, with the distance and the
+two nearest points; a contact sharing less than `min_volume` is listed here at 0 with its
+`overlap_mm3`), `nearest` (each body's `nearest` closest bodies) and `unchecked` (pairs whose
+overlap could not be worked out, with the reason). `against` limits the check to pairs with one
+body in `bodies` and the other in `against`, and `skip_within` leaves out pairs inside one
+occurrence (`"occurrence"`) or one placed component, its subcomponents included
+(`"component"`): the parts of a bought component that touch by design. Distances are measured on
+the exact faces and edges; the meshes only rule out pairs that are too far apart, and the pairs
+left are checked in parallel. `inspect.interference` remains for the overlaps alone.
 
 **Gear**, **Rack and Pinion** and **Screw** (on the **ASSEMBLE** panel) are motion links whose
 ratio comes from the parts rather than a typed number:

@@ -3,7 +3,10 @@
 pub(crate) use crate::icons::glyphs::transport_glyph;
 use egui::{Rect, Sense, Stroke, UiBuilder, pos2, vec2};
 use serde_json::json;
-use solidcraft_engine::doc::FeatureKind;
+use solidcraft_engine::doc::{
+    FeatureKind, PlaneRef,
+    construct::{AxisDef, PointDef},
+};
 
 use crate::theme::Tokens;
 use crate::{SolveApp, icons};
@@ -13,14 +16,18 @@ pub(crate) fn icon_of(k: &FeatureKind) -> &'static str {
         FeatureKind::Sketch { .. } => "sketch",
         FeatureKind::Extrude { .. } => "extrude",
         FeatureKind::SurfaceExtrude { .. } => "surface_extrude",
-        FeatureKind::Unstitch { .. } => "unstitch",
-        FeatureKind::ReverseNormal { .. } => "reverse_normal",
+        FeatureKind::Unstitch { .. } => "surface_unstitch",
+        FeatureKind::ReverseNormal { .. } => "surface_reverse_normal",
         FeatureKind::SurfaceRevolve { .. } => "surface_revolve",
         FeatureKind::SurfaceSweep { .. } => "surface_sweep",
         FeatureKind::SurfaceLoft { .. } => "surface_loft",
         FeatureKind::SurfaceOffset { .. } => "surface_offset",
-        FeatureKind::SurfaceRuled { .. } => "ruled",
-        FeatureKind::SurfaceUntrim { .. } => "untrim",
+        FeatureKind::SurfaceRuled { .. } => "surface_ruled",
+        FeatureKind::SurfaceUntrim { .. } => "surface_untrim",
+        FeatureKind::SurfaceBlend { .. } => "surface_blend",
+        FeatureKind::SurfaceBoundary { .. } => "surface_boundary",
+        FeatureKind::SurfaceMatch { .. } => "continuity",
+        FeatureKind::SurfaceFair { .. } => "surface_fair",
         FeatureKind::Revolve { .. } => "revolve",
         FeatureKind::Fillet { .. } => "fillet",
         FeatureKind::Chamfer { .. } => "chamfer",
@@ -30,11 +37,25 @@ pub(crate) fn icon_of(k: &FeatureKind) -> &'static str {
         FeatureKind::Torus { .. } => "torus",
         FeatureKind::Combine { .. } => "combine",
         FeatureKind::Pattern { pattern: solidcraft_engine::doc::PatternKind::Rectangular { .. }, .. } => "pattern_rect",
+        FeatureKind::Pattern { pattern: solidcraft_engine::doc::PatternKind::Path { .. }, .. } => "pattern_path",
         FeatureKind::Pattern { .. } => "pattern_circ",
         FeatureKind::Mirror { .. } => "mirror",
-        FeatureKind::ConstructionPlane { .. } => "plane",
-        FeatureKind::ConstructionAxis { .. } => "axis",
-        FeatureKind::ConstructionPoint { .. } => "point",
+        FeatureKind::ConstructionPlane { plane } => construction_plane_icon(plane),
+        FeatureKind::ConstructionAxis { def } => match def {
+            AxisDef::ThroughFace { .. } => "axis_through_cylinder",
+            AxisDef::NormalToFace { .. } => "axis_normal_to_face",
+            AxisDef::TwoPlanes { .. } => "axis_two_planes",
+            AxisDef::TwoPoints { .. } => "axis_two_points",
+            AxisDef::Edge { .. } => "axis_edge",
+        },
+        FeatureKind::ConstructionPoint { def } => match def {
+            PointDef::At { .. } => "point_vertex",
+            PointDef::TwoEdges { .. } => "point_two_edges",
+            PointDef::ThreePlanes { .. } => "point_three_planes",
+            PointDef::Center { .. } => "point_center",
+            PointDef::EdgeAndPlane { .. } => "point_edge_plane",
+            PointDef::AlongPath { .. } => "point_along_path",
+        },
         FeatureKind::Hole { .. } => "hole",
         FeatureKind::Loft { .. } => "loft",
         FeatureKind::Sweep { .. } => "sweep",
@@ -43,7 +64,40 @@ pub(crate) fn icon_of(k: &FeatureKind) -> &'static str {
         FeatureKind::Split { .. } => "split",
         FeatureKind::Move { .. } => "move",
         FeatureKind::Import { .. } | FeatureKind::MeshImport { .. } | FeatureKind::MeshConvert { .. } => "import",
+        FeatureKind::BodyTransfer { .. } => "move",
+        FeatureKind::Thread { .. } => "thread",
+        FeatureKind::SplitFace { .. } => "split_face",
+        FeatureKind::Scale { .. } => "scale",
+        FeatureKind::OffsetFace { .. } => "offset_face",
+        FeatureKind::DeleteFace { .. } => "delete_face",
+        FeatureKind::Remove { .. } => "delete",
+        FeatureKind::BoundingSolid { .. } => "bounding_solid",
+        FeatureKind::Pipe { .. } => "pipe",
+        FeatureKind::Emboss { .. } => "emboss",
+        FeatureKind::ReplaceFace { .. } => "replace_face",
+        FeatureKind::Align { .. } => "align",
+        FeatureKind::Coil { .. } => "coil",
+        FeatureKind::SheetPerforate { .. } => "perforate",
+        FeatureKind::BoundaryFill { .. } => "boundary_fill",
+        FeatureKind::Patch { .. } => "surface_patch",
+        FeatureKind::Stitch { .. } => "surface_stitch",
+        FeatureKind::Thicken { .. } => "surface_thicken",
+        FeatureKind::SurfaceExtend { .. } => "surface_extend",
+        FeatureKind::SurfaceTrim { .. } => "surface_trim",
         other => crate::workspace::feature_icon(other).unwrap_or("feature"),
+    }
+}
+
+fn construction_plane_icon(plane: &PlaneRef) -> &'static str {
+    match plane {
+        PlaneRef::AtAngle { .. } => "plane_angle",
+        PlaneRef::Midplane { .. } => "plane_midplane",
+        PlaneRef::TwoEdges { .. } => "plane_two_edges",
+        PlaneRef::ThreePoints { .. } => "plane_three_points",
+        PlaneRef::Tangent { .. } => "plane_tangent",
+        PlaneRef::AlongPath { .. } => "plane_along_path",
+        PlaneRef::Perpendicular { .. } => "plane_perpendicular",
+        _ => "plane",
     }
 }
 
@@ -438,6 +492,93 @@ mod tests {
     use serde_json::json;
 
     use crate::scenario::Harness;
+
+    #[test]
+    fn construction_history_matches_the_tool_that_created_it() {
+        use solidcraft_engine::doc::{
+            FeatureKind, PlaneRef,
+            construct::{AxisDef, GeoRef, PointDef},
+        };
+        use solidcraft_engine::geom::Vec3;
+        let point = || GeoRef::Point { p: Vec3::ZERO };
+        let reference = || Box::new(point());
+        let mut cases = Vec::new();
+        for (id, def) in [
+            ("through_cylinder", AxisDef::ThroughFace { face: point() }),
+            ("normal_to_face", AxisDef::NormalToFace { face: point(), point: point() }),
+            ("two_planes", AxisDef::TwoPlanes { a: point(), b: point() }),
+            ("two_points", AxisDef::TwoPoints { a: point(), b: point() }),
+            ("edge", AxisDef::Edge { edge: point() }),
+        ] {
+            cases.push((format!("construct.axis.{id}"), FeatureKind::ConstructionAxis { def }));
+        }
+        for (id, def) in [
+            ("vertex", PointDef::At { point: point() }),
+            ("two_edges", PointDef::TwoEdges { a: point(), b: point() }),
+            ("three_planes", PointDef::ThreePlanes { a: point(), b: point(), c: point() }),
+            ("center", PointDef::Center { of: point() }),
+            ("edge_plane", PointDef::EdgeAndPlane { edge: point(), plane: point() }),
+            ("along_path", PointDef::AlongPath { path: point(), t: "0.5".into() }),
+        ] {
+            cases.push((format!("construct.point.{id}"), FeatureKind::ConstructionPoint { def }));
+        }
+        for (id, plane) in [
+            ("midplane", PlaneRef::Midplane { a: reference(), b: reference() }),
+            ("two_edges", PlaneRef::TwoEdges { a: reference(), b: reference() }),
+            ("three_points", PlaneRef::ThreePoints { a: reference(), b: reference(), c: reference() }),
+            ("tangent", PlaneRef::Tangent { face: reference(), at: Vec3::ZERO }),
+            ("along_path", PlaneRef::AlongPath { path: reference(), t: "0.5".into() }),
+            ("perpendicular", PlaneRef::Perpendicular { plane: reference(), line: reference() }),
+        ] {
+            cases.push((format!("construct.plane.{id}"), FeatureKind::ConstructionPlane { plane }));
+        }
+        for (id, feature) in cases {
+            let command = solidcraft_engine::find_command(&id).unwrap();
+            let icon = super::icon_of(&feature);
+            assert_eq!(icon, command.icon, "{id}: history and toolbar disagree");
+            assert!(!crate::icon_svg::resolve(icon).placeholder, "{id}");
+        }
+    }
+
+    #[test]
+    fn new_surface_and_web_history_icons_match_their_commands() {
+        let cases = [
+            ("surface.ruled", json!({"type":"surface_ruled", "body":"A", "edges":[], "distance":"5"})),
+            ("surface.untrim", json!({"type":"surface_untrim", "face":{"body":"A", "point":[0,0,0]}})),
+            ("surface.unstitch", json!({"type":"unstitch", "body":"A"})),
+            ("surface.reverse_normal", json!({"type":"reverse_normal", "body":"A"})),
+            ("surface.blend", json!({"type":"surface_blend", "from":{"body":"A", "edges":[]}, "to":{"body":"B", "edges":[]}})),
+            ("surface.boundary", json!({"type":"surface_boundary", "sketch":0, "curves":[]})),
+            ("surface.match", json!({"type":"surface_match", "body":"A", "target":"B", "edges":[]})),
+            ("surface.fair", json!({"type":"surface_fair", "body":"A", "tolerance":"0.001"})),
+            ("solid.rib", json!({"type":"rib", "sketch":0, "curves":[], "thickness":"2"})),
+            ("solid.web", json!({"type":"rib", "sketch":0, "curves":[], "thickness":"2", "web":true})),
+        ];
+        for (id, definition) in cases {
+            let feature: solidcraft_engine::doc::FeatureKind = serde_json::from_value(definition).unwrap();
+            let command = solidcraft_engine::find_command(id).unwrap();
+            assert_eq!(super::icon_of(&feature), command.icon, "{id}: history and toolbar disagree");
+        }
+    }
+
+    #[test]
+    fn a_path_pattern_keeps_its_path_icon_in_history() {
+        use solidcraft_engine::doc::{FeatureKind, PatternKind};
+        let feature = FeatureKind::Pattern {
+            features: Vec::new(),
+            bodies: Vec::new(),
+            pattern: PatternKind::Path {
+                path_sketch: solidcraft_engine::doc::SketchId(0),
+                path: Vec::new(),
+                count: "2".into(),
+                spacing: "10".into(),
+                extent: false,
+                flip: false,
+                orient: false,
+            },
+        };
+        assert_eq!(super::icon_of(&feature), solidcraft_engine::find_command("solid.pattern.path").unwrap().icon);
+    }
 
     fn two_boxes(left: bool) -> Harness {
         let mut h = Harness::new();

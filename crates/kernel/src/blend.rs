@@ -1773,7 +1773,20 @@ fn loop_split(cur: &Body, pts: &[Vec3]) -> Result<Option<(Vec<Vec<Vec3>>, Vec<Ve
         let Some(e) = near.iter().find(|e| planar_edge.contains(&e.id())).or(near.first()) else { return Ok(None) };
         per.push((*p, e.id()));
     }
-    let ids: Vec<mt::EdgeID> = per.iter().map(|x| x.1).collect();
+    // Fillets follow tangent chains in the original body. Include those edges before
+    // recognising a whole loop, too: two picks across a sharp arc/line joint can cover
+    // the entire rim once each pick's smooth chain is included.
+    let ids = guard("loop tangent chains", || {
+        let mut ids: std::collections::HashSet<mt::EdgeID> = per.iter().map(|x| x.1).collect();
+        for (_, id) in &per {
+            if let Some(edge) = all.iter().find(|e| e.id() == *id)
+                && let Some(chain) = smooth_chain(&solid, edge)
+            {
+                ids.extend(chain);
+            }
+        }
+        Ok(ids)
+    })?;
     let mut covered: Vec<mt::EdgeID> = Vec::new();
     let mut groups = Vec::new();
     for f in solid.face_iter() {

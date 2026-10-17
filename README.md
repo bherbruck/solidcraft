@@ -26,7 +26,7 @@
   <a href="https://solidcraft.io/download">Download</a> ·
   <a href="https://solidcraft.io/app">Try it in the browser</a> ·
   <a href="https://docs.solidcraft.io/">Documentation</a> ·
-  <a href="https://solidcraft.io/discord">Discord</a> ·
+  <a href="https://discord.gg/FtU4NQNVDH">Discord</a> ·
   <a href="https://github.com/bherbruck/solidcore">SolidCore</a>
 </p>
 
@@ -35,7 +35,7 @@
   <a href="https://github.com/tangency-labs/solidcraft/releases/latest"><img src="https://img.shields.io/github/v/release/tangency-labs/solidcraft?label=release" alt="Latest release" /></a>
   <a href="https://github.com/tangency-labs/solidcraft/releases"><img src="https://img.shields.io/github/downloads/tangency-labs/solidcraft/total?label=downloads" alt="Downloads" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/tangency-labs/solidcraft" alt="Licence" /></a>
-  <a href="https://solidcraft.io/discord"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="https://discord.gg/FtU4NQNVDH"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://remade.wiki/projects/solidcraft/"><img src="https://remade.wiki/badges/listed-on-remade-classic.svg" alt="Listed on Remade" /></a>
   <a href="https://github.com/tangency-labs/solidcraft/stargazers"><img src="https://img.shields.io/github/stars/tangency-labs/solidcraft?style=flat" alt="Stars" /></a>
 </p>
@@ -62,6 +62,10 @@
 
 The downloads aren't signed yet. On Windows, if SmartScreen warns you, choose **More info**, then
 **Run anyway**. On macOS, the first time, right-click SolidCraft in Applications and choose **Open**.
+
+**On SolidCraft 0.11 to 0.14?** Its **Update now** can't install 0.15.0 or later, because the
+releases moved to a new address. Download the new version once from the links above; after that,
+updating from inside SolidCraft works again ([details](https://docs.solidcraft.io/guide/updates.html#updating-from-011-to-014)).
 
 Older versions, checksums and other formats are on the [releases page](https://github.com/tangency-labs/solidcraft/releases).
 Install details, upgrading from earlier builds and building from source are in
@@ -90,7 +94,7 @@ Install details, upgrading from earlier builds and building from source are in
 **Documentation:** the [SolidCraft book](https://docs.solidcraft.io/) (user guide,
 developer guide and command reference; sources in [docs/book](docs/book)).
 
-**Community:** chat with users and contributors on [Discord](https://solidcraft.io/discord).
+**Community:** chat with users and contributors on [Discord](https://discord.gg/FtU4NQNVDH).
 
 **Status: early but usable for simple parts.** 75 of 76 public reference parts
 match their analytic or FreeCAD-computed volume, area, centre of mass and bounding box
@@ -206,15 +210,21 @@ cargo run --release -p solidcraft-cli -- snapshot examples/bracket.json --out br
 cargo run --release -p solidcraft-cli -- render examples/render-studio.json --out product.png
 cargo run --release -p solidcraft -- part.step          # open a STEP file as a new design
 cargo run --release -p solidcraft-cli -- eval part.step # measure an imported STEP file
-cargo xtask ci                                          # fmt, clippy, tests, assets, layers, wasm
+cargo xtask ci                                          # fmt, clippy, tests, icons, assets, layers, wasm
 ```
+
+UI artwork changes follow the [icon specification](assets/icons/ui/STYLE_GUIDE.md).
+The [included review tool](assets/icons/ui/README.md) discovers new icons and keeps
+unaccepted artwork Open; run `cargo xtask icons` to check the collection.
 
 Windows builds: `cargo xwin build --release --target x86_64-pc-windows-msvc -p solidcraft`.
 
-On Windows and Linux, SolidCraft detects a connected 3Dconnexion SpaceNavigator or SpaceMouse through its
-multi-axis HID interface. Move the cap to pan and zoom, and tilt or twist it to rotate the 3D view.
+On Windows, macOS and Linux, SolidCraft detects a connected 3D mouse through its HID multi-axis
+controller interface: a 3Dconnexion SpaceNavigator or SpaceMouse, or a homemade device that
+declares itself one. Move the cap to pan and zoom, and tilt or twist it to rotate the 3D view.
 While editing a sketch, the cap pans and zooms without changing the sketch view. The Navigation
-page in Preferences has an on/off switch and a speed control for the 3D mouse. The web app reads
+page in Preferences has an on/off switch, a speed control and, for each of the cap's six axes, an
+invert switch and a speed for the 3D mouse. The web app reads
 it too, through the browser; Firefox needs a 3DxWare setting first (see
 [Getting started › 3D mouse in the browser](docs/book/src/guide/getting-started.md#3d-mouse-in-the-browser)).
 
@@ -228,20 +238,37 @@ zones) applies as it does in other programs, and no udev rule is needed. With no
 the motion is the same as without the daemon. Without `spacenavd`, SolidCraft reads `/dev/hidrawN`
 directly, so the logged-in user needs access to the device. A udev rule that adds the `uaccess`
 tag does that, for example
-`/etc/udev/rules.d/70-3d-mouse.rules` for devices with 3Dconnexion's vendor id:
+`/etc/udev/rules.d/70-3d-mouse.rules` for USB devices with 3Dconnexion's vendor id, and for its
+Bluetooth ones (where `idVendor` isn't set, so the HID id is matched instead):
 
 ```
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="256f", TAG+="uaccess"
+SUBSYSTEM=="hidraw", KERNELS=="0005:256F:*", TAG+="uaccess"
 ```
 
-Older SpaceNavigators use Logitech's vendor id `046d`; add a rule with their product id (see `lsusb`)
-instead of matching every Logitech device. Reload with `sudo udevadm control --reload && sudo udevadm trigger`, then replug the device. The Flatpak
-sandbox does not expose hidraw devices, so the 3D mouse only works with native builds there for now.
-Devices that send all six axes in HID report 1 (some homemade ones do) are recognised from their
-report descriptor, so they work as well.
+Older SpaceNavigators use Logitech's vendor id `046d`, so add a rule with their product id (see
+`lsusb`) instead of matching every Logitech device. A homemade device needs a rule with its own
+vendor and product id. Reload with `sudo udevadm control --reload && sudo udevadm trigger`, then
+replug the device. The Flatpak sandbox does not expose hidraw devices, so the 3D mouse only works
+with native builds there for now.
+
+SolidCraft finds the axes from the device's report descriptor, so it doesn't matter how a device
+lays them out: translation and rotation in separate reports (3Dconnexion's wired devices), all six
+in one (its wireless ones and most homemade devices), after the buttons, or narrower than 16 bits.
+Each axis is scaled from the range the descriptor declares.
+
+On macOS SolidCraft talks to the 3Dconnexion driver (3DxWare) when it is installed, through the
+driver's client API (`crates/threedx-client`; the framework is loaded at run time, never bundled).
+The driver keeps the device to itself, and sends it only to a program it can identify: SolidCraft
+as an `.app` (the packaged app). Without the driver, or with its helper not running, SolidCraft reads the device through IOKit like on Windows.
+
+SolidCraft does not follow 3DxWare's profile on macOS. Its default is 3DxWare's object mode.
 
 In the browser: `cd apps/solidcraft-web && trunk build --release --public-url ./` (WebGPU, or
 WebGL2 with `?webgl`; `?sample` opens the sample part).
+
+Agents can control the document open in a browser tab through `window.solidcraft.execute(...)`
+and `window.solidcraft.request(...)`; see the [browser command API](docs/browser-api.md).
 
 ## Scripts
 

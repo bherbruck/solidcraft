@@ -32,7 +32,7 @@ fn probe(os: &str, release: bool, env: &[(&str, &str)], exe: &str, files: &[&str
     let files: Vec<PathBuf> = files.iter().map(PathBuf::from).collect();
     let get = |k: &str| env.get(k).cloned();
     let exists = |p: &Path| files.iter().any(|f| f == p);
-    detect(&Probe { os, release_build: release, env: &get, exe: Some(PathBuf::from(exe)), exists: &exists })
+    detect(&Probe { os, release_build: release, env: &get, exe: Some(PathBuf::from(exe)), exists: &exists, msi_dir: None })
 }
 
 #[test]
@@ -92,7 +92,34 @@ fn portable_windows_layout_is_recognised() {
     let exe = PathBuf::from("/portable/solidcraft.exe");
     let get = |k: &str| (k == "ProgramFiles").then(|| "C:\\Program Files".to_string());
     let exists = |p: &Path| p == Path::new("/portable/solidcraft-cli.exe");
-    assert_eq!(detect(&Probe { os: "windows", release_build: true, env: &get, exe: Some(exe), exists: &exists }), InstallKind::WindowsPortable);
+    assert_eq!(
+        detect(&Probe { os: "windows", release_build: true, env: &get, exe: Some(exe), exists: &exists, msi_dir: None }),
+        InstallKind::WindowsPortable
+    );
+}
+
+/// #1870: the installer's wizard can put SolidCraft anywhere, and it puts solidcraft-cli.exe
+/// beside it as the portable zip does. The folder it recorded is what tells its copy apart.
+#[test]
+fn an_msi_install_outside_program_files_is_recognised() {
+    let exe = PathBuf::from(r"D:\Program Files\SolidCraft\solidcraft.exe");
+    let get = |k: &str| match k {
+        "ProgramFiles" | "ProgramW6432" => Some(r"C:\Program Files".to_string()),
+        "ProgramFiles(x86)" => Some(r"C:\Program Files (x86)".to_string()),
+        _ => None,
+    };
+    // solidcraft-cli.exe is beside it.
+    let exists = |_: &Path| true;
+    let kind = |msi_dir: Option<&str>| {
+        detect(&Probe { os: "windows", release_build: true, env: &get, exe: Some(exe.clone()), exists: &exists, msi_dir: msi_dir.map(PathBuf::from) })
+    };
+    // The installer records [INSTALLFOLDER], which ends in a backslash; Windows paths ignore case.
+    assert_eq!(kind(Some(r"D:\Program Files\SolidCraft\")), InstallKind::WindowsMsi);
+    assert_eq!(kind(Some(r"d:\program files\solidcraft")), InstallKind::WindowsMsi);
+    // No installer copy here: the portable zip, as before.
+    assert_eq!(kind(None), InstallKind::WindowsPortable);
+    assert_eq!(kind(Some("")), InstallKind::WindowsPortable);
+    assert_eq!(kind(Some(r"D:\Program Files\SolidCraft2\")), InstallKind::WindowsPortable, "a folder whose name only starts the same");
 }
 
 /// The assets of v0.10.0, as published.
