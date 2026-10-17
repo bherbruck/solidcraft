@@ -3127,6 +3127,11 @@ fn overlays(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
     let locked = sk.locked_points();
     let virtual_corners: Vec<usize> = sk.virtual_corners().into_iter().map(|(i, _)| i).collect();
     let visible = solidcraft_engine::view::SketchPointVisibility::new(sk);
+    let selected: std::collections::HashSet<_> = app
+        .highlighted()
+        .iter()
+        .filter_map(|item| crate::sketch_modify_ui::point_id(&app.session, item).and_then(|id| sk.resolve_point(id)))
+        .collect();
     for (i, p) in sk.points.iter().enumerate() {
         if !visible.takes(p) {
             continue;
@@ -3148,6 +3153,9 @@ fn overlays(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
             painter.rect_stroke(Rect::from_center_size(sp, vec2(6.0, 6.0)), 0.0, Stroke::new(1.2, c), egui::StrokeKind::Middle);
         } else {
             painter.rect_filled(Rect::from_center_size(sp, vec2(5.0, 5.0)), 0.0, c);
+        }
+        if selected.contains(&i) {
+            painter.circle_stroke(sp, 6.0, Stroke::new(2.0, t.sel_edge));
         }
     }
     // Sketch status.
@@ -3506,6 +3514,90 @@ fn view_menu(app: &mut SolveApp, ui: &mut egui::Ui, button: Rect) -> bool {
 mod tests {
     use super::*;
     use crate::navigation::*;
+
+    fn point_overlays(app: &SolveApp) -> Vec<Shape> {
+        let ctx = egui::Context::default();
+        let proj = display_proj(app);
+        ctx.run_ui(egui::RawInput { screen_rect: Some(proj.rect), ..Default::default() }, |ui| {
+            overlays(app, &ui.ctx().layer_painter(egui::LayerId::background()), &proj);
+        })
+        .shapes
+        .into_iter()
+        .map(|shape| shape.shape)
+        .collect()
+    }
+
+    fn point_selection_rings(shapes: &[Shape]) -> Vec<Pos2> {
+        shapes
+            .iter()
+            .filter_map(|shape| match shape {
+                Shape::Circle(circle)
+                    if circle.radius == 6.0 && circle.stroke == Stroke::new(2.0, Tokens::get().sel_edge) && circle.fill == Color32::TRANSPARENT =>
+                {
+                    Some(circle.center)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn selected_sketch_points_stay_marked_after_hover_and_in_dialogs() {
+        let mut h = crate::scenario::Harness::new();
+        h.app.run("sketch.create", json!({"plane":"XY"})).unwrap();
+        h.app.run("sketch.line", json!({"points":[[10,10],[30,10]]})).unwrap();
+        h.call("ui.view", json!({"view":"top"}));
+        h.settle();
+        let plain = point_overlays(&h.app);
+        assert!(point_selection_rings(&plain).is_empty());
+        h.step(&json!({"click":{"sketch":[10,10]}})).unwrap();
+        h.step(&json!({"click":{"sketch":[30,10]},"shift":true})).unwrap();
+        h.step(&json!({"move":[5,5]})).unwrap();
+        assert!(h.app.viewport.hover.is_none());
+        assert_eq!(h.app.session.selection.iter().filter(|sel| matches!(sel, Sel::SketchPoint { .. })).count(), 2);
+        let marked = point_overlays(&h.app);
+        let proj = display_proj(&h.app);
+        let expected = [Vec3::new(10.0, 10.0, 0.0), Vec3::new(30.0, 10.0, 0.0)].map(|point| proj.to_screen(point).unwrap());
+        let rings = point_selection_rings(&marked);
+        assert_eq!(rings.len(), 2, "selection must remain visible after hover leaves");
+        assert!(expected.iter().all(|point| rings.iter().any(|ring| ring.distance(*point) < 0.01)));
+        // The markers that describe the points' constraint state keep their original fill.
+        let fills = |shapes: &[Shape]| {
+            shapes.iter().filter_map(|shape| if let Shape::Rect(rect) = shape { Some((rect.rect, rect.fill)) } else { None }).collect::<Vec<_>>()
+        };
+        assert_eq!(fills(&plain), fills(&marked));
+        h.app.start("sketch.mirror");
+        assert!(h.app.session.selection.is_empty(), "preselection transfers to the dialog");
+        assert_eq!(point_selection_rings(&point_overlays(&h.app)), rings, "dialog inputs stay highlighted");
+        h.call("ui.key", json!({"key":"Escape"}));
+        h.app.run("select.clear", json!({})).unwrap();
+        assert!(point_selection_rings(&point_overlays(&h.app)).is_empty());
+    }
+
+    #[test]
+    fn selected_sketch_point_aliases_respect_owner_and_visibility() {
+        let mut h = crate::scenario::Harness::new();
+        h.app.run("sketch.create", json!({"plane":"XY"})).unwrap();
+        h.app.run("sketch.line", json!({"points":[[10,10],[30,10]]})).unwrap();
+        h.app.run("sketch.point", json!({"point":[20,20],"id":"custom:point"})).unwrap();
+        h.call("ui.view", json!({"view":"top"}));
+        h.settle();
+        let sid = h.app.session.active_sketch.unwrap();
+        let origin = h.app.session.world_state().sketch(sid).unwrap().sketch.points[0].id.clone();
+        let ids = [origin, "custom:point".into(), "l1.end".into(), format!("{sid}:l1.end"), format!("{}:l1.start", sid + 1)];
+        h.app.run("select.set", json!({"items":ids.iter().map(|id| json!({"type":"sketch_point","id":id})).collect::<Vec<_>>()})).unwrap();
+        let rings = point_selection_rings(&point_overlays(&h.app));
+        let proj = display_proj(&h.app);
+        let expected = [Vec3::ZERO, Vec3::new(20.0, 20.0, 0.0), Vec3::new(30.0, 10.0, 0.0)].map(|point| proj.to_screen(point).unwrap());
+        assert_eq!(rings.len(), 3, "aliases deduplicate, colon-containing local IDs survive, foreign owners are ignored");
+        assert!(expected.iter().all(|point| rings.iter().any(|ring| ring.distance(*point) < 0.01)));
+        h.app.run("sketch.options", json!({"show_points":false})).unwrap();
+        assert_eq!(
+            point_selection_rings(&point_overlays(&h.app)),
+            vec![expected[0]],
+            "selection does not reveal hidden points; the origin stays visible"
+        );
+    }
 
     /// Bodies drawn from their display plans, evaluated on the GPU, look like the same bodies
     /// built into triangles on the CPU: the sample design rendered both ways through the
