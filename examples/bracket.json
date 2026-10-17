@@ -7,8 +7,8 @@
   {"command": "solid.extrude", "params": {"distance": "width", "direction": "negative", "body_name": "Bracket"}},
   {"command": "solid.fillet", "params": {"edges": [[40, -30, -6]], "radius": 2}},
   {"command": "sketch.create", "params": {"plane": "XY", "name": "Holes"}},
-  {"command": "sketch.circle.center", "params": {"center": [25, 15], "diameter": 8}},
-  {"command": "sketch.circle.center", "params": {"center": [25, 45], "diameter": 8}},
+  {"command": "sketch.circle.center", "params": {"center": [25, -15], "diameter": 8}},
+  {"command": "sketch.circle.center", "params": {"center": [25, -45], "diameter": 8}},
   {"command": "sketch.finish", "params": {}},
-  {"command": "solid.extrude", "params": {"distance": "thickness", "operation": "cut"}}
+  {"command": "solid.extrude", "params": {"distance": "thickness", "direction": "negative", "operation": "cut"}}
 ]}
