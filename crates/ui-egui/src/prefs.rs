@@ -553,8 +553,12 @@ fn ui_font_row(app: &mut SolveApp, ui: &mut egui::Ui) {
             ui.add(search.desired_width(f32::INFINITY));
             let filter = app.prefs_window.font_filter.trim().to_lowercase();
             egui::ScrollArea::vertical().max_height(280.0).min_scrolled_height(280.0).auto_shrink([false, false]).show(ui, |ui| {
-                if builtin.to_lowercase().contains(&filter) && ui.selectable_label(app.preferences.ui_font.trim().is_empty(), &builtin).clicked() {
-                    chosen = Some(String::new());
+                if builtin.to_lowercase().contains(&filter) {
+                    let item = ui.selectable_label(app.preferences.ui_font.trim().is_empty(), &builtin);
+                    crate::scenario::publish_handle("prefs:font_builtin", item.rect.center());
+                    if item.clicked() {
+                        chosen = Some(String::new());
+                    }
                 }
                 match &families {
                     Some(list) => {
@@ -571,6 +575,11 @@ fn ui_font_row(app: &mut SolveApp, ui: &mut egui::Ui) {
                     }
                 }
             });
+            // Close the list from inside it: outside, `ui.close()` folds the Preferences
+            // window's body instead, which egui keeps folded between runs (#1800).
+            if chosen.is_some() {
+                ui.close();
+            }
         });
     crate::scenario::publish_handle("prefs:ui_font", combo.response.rect.center());
     if let Some(name) = chosen {
@@ -580,7 +589,6 @@ fn ui_font_row(app: &mut SolveApp, ui: &mut egui::Ui) {
             app.set_status(format!("The font `{name}` could not be read"), true);
         }
         app.prefs_window.font_filter.clear();
-        ui.close();
     }
 }
 
@@ -918,6 +926,18 @@ pub fn show_reset_notice(app: &mut SolveApp, ctx: &egui::Context) {
     }
 }
 
+/// The Preferences window can't be folded (`collapsible(false)`), but 0.14 and 0.15 folded it
+/// when a font was picked, and egui keeps that in the saved window state: it then opened as its
+/// title bar alone, for good (#1800). Unfold it.
+fn unfold(ctx: &egui::Context) {
+    if let Some(mut body) = egui::collapsing_header::CollapsingState::load(ctx, egui::Id::new("sc_prefs").with("collapsing"))
+        && !body.is_open()
+    {
+        body.set_open(true);
+        body.store(ctx);
+    }
+}
+
 pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     // File › Keyboard Shortcuts and Help › Keyboard Shortcuts open this dialog at that page.
     if app.keymap.open {
@@ -931,6 +951,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     if app.prefs_window.snapshot.is_none() {
         app.prefs_window.snapshot = Some(Snapshot::take(app));
     }
+    unfold(ctx);
     let t = Tokens::get();
     let mut open = true;
     let mut button: Option<&str> = None;
@@ -1603,6 +1624,37 @@ mod tests {
         assert_eq!(other.preferences.ui_font, family);
         super::defaults(&mut app, 0);
         assert_eq!(app.preferences.ui_font, "");
+    }
+
+    /// Picking a font closes the font list, not the Preferences window's body: that folded the
+    /// window to its title bar, and egui kept it folded between runs (#1800). A window folded by
+    /// an earlier release unfolds when Preferences opens.
+    #[test]
+    fn picking_a_font_keeps_the_preferences_window_unfolded() {
+        use egui::collapsing_header::CollapsingState;
+        use serde_json::json;
+        let body = egui::Id::new("sc_prefs").with("collapsing");
+        let folded = |h: &crate::scenario::Harness| CollapsingState::load(&h.ctx, body).is_some_and(|s| !s.is_open());
+        let mut h = crate::scenario::Harness::new();
+        h.call("ui.prefs", json!({"open":"General"}));
+        let combo = crate::scenario::handle_at("prefs:ui_font").unwrap();
+        h.call("ui.click", json!({"x":combo.x,"y":combo.y}));
+        let builtin = crate::scenario::handle_at("prefs:font_builtin").expect("the font list is open");
+        h.call("ui.click", json!({"x":builtin.x,"y":builtin.y}));
+        h.frames(2);
+        assert!(!folded(&h), "picking a font must not fold the Preferences window");
+        assert!(crate::scenario::handle_at("prefs:font_builtin").is_none(), "the font list closes");
+        assert!(crate::scenario::rect_of("prefs:ok").is_some(), "the window's body is still drawn");
+        h.call("ui.prefs", json!({"button":"cancel"}));
+
+        // The state 0.14 and 0.15 saved: the window's body folded.
+        let mut state = CollapsingState::load_with_default_open(&h.ctx, body, true);
+        state.set_open(false);
+        state.store(&h.ctx);
+        h.call("ui.prefs", json!({"open":"General"}));
+        h.frames(2);
+        assert!(!folded(&h), "a folded Preferences window unfolds when it opens");
+        assert!(crate::scenario::rect_of("prefs:ok").is_some());
     }
 
     #[test]
