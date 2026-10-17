@@ -131,20 +131,60 @@ pub fn visible_bounds(s: &Session, sketches: bool) -> Aabb3 {
     b
 }
 
-/// The two axes (in the camera's Z-up frame) of the plane the grid lies in, for a view whose
-/// direction toward the eye is `back` (in that frame). The ground (frame XY) unless it is seen
-/// nearly edge-on, as in the Front or Right view; then the upright origin plane that faces the
-/// view more, so the grid stays visible (#1470).
-pub fn grid_plane(back: Vec3) -> (Vec3, Vec3) {
-    // About 11.5° above or below the ground.
-    const EDGE_ON: f64 = 0.2;
-    if back.z.abs() >= EDGE_ON || !back.z.is_finite() {
-        (Vec3::X, Vec3::Y)
-    } else if back.y.abs() >= back.x.abs() {
-        (Vec3::X, Vec3::Z)
-    } else {
-        (Vec3::Y, Vec3::Z)
+/// The origin plane a grid lies on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GridPlane {
+    /// The ground: the camera frame's XY.
+    #[default]
+    Ground,
+    /// Upright, facing a view along ±Y (the Front or Back view): the frame's XZ.
+    Xz,
+    /// Upright, facing a view along ±X (the Left or Right view): the frame's YZ.
+    Yz,
+}
+
+impl GridPlane {
+    /// The plane's two axes, in the camera's Z-up frame.
+    pub fn axes(self) -> (Vec3, Vec3) {
+        match self {
+            GridPlane::Ground => (Vec3::X, Vec3::Y),
+            GridPlane::Xz => (Vec3::X, Vec3::Z),
+            GridPlane::Yz => (Vec3::Y, Vec3::Z),
+        }
     }
+}
+
+/// The plane to draw the grid on for a view whose direction toward the eye is `back` (in the
+/// camera's Z-up frame), given the plane the last frame drew (`last`).
+///
+/// The ground (frame XY) unless it is seen nearly edge-on, as in the Front or Right view; then
+/// the upright origin plane facing the view, so the grid stays visible (#1470). Both thresholds
+/// are further for leaving than for entering, so a view hovering at one does not flicker the
+/// grid, and the upright plane changes to the other only close to a side view, never at the 45°
+/// crossing (#1993).
+pub fn grid_plane(back: Vec3, last: GridPlane) -> GridPlane {
+    // About 11.5° above or below the ground to leave it, and 15° to return.
+    const EDGE_ON: f64 = 0.2;
+    const EDGE_LEAVE: f64 = 0.26;
+    // About 15° from the Front/Back or Left/Right view: only that close does the wall change.
+    const SIDE_VIEW: f64 = 0.966;
+    let horizontal = (back.x * back.x + back.y * back.y).sqrt();
+    if !back.x.is_finite() || !back.y.is_finite() || !back.z.is_finite() || !horizontal.is_finite() {
+        return GridPlane::Ground;
+    }
+    if last == GridPlane::Ground && back.z.abs() <= EDGE_ON && horizontal > 0.0 {
+        return if back.y.abs() >= back.x.abs() { GridPlane::Xz } else { GridPlane::Yz };
+    }
+    if last != GridPlane::Ground && back.z.abs() <= EDGE_LEAVE && horizontal > 0.0 {
+        if back.x.abs() / horizontal >= SIDE_VIEW {
+            return GridPlane::Yz;
+        }
+        if back.y.abs() / horizontal >= SIDE_VIEW {
+            return GridPlane::Xz;
+        }
+        return last;
+    }
+    GridPlane::Ground
 }
 
 /// Grid spacing (minor, major) for a view of the given half height.
@@ -390,13 +430,13 @@ fn build_scene(
     };
     let b = bounds(s);
     sc.radius = (b.diagonal() * 0.5).max(cam.half_height()).max(10.0) + b.center().dist(cam.target);
-    // Grid on the ground plane (XY with Z up, XZ with Y up), or the upright origin plane facing
-    // a view that sees the ground edge-on ([`grid_plane`]), drawn under the model as in the viewport.
+    // Grid on the ground plane (XY with Z up, XZ with Y up), drawn under the model as in the viewport.
     if guides.grid {
         let (minor, major) = grid_step(cam.half_height());
         let ext = (cam.half_height() * 3.0 / major).ceil() * major;
         let tf = cam.to_frame(cam.target);
-        let (u, v) = grid_plane(cam.to_frame(cam.back()));
+        // Headless pictures keep the grid on the ground, the viewport's default.
+        let (u, v) = (Vec3::X, Vec3::Y);
         let snap = |a: Vec3| a * ((tf.dot(a) / major).round() * major);
         let c = snap(u) + snap(v);
         let w = |p: Vec3| cam.from_frame(p);

@@ -475,3 +475,19 @@ fn box_intersect_splits_the_end_off_a_raked_wedge_after_its_end_rounds() {
         }
     }
 }
+
+/// #2005: changing a circular sweep from a separate body to a half-turn cut must create the
+/// internal channel, rather than failing the Boolean on coincident end caps.
+#[test]
+fn closed_sweep_redefines_to_a_half_turn_torus_cut() {
+    let s = replay(include_str!("../../../examples/regressions/closed_sweep_torus_cut.json"));
+    assert_eq!(s.model.state().bodies.len(), 1);
+    let body = &s.model.state().bodies[0].body;
+    assert!(body.validity().is_empty(), "{:?}", body.validity());
+    let mesh = body.tessellate(0.02).unwrap();
+    let expected = (std::f64::consts::PI * 64.0 - 64.0) * std::f64::consts::TAU * 30.0;
+    assert!((mesh.measure().volume - expected).abs() < expected * 0.015);
+    for (point, material) in [(solidcraft_geom::Vec3::new(30.0, 0.0, 0.0), false), (solidcraft_geom::Vec3::new(30.0, 0.0, 7.0), true)] {
+        assert_eq!(mesh.contains(point), material, "material at {point:?}");
+    }
+}
