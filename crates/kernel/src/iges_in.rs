@@ -9,6 +9,8 @@
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
+mod assembly;
+
 /// Largest IGES file we read.
 pub const MAX_IGES_BYTES: usize = 512 << 20;
 const MAX_ENTITIES: usize = 2_000_000;
@@ -1082,77 +1084,42 @@ fn translate(text: &str) -> std::result::Result<(String, Vec<String>), String> {
     // Entities used by others (a B-rep's faces, a trimmed surface's curves) are not roots;
     // physically dependent entities have status digits 01 in columns 3–4, but files are lax:
     // collect references instead.
-    let mut solids: Vec<(u64, String)> = Vec::new();
+    let assembly = assembly::Assembly::read(&t, &seqs)?;
+    let mut solids = HashMap::new();
     let mut styles: Vec<(u64, [f32; 3])> = Vec::new();
     let mut n = 0usize;
+    let mut fallback = String::new();
+    let watch = crate::watch::current();
     for &s in &seqs {
+        if watch.as_ref().is_some_and(|w| w.cancelled()) {
+            return Err("IGES import cancelled".into());
+        }
         let Some(de) = f.des.get(&s) else { continue };
         if de.typ != 186 {
             continue;
         }
         n += 1;
-        // A name property (406 form 15) among the solid's trailing pointers, else the label.
-        let named = f.params.get(&s).and_then(|p| {
-            p.iter().skip(4).filter_map(|x| int(x)).filter(|x| *x > 0).find_map(|ptr| {
-                let d = f.des.get(&usize::try_from(ptr).ok()?)?;
-                (d.typ == 406 && d.form == 15).then(|| f.params.get(&usize::try_from(ptr).ok()?)?.get(2).cloned()).flatten()
-            })
-        });
-        let name = match named.filter(|x| !x.trim().is_empty()) {
-            Some(x) => x.trim().to_string(),
-            None if de.label.is_empty() => format!("Body{n}"),
-            None => de.label.clone(),
+        let name = if let Some(name) = assembly::entity_name(&f, s) {
+            name
+        } else {
+            fallback.clear();
+            let _ = write!(fallback, "Body{n}");
+            fallback.as_str()
         };
         match brep(&mut t, s as i64, &mut styles) {
             Ok((id, color)) => {
-                let named = {
-                    // Re-label the solid with its name.
-                    let line = t.o.lines.get(id as usize - 1).cloned().unwrap_or_default();
-                    line.replacen("('',", &format!("('{}',", name.replace('\'', "''")), 1)
-                };
                 if let Some(l) = t.o.lines.get_mut(id as usize - 1) {
-                    *l = named;
+                    *l = l.replacen("('',", &format!("('{}',", name.replace('\'', "''")), 1);
                 }
                 if let Some(c) = color {
                     styles.push((id, c));
                 }
-                solids.push((id, name));
+                solids.insert(s, id);
             }
             Err(e) => t.warn(format!("solid {name}: not read: {e}")),
         }
     }
-    // Trimmed and bounded surfaces not used by anything else: sewn into shells.
-    let mut faces = Vec::new();
-    let mut sw = Sewer { tol, verts: Vec::new(), grid: HashMap::new(), edges: Vec::new(), by_ends: HashMap::new() };
-    if solids.is_empty() {
-        for &s in &seqs {
-            let Some(de) = f.des.get(&s) else { continue };
-            if de.typ != 144 && de.typ != 143 && !(de.typ == 128 && is_root(&f, s)) {
-                continue;
-            }
-            match trimmed(&mut t, &mut sw, s as i64) {
-                Ok(fb) => faces.push(fb),
-                Err(e) => t.warn(format!("surface {s}: not read: {e}")),
-            }
-        }
-        if !faces.is_empty() {
-            orient(&mut faces);
-            let (shell, closed) = write_shell(&mut t.o, &sw, &faces, &mut styles);
-            let item = if closed {
-                t.o.add(format!("MANIFOLD_SOLID_BREP('Body1',#{shell})"))
-            } else {
-                t.warn("the surfaces do not close into a solid: imported as an open body");
-                t.o.add(format!("SHELL_BASED_SURFACE_MODEL('Body1',(#{shell}))"))
-            };
-            solids.push((item, "Body1".into()));
-        }
-    }
-    if solids.is_empty() {
-        let why = t.warnings.first().cloned().unwrap_or_else(|| "no solids or trimmed surfaces".into());
-        return Err(format!("IGES import: nothing to read ({why})"));
-    }
-    let items = solids.iter().map(|(i, _)| format!("#{i}")).collect::<Vec<_>>().join(",");
-    t.o.add(format!("ADVANCED_BREP_SHAPE_REPRESENTATION('',({items}),#{ctx})"));
+    assembly.write(&mut t, &seqs, &solids, &mut styles, ctx)?;
     for (item, c) in styles {
         let rgb = t.o.add(format!("COLOUR_RGB('',{},{},{})", r(c[0] as f64), r(c[1] as f64), r(c[2] as f64)));
         let fasc = t.o.add(format!("FILL_AREA_STYLE_COLOUR('',#{rgb})"));
@@ -1173,12 +1140,42 @@ fn translate(text: &str) -> std::result::Result<(String, Vec<String>), String> {
     Ok((s, t.warnings))
 }
 
-/// A surface entity nobody refers to (a bare B-spline patch is a face of its own).
-fn is_root(f: &Iges, seq: usize) -> bool {
-    let target = seq.to_string();
-    !f.params
-        .iter()
-        .any(|(s, p)| *s != seq && f.des.get(s).is_some_and(|d| d.typ != 406 && d.typ != 402) && p.iter().skip(1).any(|x| x.trim() == target))
+/// Sew surfaces within their owning group, keeping different parts separate.
+fn sew_surfaces(
+    t: &mut Tr,
+    seqs: impl Iterator<Item = usize>,
+    name: &str,
+    styles: &mut Vec<(u64, [f32; 3])>,
+    faces: &mut Vec<FaceB>,
+    sw: &mut Sewer,
+) -> R<Option<u64>> {
+    faces.clear();
+    sw.verts.clear();
+    sw.grid.clear();
+    sw.edges.clear();
+    sw.by_ends.clear();
+    let watch = crate::watch::current();
+    for seq in seqs {
+        if watch.as_ref().is_some_and(|w| w.cancelled()) {
+            return Err("IGES import cancelled".into());
+        }
+        match trimmed(t, sw, seq as i64) {
+            Ok(face) => faces.push(face),
+            Err(e) => t.warn(format!("surface {seq}: not read: {e}")),
+        }
+    }
+    if faces.is_empty() {
+        return Ok(None);
+    }
+    orient(faces);
+    let (shell, closed) = write_shell(&mut t.o, sw, faces, styles);
+    let name = name.replace('\'', "''");
+    Ok(Some(if closed {
+        t.o.add(format!("MANIFOLD_SOLID_BREP('{name}',#{shell})"))
+    } else {
+        t.warn("the surfaces do not close into a solid: imported as an open body");
+        t.o.add(format!("SHELL_BASED_SURFACE_MODEL('{name}',(#{shell}))"))
+    }))
 }
 
 /// A trimmed (144) or bounded (143) surface, or a bare B-spline surface, as a face.

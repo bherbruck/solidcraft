@@ -557,10 +557,39 @@ impl Reader {
     fn placement_matrix(&mut self, item: u64, u: Units) -> R<mt::Matrix4> {
         let cx = Ctx { ex: &self.ex, len: u.len, ang: u.ang, tol: u.tol };
         let e = geom::entity(&cx, item)?;
-        if e.name() == "CARTESIAN_TRANSFORMATION_OPERATOR_3D" {
+        if matches!(e.name(), "CARTESIAN_TRANSFORMATION_OPERATOR_3D" | "CARTESIAN_TRANSFORMATION_OPERATOR_3D_NON_UNIFORM") {
             let p = e.params();
             let o = geom::point(&cx, p.get(4).and_then(Param::as_ref_id).ok_or("transformation without origin")?)?;
-            return Ok(mt::Matrix4::from_translation(o.to_homogeneous().truncate()));
+            let direction = |i: usize, fallback: mt::Vector3| -> R<mt::Vector3> {
+                match p.get(i) {
+                    None | Some(Param::Null) => Ok(fallback),
+                    Some(Param::Ref(id)) => geom::direction(&cx, *id),
+                    _ => Err("invalid transformation direction".into()),
+                }
+            };
+            let scale = |i: usize, fallback: f64| -> R<f64> {
+                match p.get(i) {
+                    None | Some(Param::Null) => Ok(fallback),
+                    Some(v) => v.as_f64().filter(|x| x.is_finite() && *x != 0.0).ok_or_else(|| "invalid transformation scale".into()),
+                }
+            };
+            let sx = scale(5, 1.0)?;
+            let (sy, sz) = (scale(7, sx)?, scale(8, sx)?);
+            let m = mt::Matrix4::from_cols(
+                (direction(2, mt::Vector3::unit_x())? * sx).extend(0.0),
+                (direction(3, mt::Vector3::unit_y())? * sy).extend(0.0),
+                (direction(6, mt::Vector3::unit_z())? * sz).extend(0.0),
+                o.to_homogeneous(),
+            );
+            if !to_array(&m).iter().flatten().all(|x| x.is_finite()) {
+                return Err("invalid transformation scale".into());
+            }
+            use mt::SquareMatrix as _;
+            let det = m.determinant();
+            if !det.is_finite() || det == 0.0 {
+                return Err("singular transformation".into());
+            }
+            return Ok(m);
         }
         Ok(geom::frame(&cx, item)?.matrix())
     }

@@ -100,7 +100,7 @@ pub(crate) fn point(cx: &Ctx, id: u64) -> R<mt::Point3> {
     Ok(mt::Point3::new(g(0)?, g(1)?, g(2)?) * cx.len)
 }
 
-fn direction(cx: &Ctx, id: u64) -> R<mt::Vector3> {
+pub(super) fn direction(cx: &Ctx, id: u64) -> R<mt::Vector3> {
     let e = entity(cx, id)?;
     if e.name() != "DIRECTION" {
         return Err(format!("#{id}: expected DIRECTION, found {}", e.name()));
