@@ -98,6 +98,12 @@ impl Tokens {
             bend_up: Color32::from_rgb(30, 140, 50),
             bend_down: Color32::from_rgb(200, 90, 20),
             interference: Color32::from_rgb(235, 45, 40),
+            continuity: [
+                Color32::from_rgb(0, 158, 115),
+                Color32::from_rgb(0, 114, 178),
+                Color32::from_rgb(240, 200, 0),
+                Color32::from_rgb(204, 0, 140),
+            ],
             analysis: AnalysisColors::DEFAULT,
             icons: IconColors {
                 sheet: Color32::from_rgb(170, 200, 240),

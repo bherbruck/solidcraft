@@ -309,6 +309,10 @@ pub enum SurfaceAnalysis {
 /// sampled at, in world coordinates, and how it reads. View state only: the design is untouched.
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct ContinuitySeam {
+    /// The body the seam is an edge of.
+    pub body: String,
+    /// The edge's index in the body's display mesh edge order.
+    pub edge: usize,
     /// Sample points along the seam, in world coordinates.
     pub points: Vec<Vec3>,
     /// The seam's worst verdict along its length.
@@ -1014,6 +1018,8 @@ mod delete_face_tests;
 mod derived_units_tests;
 #[cfg(test)]
 mod display_mesh_tests;
+#[cfg(test)]
+mod exact_tool_tests;
 #[cfg(test)]
 mod extent_tests;
 #[cfg(test)]

@@ -294,7 +294,11 @@ impl<R: Read + Seek> PackageReader<R> {
         if declared > MAX_ENTRIES || u16_at(4)? != 0 || u16_at(6)? != 0 || u16_at(8)? as usize != declared || end.len() != 22 + u16_at(20)? as usize {
             return Err(invalid("too many entries or unsupported ZIP directory"));
         }
-        let mut zip = zip::ZipArchive::new(source).map_err(invalid)?;
+        // A design file is a ZIP with nothing in front of it. Saying so skips zip's search for a
+        // prefix, which reads back through the stored parts and would load a large embedded
+        // source before the preview can be shown.
+        let config = zip::read::Config { archive_offset: zip::read::ArchiveOffset::Known(0) };
+        let mut zip = zip::ZipArchive::with_config(config, source).map_err(invalid)?;
         if u16_at(4)? != 0
             || u16_at(6)? != 0
             || u16_at(8)? as usize != zip.len()
@@ -307,7 +311,7 @@ impl<R: Read + Seek> PackageReader<R> {
         let mut total = 0u64;
         for i in 0..zip.len() {
             let part = zip.by_index_raw(i).map_err(invalid)?;
-            let name = part.name();
+            let name = part.name().map_err(invalid)?.into_owned();
             if name.is_empty()
                 || name.contains('\\')
                 || name.split('/').any(|c| c.is_empty() || c == "." || c == "..")
@@ -768,7 +772,7 @@ mod tests {
         let doc = document();
         let preview = DesignPreview { meshes: vec![mesh()] };
         let bytes = write_design_container_with_preview(&doc, DesignCompression::Fast, Some(&preview)).unwrap();
-        let offset = zip::ZipArchive::new(Cursor::new(&bytes)).unwrap().by_name("document.json").unwrap().data_start() as usize;
+        let offset = zip::ZipArchive::new(Cursor::new(&bytes)).unwrap().by_name("document.json").unwrap().data_start().unwrap() as usize;
         let bytes = Rc::new(RefCell::new(bytes));
         let mut reader = DesignContainerReader::new(Shared { bytes: bytes.clone(), position: 0 }).unwrap();
         assert!(reader.preview().is_some());
@@ -850,7 +854,7 @@ mod tests {
         (0..zip.len())
             .map(|i| {
                 let mut entry = zip.by_index(i).unwrap();
-                let name = entry.name().to_owned();
+                let name = entry.name().unwrap().into_owned();
                 let mut bytes = Vec::new();
                 entry.read_to_end(&mut bytes).unwrap();
                 (name, bytes)

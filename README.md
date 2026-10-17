@@ -110,9 +110,6 @@ rebuild with no errors, replayed here at 2× speed.
 [Full video](https://github.com/tangency-labs/solidcraft/raw/refs/heads/main/docs/screenshots/rover-build.mp4)
 · [download the editable model](https://github.com/0xlillith/solidcraft-rover/releases/tag/v1.0.0).*
 
-**Tools for SolidCraft:** [Send2Orca](https://github.com/tommasobbianchi/Send2Orca) sends the open design
-(a window started with `--control`, through the MCP bridge) or a saved file to OrcaSlicer as STEP, 3MF or STL.
-
 ## What works
 
 - **Current-view DXF export** from File → Export Current View as DXF, with hidden edges

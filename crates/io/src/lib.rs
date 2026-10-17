@@ -18,6 +18,8 @@ pub use design::{
     write_design_container_with_thumbnail,
 };
 mod legacy_dir;
+#[cfg(test)]
+mod mutate;
 mod native_cad;
 pub use native_cad::{NATIVE_CAD_EXTS, is_native_cad_path, native_cad_to_step};
 pub mod safe_write;

@@ -695,7 +695,7 @@ fn build_scene(app: &SolveApp) -> GpuScene {
     // Continuity analysis: each seam `inspect.continuity` measured, drawn over the model in the
     // colour of its worst verdict.
     for seam in &s.continuity {
-        let col = continuity_color(seam.verdict);
+        let col = c4(continuity_color(&tk, seam.verdict));
         for w in seam.points.windows(2) {
             if let (Some(a), Some(b)) = (w.first(), w.get(1)) {
                 sc.line(a.to_f32(), b.to_f32(), col, 2.6, true);
@@ -706,16 +706,17 @@ fn build_scene(app: &SolveApp) -> GpuScene {
     sc
 }
 
-/// The colour of a measured seam: green within every tolerance, yellow where the faces only
-/// meet at an angle (over G1), red where they do not meet at all or the curvature jumps across
-/// them (over G2, the defect no chord tolerance shows). The greens, yellows and reds are the
-/// ones the shader's own analyses use (`assets/shaders/viewport.wgsl`).
-fn continuity_color(verdict: solidcraft_engine::kernel::SeamVerdict) -> [u8; 4] {
+/// The colour of a measured seam, one per verdict from the theme's `continuity` tokens: within
+/// every tolerance (G2), tangent with a curvature jump (G1), a crease (G0), and faces that do
+/// not meet.
+fn continuity_color(t: &Tokens, verdict: solidcraft_engine::kernel::SeamVerdict) -> Color32 {
     use solidcraft_engine::kernel::SeamVerdict as V;
+    let [smooth, jump, sharp, gap] = t.continuity;
     match verdict {
-        V::Smooth => [51, 191, 77, 255],
-        V::Sharp => [242, 204, 38, 255],
-        V::CurvatureJump | V::Gap => [217, 56, 51, 255],
+        V::Smooth => smooth,
+        V::CurvatureJump => jump,
+        V::Sharp => sharp,
+        V::Gap => gap,
     }
 }
 
@@ -732,7 +733,8 @@ fn build_sketch_scene(app: &SolveApp, proj: &Proj) -> GpuScene {
         // The ground plane: XY with Z up, XZ with Y up (laid out in the camera's Z-up frame), or
         // the upright origin plane facing the view when the ground is seen edge-on.
         let tf = app.cam.to_frame(app.cam.target);
-        let (u, v) = grid_plane(app.cam.to_frame(app.cam.back()));
+        // On the ground (XY) unless the Grid follows the view preference is on (#1470).
+        let (u, v) = if app.preferences.grid_follows_view { grid_plane(app.cam.to_frame(app.cam.back())) } else { (Vec3::X, Vec3::Y) };
         let snap = |a: Vec3| a * ((tf.dot(a) / major).round() * major);
         let c = snap(u) + snap(v);
         let w3 = |p: Vec3| app.cam.from_frame(p).to_f32();
@@ -1668,6 +1670,12 @@ pub fn hit_sel(h: &Hit) -> Option<Sel> {
     })
 }
 
+/// What lights up under the pointer while a tool runs: the nearest hit its click takes.
+fn tool_hover(app: &SolveApp, hits: &[Hit]) -> Option<Hit> {
+    let cmd = app.tool.as_ref()?.cmd;
+    hits.iter().find(|h| crate::sketch_tools::takes(cmd, h)).cloned()
+}
+
 /// What a click would pick: the first hit the open dialog's active input accepts, or with no
 /// dialog the first hit (sketch entities only belong to the active sketch).
 pub fn candidate(app: &SolveApp, hits: &[Hit]) -> Option<(Hit, Sel)> {
@@ -2314,7 +2322,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
     // corner drawn from the origin is the fixed origin, which ends no two curves.
     let corner = hover.filter(|_| inside && !navigating).and_then(|p| crate::sketch_modify_ui::corner_hit(app, &proj, p));
     let cand = if app.tool.is_some() {
-        hits.first().cloned().map(|h| (h, None))
+        tool_hover(app, &hits).map(|h| (h, None))
     } else if let Some((hit, sel)) = corner {
         Some((hit, Some(sel)))
     } else {
@@ -3506,6 +3514,127 @@ fn view_menu(app: &mut SolveApp, ui: &mut egui::Ui, button: Rect) -> bool {
 mod tests {
     use super::*;
     use crate::navigation::*;
+
+    /// Every tangent seam Continuity Analysis reports keeps its colour while the pointer rests on
+    /// a face (#1247): a 60 x 40 x 20 box with its four top edges rounded (6 mm) has eight, four
+    /// against the sides and four against the top face. The tool lit the face under the pointer,
+    /// though its click takes only edges, and the face's outline covered the colours of its
+    /// edges. Rendered offscreen with bodies built on the CPU and evaluated on the GPU (skipped
+    /// without a GPU adapter); with `SOLIDCRAFT_CONTINUITY_TOP_SHOT` set, the pictures are
+    /// written there (`-cpu.png`, `-gpu.png`).
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn continuity_colours_stay_on_the_edges_of_the_face_under_the_pointer() {
+        use solidcraft_engine::kernel::SeamVerdict;
+        let mut s = solidcraft_engine::Session::default();
+        s.execute("solid.box", &json!({"length": 60, "width": 40, "height": 20, "body_name": "B"})).unwrap();
+        s.execute("solid.fillet", &json!({"edges": [[30, 0, 20], [30, 40, 20], [0, 20, 20], [60, 20, 20]], "radius": 6})).unwrap();
+        let mut app = SolveApp::new(s, crate::Services::default());
+        app.fit_view();
+        // The toolbar button: every seam shaded, the tool left picking edges.
+        app.start("inspect.continuity");
+        let tangent = |app: &SolveApp| app.session.continuity.iter().filter(|seam| seam.verdict == SeamVerdict::CurvatureJump).count();
+        assert_eq!(tangent(&app), 8);
+        const SIZE: u32 = 512; // rows of 256-byte multiples (the copy alignment)
+        let rect = Rect::from_min_size(Pos2::ZERO, vec2(SIZE as f32, SIZE as f32));
+        // The pointer rests in the middle of the top face, away from its edges: the tool takes
+        // only edges, so nothing there lights up over the analysis.
+        let proj = projection(&app, rect);
+        let middle = proj.to_screen(Vec3::new(30.0, 20.0, 20.0)).unwrap();
+        let hits = pick_cached(&mut app, &proj, middle);
+        assert!(matches!(hits.first(), Some(Hit::Face { .. })), "{hits:?}");
+        app.viewport.hover = tool_hover(&app, &hits);
+        assert_eq!(app.viewport.hover, None);
+        let t = Tokens::get();
+        let g1 = t.continuity[1];
+        // Each tangent seam lies in one flat face (the top, or a side under its round): that
+        // face's outward normal, and the seam shows where it faces the eye (the body is convex).
+        let flat_normal = |e: &[Vec3]| {
+            let on = |f: fn(&Vec3) -> f64, at: f64| e.iter().all(|p| (f(p) - at).abs() < 1e-6);
+            [
+                (on(|p| p.z, 20.0), Vec3::Z),
+                (on(|p| p.y, 0.0), -Vec3::Y),
+                (on(|p| p.y, 40.0), Vec3::Y),
+                (on(|p| p.x, 0.0), -Vec3::X),
+                (on(|p| p.x, 60.0), Vec3::X),
+            ]
+            .into_iter()
+            .find_map(|(lies, n)| lies.then_some(n))
+        };
+        for tess in [false, true] {
+            app.viewport.gpu = Some(GpuTarget { format: egui_wgpu::wgpu::TextureFormat::Rgba8Unorm, depth: None, samples: 1, tess });
+            let proj = projection(&app, rect);
+            let e = proj.cam.eye().to_f32();
+            let eye = [e[0], e[1], e[2], if proj.cam.fov > 0.0 { 1.0 } else { 0.0 }];
+            let Some(img) = crate::gpu::render_offscreen(
+                build_scene(&app).merged(),
+                Some(build_highlight(&app)),
+                proj.vp.to_f32(),
+                proj.cam.back().to_f32(),
+                eye,
+                SIZE,
+                tess.then_some(solidcraft_gpu::SHADER),
+                [0.0; 8],
+                crate::gpu::analysis_colors(&t.analysis),
+            ) else {
+                eprintln!("skipping: no GPU adapter");
+                return;
+            };
+            if let Ok(path) = std::env::var("SOLIDCRAFT_CONTINUITY_TOP_SHOT")
+                && let Some(png) = image::RgbaImage::from_raw(SIZE, SIZE, img.clone())
+            {
+                png.save(path.replace(".png", if tess { "-gpu.png" } else { "-cpu.png" })).unwrap();
+            }
+            let lit = |x: i64, y: i64| {
+                (0..SIZE as i64).contains(&x)
+                    && (0..SIZE as i64).contains(&y)
+                    && img[((y * SIZE as i64 + x) * 4) as usize..][..3].iter().zip([g1.r(), g1.g(), g1.b()]).all(|(a, b)| a.abs_diff(b) <= 12)
+            };
+            let mut seen = 0;
+            for seam in app.session.continuity.iter().filter(|seam| seam.verdict == SeamVerdict::CurvatureJump) {
+                let (a, b) = (seam.points[0], seam.points[seam.points.len() - 1]);
+                let normal = flat_normal(&seam.points).unwrap_or_else(|| panic!("a tangent seam off the flat faces: {a:?}..{b:?}"));
+                if normal.dot(proj.cam.eye() - a.lerp(b, 0.5)) <= 0.0 {
+                    continue;
+                }
+                seen += 1;
+                // In its colour a quarter, half and three quarters along.
+                for f in [0.25, 0.5, 0.75] {
+                    let p = a.lerp(b, f);
+                    let q = proj.to_screen(p).unwrap();
+                    let (x, y) = (q.x.round() as i64, q.y.round() as i64);
+                    let drawn = (-2..=2).any(|dy| (-2..=2).any(|dx| lit(x + dx, y + dy)));
+                    assert!(drawn, "tess {tess}: tangent seam {a:?}..{b:?} is not drawn in its colour at {p:?} ({x}, {y})");
+                }
+            }
+            assert_eq!(seen, 6, "the four top seams and the two sides facing the eye");
+        }
+        // On an edge, the edge lights up: what a click measures.
+        let proj = projection(&app, rect);
+        let on_edge = proj.to_screen(Vec3::new(30.0, 6.0, 20.0)).unwrap();
+        let hits = pick_cached(&mut app, &proj, on_edge);
+        assert!(matches!(tool_hover(&app, &hits), Some(Hit::Edge { .. })), "{hits:?}");
+    }
+
+    /// Continuity Analysis draws each seam in its verdict's `continuity` token (#770): a box
+    /// with one edge rounded shows the round's two tangent seams (G1) and the creases (G0), and
+    /// nothing in the smooth or gap colours.
+    #[test]
+    fn continuity_seams_take_their_colours_from_the_theme() {
+        let mut s = solidcraft_engine::Session::default();
+        s.execute("solid.box", &json!({"length": 20, "width": 20, "height": 20})).unwrap();
+        s.execute("solid.fillet", &json!({"edges": [[20, 20, 10]], "radius": 4})).unwrap();
+        s.execute("inspect.continuity", &json!({})).unwrap();
+        let app = SolveApp::new(s, crate::Services::default());
+        let sc = build_scene(&app);
+        // An overlay line is two points, a colour and a width: 32 bytes.
+        let colours: Vec<[u8; 4]> = sc.overlay.as_chunks::<32>().0.iter().map(|r| [r[24], r[25], r[26], r[27]]).collect();
+        let t = Tokens::get();
+        let count = |c: Color32| colours.iter().filter(|x| **x == c4(c)).count();
+        let [smooth, jump, sharp, gap] = t.continuity.map(count);
+        assert!(jump > 0 && sharp > 0, "tangent seams {jump}, creases {sharp} segments");
+        assert_eq!((smooth, gap), (0, 0));
+    }
 
     /// Bodies drawn from their display plans, evaluated on the GPU, look like the same bodies
     /// built into triangles on the CPU: the sample design rendered both ways through the

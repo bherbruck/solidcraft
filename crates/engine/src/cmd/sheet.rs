@@ -894,6 +894,10 @@ fn export_bend_table(s: &mut Session, p: &Value) -> Result<Value> {
 mod tests;
 
 #[cfg(test)]
+#[path = "sheet_batch_cuts_tests.rs"]
+mod batch_cuts_tests;
+
+#[cfg(test)]
 #[path = "sheet_convert_tests.rs"]
 mod convert_tests;
 

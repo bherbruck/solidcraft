@@ -52,7 +52,7 @@ spade = { version = "2.15", default-features = false, features = ["std"] }
 rayon = "1.12"
 
 # packages (3MF)
-zip = { version = "3", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 quick-xml = "0.41"
 # glTF 2.0 import (MIT OR Apache-2.0): the document model and GLB container only; buffers are
 # read by crates/io itself, so no image decoding or file access comes with it.

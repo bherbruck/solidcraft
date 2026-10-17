@@ -49,6 +49,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         "body?: name (default: the visible bodies); edges?: [x,y,z] points or {\"index\": i} (default: every edge of the body; \
              a pick must match one body); samples?: 3…257 stations along each edge, ends included (default 33); \
              gap_tolerance_mm? (default 0.001), angle_tolerance_deg? (default 1), curvature_tolerance_per_mm? (default 0.01); \
+             add?: true keeps the seams already shaded and adds these (measuring an edge again replaces it); \
              clear?: true turns the analysis off. → each edge's worst gap (G0), normal angle (G1) and curvature jump (G2) as \
              {value, at: [x,y,z], edge_fraction}, its verdict (smooth, curvature_jump, sharp or gap) and a summary; \
              the seams are shaded in the viewport",
@@ -177,7 +178,7 @@ fn continuity(s: &mut Session, p: &Value) -> Result<Value> {
         let mut rows = Vec::new();
         for seam in &report.seams {
             summary.count(seam.verdict);
-            seams.push(ContinuitySeam { points: seam.points.clone(), verdict: seam.verdict });
+            seams.push(ContinuitySeam { body: body.name.clone(), edge: seam.edge, points: seam.points.clone(), verdict: seam.verdict });
             rows.push(json!({
                 "edge": seam.edge,
                 "length_mm": seam.length,
@@ -197,7 +198,13 @@ fn continuity(s: &mut Session, p: &Value) -> Result<Value> {
             "unmeasured": report.unmeasured,
         }));
     }
-    s.continuity = seams;
+    if bool_(p, "add").unwrap_or(false) {
+        // The seams shown stay; an edge measured again takes its new reading.
+        s.continuity.retain(|kept| !seams.iter().any(|new| new.body == kept.body && new.edge == kept.edge));
+        s.continuity.extend(seams);
+    } else {
+        s.continuity = seams;
+    }
     s.revision += 1;
     Ok(json!({
         "analysis": "continuity",
@@ -427,6 +434,27 @@ mod tests {
         assert_eq!(cleared["cleared"], json!(true));
         assert!(s.continuity.is_empty(), "clear leaves nothing shaded");
         assert_eq!(s.undo.len(), undo);
+    }
+
+    /// `add` keeps what is shaded and adds the picked edges: an edge measured again replaces its
+    /// seam instead of drawing it twice, and a call without `add` starts over.
+    #[test]
+    fn continuity_add_keeps_the_seams_shown() {
+        let mut s = Session::default();
+        boxed(&mut s, 10.0);
+        s.execute("inspect.continuity", &json!({"edges": [[5, 0, 0]]})).unwrap();
+        assert_eq!(s.continuity.len(), 1);
+        let v = s.execute("inspect.continuity", &json!({"edges": [[0, 5, 0]], "add": true})).unwrap();
+        assert_eq!(edges(&v).len(), 1, "the reply covers the edges this call measured: {v}");
+        assert_eq!(s.continuity.len(), 2, "the first seam stays");
+        s.execute("inspect.continuity", &json!({"edges": [[5, 0, 0]], "add": true, "samples": 5})).unwrap();
+        assert_eq!(s.continuity.len(), 2, "measured again, not added twice");
+        assert!(s.continuity.iter().any(|seam| seam.points.len() == 5), "with its new reading");
+        assert!(s.continuity.iter().all(|seam| seam.body == "Body1"), "{:?}", s.continuity);
+        s.execute("inspect.continuity", &json!({"edges": [[10, 5, 0]]})).unwrap();
+        assert_eq!(s.continuity.len(), 1, "without `add` the shading starts over");
+        s.execute("inspect.continuity", &json!({"add": true})).unwrap();
+        assert_eq!(s.continuity.len(), 12, "every edge once");
     }
 
     /// Hostile parameters are refused with an error, never a panic.

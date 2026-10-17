@@ -288,6 +288,10 @@ pub struct Tokens {
     pub bend_down: Color32,
     /// Interference: the clash fill, before its shading.
     pub interference: Color32,
+    /// Continuity Analysis seams, best to worst as `inspect.continuity` judges them: smooth (G2),
+    /// tangent with a curvature jump (G1), a crease (G0) and a gap. Bluish green, blue, yellow
+    /// and reddish purple stay apart in every colour vision mode, so no mode changes them.
+    pub continuity: [Color32; 4],
     pub analysis: AnalysisColors,
     pub icons: IconColors,
     /// The application bar's buttons: ink, fill and accent of their icons.
