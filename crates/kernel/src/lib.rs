@@ -61,6 +61,8 @@ mod issue_1510_tests;
 #[cfg(test)]
 mod issue_1865_tests;
 #[cfg(test)]
+mod issue_1910_hang_tests;
+#[cfg(test)]
 mod issue_2005_tests;
 #[cfg(test)]
 mod issue_324_tests;

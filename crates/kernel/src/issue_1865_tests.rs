@@ -4,6 +4,10 @@
 //! faces only. Nothing retried, so the operation was refused although the bodies plainly share
 //! a volume. They are faceted and combined instead, which answers the operation at the cost of
 //! a result that is flat where the sides curve.
+//!
+//! Their join is not one of those operations any more: #1894 and #2008 take it exactly. It is
+//! held to that below, so that the approximate route cannot creep forward into work that is
+//! already right. What is left for the facets is the intersection, the reduction in the issue.
 
 use std::f64::consts::PI;
 
@@ -56,22 +60,6 @@ fn cylinders_meeting_along_their_sides_can_be_intersected() {
     // The route that answered it says so, and says the result is flat where the sides curve.
     assert!(used(&how, BooleanStrategy::FacetedFallback), "{how:?}");
     assert!(how.warning().is_some(), "a result that is not the exact one is warned about");
-}
-
-#[test]
-fn a_bored_cylinder_joins_the_one_standing_on_it() {
-    // The issue's own operation. A bore across the lower cylinder, well below where the two
-    // meet, leaves it no prism along the axis, so the 2D route that takes the plain pair
-    // cannot be asked and the join falls through to the same refusal.
-    let drill = cylinder(Vec3::new(-40.0, 0.0, 10.0), Vec3::X, 4.0, 80.0).unwrap();
-    let bored = boolean(&lower(), &drill, BoolOp::Cut).unwrap().unwrap();
-    let (body, how) = made(&bored, &upper(), BoolOp::Union);
-    // The join adds the 16 mm of the upper cylinder standing clear of the lower one. The bore
-    // lies 8 mm below where they meet, so the join neither reaches it nor fills it.
-    within(measure(&body).unwrap().volume, measure(&bored).unwrap().volume + disc(16.0), "the joined body");
-    assert_eq!(body.lumps().unwrap().len(), 1, "one piece");
-    assert!(body.validity().is_empty(), "{:?}", body.validity());
-    assert!(used(&how, BooleanStrategy::FacetedFallback), "{how:?}");
 }
 
 #[test]

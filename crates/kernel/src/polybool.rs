@@ -17,6 +17,74 @@ use crate::{BoolOp, KernelError, Result, guard, record};
 const MAX_DEPTH: usize = 4000;
 const MAX_POLYS: usize = 200_000;
 
+/// Splits one BSP boolean may make for each polygon it was given, and the floor under that for
+/// small inputs.
+///
+/// [`MAX_POLYS`] bounds the polygons a boolean is handed and [`MAX_DEPTH`] the depth its tree
+/// reaches, but nothing bounded the pieces splitting makes of those polygons, and that is the
+/// work: facets of curved faces meet at shallow angles, every splitting plane cuts a share of
+/// the rest, and the fragments multiply. Neither of those two limits is reached while it
+/// happens, so the boolean returned neither a result nor an error for as long as anyone waited
+/// (#1865: a body the faceted route had made, which is all facets, and every later boolean on
+/// it). A boolean past this budget is refused, which the caller can report; a boolean that
+/// never returns is the one thing it cannot.
+///
+/// The allowance is far above what the booleans in the suites spend: a pair of faceted
+/// cylinders coming to 14,300 polygons spends about 230 splits a polygon, the most of any
+/// measured, so this leaves more than an order of magnitude over the worst honest case.
+const SPLITS_PER_POLY: u64 = 8_000;
+const MIN_SPLITS: u64 = 4_000_000;
+
+/// The ceiling on that allowance, whatever the polygon count. Per-polygon alone, a boolean
+/// handed [`MAX_POLYS`] polygons could spend sixteen hundred million splits before it was
+/// refused, which is hours: a bound that large is one a person waiting would not tell from no
+/// bound at all. This holds the worst case to about twenty times the heaviest honest spend
+/// measured (3.3 million, by the faceted cylinders above), so a run that reaches it is one
+/// whose fragments are multiplying rather than one that is merely large.
+const MAX_SPLITS: u64 = 64_000_000;
+
+/// The words a boolean past its budget is refused with. A test names it rather than a clock:
+/// how long a boolean takes is the machine's, but which answer comes back is the code's.
+pub(crate) const OVER_BUDGET: &str = "the facets cut each other into more pieces than this route combines in reasonable time";
+
+/// What one BSP boolean may still spend, counted down as it splits.
+struct Budget {
+    left: std::cell::Cell<u64>,
+    over: std::cell::Cell<bool>,
+}
+
+impl Budget {
+    /// The budget for a boolean given `polys` polygons in all.
+    fn of(polys: usize) -> Budget {
+        let left = (polys as u64).saturating_mul(SPLITS_PER_POLY).clamp(MIN_SPLITS, MAX_SPLITS);
+        Budget { left: std::cell::Cell::new(left), over: std::cell::Cell::new(false) }
+    }
+
+    /// Charge one split; `false` once the budget is gone, on which the caller stops splitting.
+    /// The polygons it leaves half-clipped are never read: [`Budget::check`] turns the whole
+    /// boolean into an error, so nothing of a run out of budget reaches a result.
+    fn take(&self) -> bool {
+        match self.left.get() {
+            0 => {
+                self.over.set(true);
+                false
+            }
+            left => {
+                self.left.set(left - 1);
+                true
+            }
+        }
+    }
+
+    /// Whether this boolean spent its budget, as the error to refuse it with.
+    fn check(&self) -> Result<()> {
+        if self.over.get() {
+            return Err(KernelError::Failed(format!("planar boolean: {OVER_BUDGET}")));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct PlaneEq {
     n: Vec3,
@@ -118,7 +186,7 @@ struct Node {
 }
 
 impl Node {
-    fn build(&mut self, polys: Vec<Poly>, eps: f64, depth: usize) -> Result<()> {
+    fn build(&mut self, polys: Vec<Poly>, eps: f64, depth: usize, budget: &Budget) -> Result<()> {
         if polys.is_empty() {
             return Ok(());
         }
@@ -137,15 +205,19 @@ impl Node {
         let mut cf = Vec::new();
         let mut cb = Vec::new();
         for p in &polys {
+            if !budget.take() {
+                break;
+            }
             split(pl, p, eps, &mut cf, &mut cb, &mut f, &mut b);
         }
+        budget.check()?;
         self.polys.extend(cf);
         self.polys.extend(cb);
         if !f.is_empty() {
-            self.front.get_or_insert_with(Default::default).build(f, eps, depth + 1)?;
+            self.front.get_or_insert_with(Default::default).build(f, eps, depth + 1, budget)?;
         }
         if !b.is_empty() {
-            self.back.get_or_insert_with(Default::default).build(b, eps, depth + 1)?;
+            self.back.get_or_insert_with(Default::default).build(b, eps, depth + 1, budget)?;
         }
         Ok(())
     }
@@ -162,35 +234,38 @@ impl Node {
         }
         std::mem::swap(&mut self.front, &mut self.back);
     }
-    fn clip_polys(&self, polys: Vec<Poly>, eps: f64) -> Vec<Poly> {
+    fn clip_polys(&self, polys: Vec<Poly>, eps: f64, budget: &Budget) -> Vec<Poly> {
         let Some(pl) = self.plane else { return polys };
         let (mut f, mut b) = (Vec::new(), Vec::new());
         let (mut cf, mut cb) = (Vec::new(), Vec::new());
         for p in &polys {
+            if !budget.take() {
+                break;
+            }
             split(pl, p, eps, &mut cf, &mut cb, &mut f, &mut b);
         }
         f.extend(cf);
         b.extend(cb);
         let f = match &self.front {
-            Some(n) => n.clip_polys(f, eps),
+            Some(n) => n.clip_polys(f, eps, budget),
             None => f,
         };
         let b = match &self.back {
-            Some(n) => n.clip_polys(b, eps),
+            Some(n) => n.clip_polys(b, eps, budget),
             None => Vec::new(),
         };
         let mut out = f;
         out.extend(b);
         out
     }
-    fn clip_to(&mut self, other: &Node, eps: f64) {
+    fn clip_to(&mut self, other: &Node, eps: f64, budget: &Budget) {
         let polys = std::mem::take(&mut self.polys);
-        self.polys = other.clip_polys(polys, eps);
+        self.polys = other.clip_polys(polys, eps, budget);
         if let Some(f) = &mut self.front {
-            f.clip_to(other, eps);
+            f.clip_to(other, eps, budget);
         }
         if let Some(b) = &mut self.back {
-            b.clip_to(other, eps);
+            b.clip_to(other, eps, budget);
         }
     }
     fn all(&self, out: &mut Vec<Poly>) {
@@ -210,6 +285,10 @@ impl Node {
 enum NotPlanar {
     /// Faces on curved surfaces, counted by kind.
     Curved(std::collections::BTreeMap<&'static str, usize>),
+    /// A face on a plane whose mesh is not flat (its index). The faceted route leaves such
+    /// faces behind - a loop a hair off flat takes its group's plane, and the plane then does
+    /// not hold the loop - so a body refused for this is one that route already made.
+    Unflat(usize),
     /// Something else (a face that could not be meshed, too many polygons).
     Other(String),
 }
@@ -222,9 +301,23 @@ impl NotPlanar {
                 let list: Vec<&str> = kinds.keys().copied().collect();
                 format!("the {role} has {n} curved face{} ({})", if n == 1 { "" } else { "s" }, list.join(", "))
             }
+            NotPlanar::Unflat(face) => format!("the {role}'s face {face} is planar but its mesh is not flat"),
             NotPlanar::Other(m) => format!("the {role}'s {m}"),
         }
     }
+}
+
+/// Why [`planar_boolean`] could not take a pair of bodies as they are, for the routes after it
+/// to tell its one answerable failure from the rest.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct NotTaken {
+    /// A body has faces on curved surfaces: the failure the faceted route answers (#1865).
+    pub curved: bool,
+    /// A body has planar faces whose meshes are not flat ([`NotPlanar::Unflat`]), which is what
+    /// the faceted route itself leaves behind. Faceting such a body again does not answer
+    /// anything: it is already flat where it curved, and it comes to hundreds of times the
+    /// facets it was made from, so each pass costs more than the last.
+    pub unflat: bool,
 }
 
 /// The kind of curved surface `face` lies on, or None when it lies on a plane. `flat`: whether
@@ -272,7 +365,7 @@ fn face_planes(b: &Body, faces: &[crate::FaceInfo]) -> std::result::Result<Vec<P
         }
         match (f.plane_normal, curved_kind(surface, f.plane_normal.is_some(), surface_tol)) {
             (Some(n), None) => out.push(PlaneEq { n, w: n.dot(f.centroid) }),
-            (None, None) => return Err(NotPlanar::Other(format!("face {} is planar but its mesh is not flat", f.index))),
+            (None, None) => return Err(NotPlanar::Unflat(f.index)),
             (_, Some(kind)) => *curved.entry(kind).or_insert(0) += 1,
         }
     }
@@ -422,30 +515,42 @@ fn shuffled(mut polys: Vec<Poly>) -> Vec<Poly> {
     polys
 }
 
-/// The words [`planar_boolean`] refuses curved bodies with. The faceted route answers that one
-/// failure and no other, so it is told apart by its words, as [`crate::coplanar::NO_ROOM`] is.
-pub(crate) const PLANAR_ONLY: &str = "takes planar faces only";
-
 /// Boolean of two all-planar bodies.
 pub fn planar_boolean(a: &Body, b: &Body, op: BoolOp) -> Result<Option<Body>> {
-    a.require_brep("a boolean")?;
-    b.require_brep("a boolean")?;
+    planar_boolean_reasoned(a, b, op).0
+}
+
+/// [`planar_boolean`], with why it could not take the bodies as they are ([`NotTaken`]), for
+/// the routes after it. The reason is the bodies' own, read where the polygons are asked for,
+/// not matched out of the words of an error: the words say "planar faces only" for a body whose
+/// faces curve and for one whose planar faces merely mesh unevenly, and only the first of those
+/// is a failure the faceted route answers (see [`NotTaken::unflat`]).
+pub(crate) fn planar_boolean_reasoned(a: &Body, b: &Body, op: BoolOp) -> (Result<Option<Body>>, NotTaken) {
+    let plain = NotTaken::default();
+    if let Err(e) = a.require_brep("a boolean").and_then(|()| b.require_brep("a boolean")) {
+        return (Err(e), plain);
+    }
     let (pa, pb) = match (planar_polys(a, 0), planar_polys(b, 1)) {
         (Ok(pa), Ok(pb)) => (pa, pb),
         (ra, rb) => {
             if let Some(r) = sliced_planar_boolean(a, b, op) {
-                return r;
+                return (r, plain);
             }
-            let why: Vec<String> =
-                [(ra.err(), "target"), (rb.err(), "tool")].into_iter().filter_map(|(e, role)| e.map(|e| e.describe(role))).collect();
-            return Err(KernelError::Failed(format!(
-                "not supported yet: the exact fallback for where the bodies meet (faces that touch, or cross at a shallow angle) {PLANAR_ONLY}, and {}",
-                why.join(" and ")
-            )));
+            let reasons = [ra.err(), rb.err()];
+            let why = NotTaken {
+                curved: reasons.iter().flatten().any(|e| matches!(e, NotPlanar::Curved(_))),
+                unflat: reasons.iter().flatten().any(|e| matches!(e, NotPlanar::Unflat(_))),
+            };
+            let said: Vec<String> = reasons.into_iter().zip(["target", "tool"]).filter_map(|(e, role)| e.map(|e| e.describe(role))).collect();
+            let e = KernelError::Failed(format!(
+                "not supported yet: the exact fallback for where the bodies meet (faces that touch, or cross at a shallow angle) takes planar faces only, and {}",
+                said.join(" and ")
+            ));
+            return (Err(e), why);
         }
     };
     let size = a.size().max(b.size());
-    polys_boolean(pa, pb, size, op, size * 1e-9, &Sources::of(&[a, b]))
+    (polys_boolean(pa, pb, size, op, size * 1e-9, &Sources::of(&[a, b])), plain)
 }
 
 /// [`planar_boolean`] of a body with curved faces and an all-planar one, when a slab between
@@ -769,44 +874,49 @@ fn polys_volume(ps: &[Poly]) -> f64 {
 
 /// The polygons of a BSP boolean (csg.js style).
 fn csg(pa: Vec<Poly>, pb: Vec<Poly>, op: BoolOp, eps: f64) -> Result<Vec<Poly>> {
+    let budget = Budget::of(pa.len() + pb.len());
     let (mut na, mut nb) = (Node::default(), Node::default());
-    na.build(pa, eps, 0)?;
-    nb.build(pb, eps, 0)?;
+    na.build(pa, eps, 0, &budget)?;
+    nb.build(pb, eps, 0, &budget)?;
     match op {
         BoolOp::Union => {
-            na.clip_to(&nb, eps);
-            nb.clip_to(&na, eps);
+            na.clip_to(&nb, eps, &budget);
+            nb.clip_to(&na, eps, &budget);
             nb.invert();
-            nb.clip_to(&na, eps);
+            nb.clip_to(&na, eps, &budget);
             nb.invert();
+            budget.check()?;
             let mut extra = Vec::new();
             nb.all(&mut extra);
-            na.build(extra, eps, 0)?;
+            na.build(extra, eps, 0, &budget)?;
         }
         BoolOp::Cut => {
             na.invert();
-            na.clip_to(&nb, eps);
-            nb.clip_to(&na, eps);
+            na.clip_to(&nb, eps, &budget);
+            nb.clip_to(&na, eps, &budget);
             nb.invert();
-            nb.clip_to(&na, eps);
+            nb.clip_to(&na, eps, &budget);
             nb.invert();
+            budget.check()?;
             let mut extra = Vec::new();
             nb.all(&mut extra);
-            na.build(extra, eps, 0)?;
+            na.build(extra, eps, 0, &budget)?;
             na.invert();
         }
         BoolOp::Intersect => {
             na.invert();
-            nb.clip_to(&na, eps);
+            nb.clip_to(&na, eps, &budget);
             nb.invert();
-            na.clip_to(&nb, eps);
-            nb.clip_to(&na, eps);
+            na.clip_to(&nb, eps, &budget);
+            nb.clip_to(&na, eps, &budget);
+            budget.check()?;
             let mut extra = Vec::new();
             nb.all(&mut extra);
-            na.build(extra, eps, 0)?;
+            na.build(extra, eps, 0, &budget)?;
             na.invert();
         }
     }
+    budget.check()?;
     let mut polys = Vec::new();
     na.all(&mut polys);
     Ok(polys)
@@ -1242,7 +1352,10 @@ mod diagnostic_tests {
         let mut faces = body.faces(0.01).unwrap();
         assert_eq!(face_planes(&body, &faces).unwrap().len(), 6);
         faces[0].plane_normal = None;
-        assert_eq!(face_planes(&body, &faces).err().unwrap(), NotPlanar::Other("face 0 is planar but its mesh is not flat".into()));
+        // Its own reason, not a curved one: the faceted route answers curved faces and must not
+        // be sent after a body whose planar faces merely mesh unevenly (#1910).
+        assert_eq!(face_planes(&body, &faces).err().unwrap(), NotPlanar::Unflat(0));
+        assert_eq!(NotPlanar::Unflat(0).describe("target"), "the target's face 0 is planar but its mesh is not flat");
         faces[0].area = 0.0;
         assert_eq!(face_planes(&body, &faces).err().unwrap(), NotPlanar::Other("face 0 could not be meshed".into()));
         faces[0].index = 999;
@@ -1303,5 +1416,38 @@ mod small_round_tests {
             let removed = crate::measure(&plate).unwrap().volume - crate::measure(&r).unwrap().volume;
             assert!((removed - 5.0).abs() < 1e-3, "hole {hole}: removed {removed}");
         }
+    }
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+
+    /// The budget refuses a boolean in words once it is spent, and the words are the ones the
+    /// routes above it match on. Driven here rather than through a pair of bodies: whether any
+    /// given pair's fragments multiply is a property of that geometry and of the tolerances of
+    /// the day, where what this guards is that running out is an answer and not a hang.
+    #[test]
+    fn a_boolean_that_spends_its_budget_is_refused_in_words() {
+        let budget = Budget::of(1);
+        assert!(budget.check().is_ok(), "a budget that has not been spent refuses nothing");
+        // A small input still gets the floor, so spend exactly that and one more.
+        for _ in 0..MIN_SPLITS {
+            assert!(budget.take(), "the floor should cover its own count");
+        }
+        assert!(!budget.take(), "the budget is spent");
+        let e = budget.check().expect_err("a spent budget refuses the boolean");
+        assert!(e.to_string().contains(OVER_BUDGET), "refused, but not in the budget's words: {e}");
+    }
+
+    /// Whatever the polygon count, the allowance stops at [`MAX_SPLITS`]: per-polygon alone, a
+    /// boolean handed [`MAX_POLYS`] could spend sixteen hundred million splits before it was
+    /// refused, which is a bound a person waiting would not tell from no bound at all.
+    #[test]
+    fn the_allowance_has_a_ceiling_whatever_the_polygon_count() {
+        assert_eq!(Budget::of(MAX_POLYS).left.get(), MAX_SPLITS);
+        assert_eq!(Budget::of(1).left.get(), MIN_SPLITS, "and a floor under it for small inputs");
+        let middling = MAX_SPLITS / SPLITS_PER_POLY / 2;
+        assert_eq!(Budget::of(middling as usize).left.get(), middling * SPLITS_PER_POLY, "between the two it is per polygon");
     }
 }
