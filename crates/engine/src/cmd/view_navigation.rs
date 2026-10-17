@@ -4,13 +4,51 @@ use solidcraft_render::{Camera, StandardView};
 
 use super::CommandSpec;
 use crate::params::{bad, num, req_vec2, req_vec3, vec3};
-use crate::{Result, Session};
+use crate::{Result, Sel, Session};
 
-pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new("view.navigate", "Navigate View", navigate)
+pub static COMMANDS: &[CommandSpec] = &[
+    CommandSpec::new("view.normal_to", "Normal to Selection", normal_to)
+        .icon("camera")
+        .noundo()
+        .enabled(|s| normal_target(s).map(|_| ()).ok_or_else(|| "select one planar face".into()))
+        .params("camera?: Camera (default: current session camera or home view) → camera; face the single selected planar face along its outward normal, centered on the picked point; preserves scale and projection"),
+    CommandSpec::new("view.navigate", "Navigate View", navigate)
     .icon("orbit")
     .noundo()
     .doc_only()
     .params("camera: Camera; direction?: [x,y,z] in the camera's up-axis frame; or action: left|right|up|down|clockwise|counterclockwise|home|fit, degrees?: 0..180 (how far left|right|up|down turn; default 90); or motion: pan|orbit|zoom, delta?: [dx,dy] (pixels, each ±10000), viewport?: [width,height] (1..1000000, required for pan or pivot), pivot?: [x,y,z], factor?: 0.05..20 (required for zoom), anchor?: [x,y,z] → camera, fit, continuous?")];
+
+fn normal_target(s: &Session) -> Option<(solidcraft_geom::Vec3, solidcraft_geom::Vec3)> {
+    let [Sel::Face { body, index, point }] = s.selection.as_slice() else { return None };
+    if !point.is_finite() {
+        return None;
+    }
+    let state = s.world_state();
+    let plane = state.body(body)?.body.planar_face(*index)?;
+    Some((*point, plane.normal()))
+}
+
+fn normal_to(s: &mut Session, p: &Value) -> Result<Value> {
+    let cmd = "view.normal_to";
+    let (point, normal) = normal_target(s).ok_or_else(|| bad(cmd, "select one planar face"))?;
+    let cam: Camera = match p.get("camera") {
+        Some(value) => serde_json::from_value(value.clone()).map_err(|_| bad(cmd, "invalid camera"))?,
+        None => s.camera.unwrap_or_else(|| crate::view::home_camera(s)),
+    };
+    if !cam.is_valid()
+        || !cam.fov.is_finite()
+        || !(0.0..std::f64::consts::PI).contains(&cam.fov)
+        || cam.yaw.abs() > 1e6
+        || cam.roll.abs() > 1e6
+        || cam.pitch.abs() > std::f64::consts::FRAC_PI_2
+    {
+        return Err(bad(cmd, "invalid camera"));
+    }
+    let mut to = cam.looking_from(normal);
+    to.target = point;
+    s.camera = Some(to);
+    Ok(json!({"camera": to}))
+}
 
 fn navigate(_s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "view.navigate";
@@ -141,6 +179,88 @@ mod tests {
     use super::*;
     use solidcraft_geom::Vec3;
     use solidcraft_render::UpAxis;
+
+    #[test]
+    fn normal_to_selection_faces_each_planar_surface_without_editing_the_design() {
+        let mut s = Session::default();
+        s.execute("solid.box", &json!({"length":40,"width":30,"height":20})).unwrap();
+        let state = s.world_state();
+        let body = state.bodies.first().unwrap();
+        let faces = body.body.faces(0.01).unwrap();
+        let document = s.doc.to_json();
+        let undo = s.undo.len();
+        for up in [UpAxis::Z, UpAxis::Y] {
+            for fov in [0.0, 0.6] {
+                let cam = Camera { up, fov, roll: 1.2, distance: 123.0, ..Default::default() };
+                for face in &faces {
+                    s.selection = vec![Sel::Face { body: body.name.clone(), index: face.index, point: face.centroid }];
+                    let selected = s.selection.clone();
+                    let result = s.execute("view.normal_to", &json!({"camera":cam})).unwrap();
+                    let to: Camera = serde_json::from_value(result["camera"].clone()).unwrap();
+                    assert!(to.back().dist(face.plane_normal.unwrap()) < 2e-6);
+                    assert_eq!(to.target, face.centroid);
+                    assert_eq!((to.distance, to.fov, to.up, to.roll), (cam.distance, cam.fov, cam.up, 0.0));
+                    assert_eq!(s.camera, Some(to));
+                    assert_eq!(s.selection, selected);
+                }
+            }
+        }
+        assert_eq!(s.doc.to_json(), document);
+        assert_eq!(s.undo.len(), undo);
+    }
+
+    #[test]
+    fn normal_to_selection_rejects_curved_missing_ambiguous_and_invalid_inputs() {
+        let mut s = Session::default();
+        s.execute("solid.cylinder", &json!({"diameter":20,"height":30})).unwrap();
+        let state = s.world_state();
+        let body = state.bodies.first().unwrap();
+        let faces = body.body.faces(0.1).unwrap();
+        let flat = faces.iter().find(|f| f.plane_normal.is_some()).unwrap();
+        let curved = faces.iter().find(|f| f.plane_normal.is_none()).unwrap();
+        let selected = |index, point| Sel::Face { body: body.name.clone(), index, point };
+        for selection in [
+            vec![],
+            vec![selected(curved.index, curved.centroid)],
+            vec![selected(usize::MAX, Vec3::ZERO)],
+            vec![selected(flat.index, flat.centroid); 2],
+        ] {
+            s.selection = selection;
+            assert!(s.execute("view.normal_to", &json!({})).is_err());
+            assert!(s.camera.is_none());
+        }
+        s.selection = vec![selected(flat.index, flat.centroid)];
+        for camera in [
+            json!({}),
+            json!({"distance":0}),
+            json!(Camera { distance: -1.0, ..Default::default() }),
+            json!(Camera { fov: 4.0, ..Default::default() }),
+        ] {
+            assert!(s.execute("view.normal_to", &json!({"camera":camera})).is_err());
+            assert!(s.camera.is_none());
+        }
+        // Programmatic callers can use the current session view without supplying a camera.
+        assert!(s.execute("view.normal_to", &json!({})).is_ok());
+    }
+
+    #[test]
+    fn normal_to_selection_uses_the_world_normal_of_a_moved_component() {
+        let mut s = Session::default();
+        s.execute("component.create", &json!({"name":"Part"})).unwrap();
+        s.execute("solid.box", &json!({"length":40,"width":30,"height":20})).unwrap();
+        s.execute("occurrence.move", &json!({"occurrence":"Part:1","translate":[50,20,10],"axis":[1,2,3],"angle":"37 deg"})).unwrap();
+        let state = s.world_state();
+        let body = state.bodies.first().unwrap();
+        let faces = body.body.faces(0.01).unwrap();
+        let cam = Camera { roll: 1.4, ..Default::default() };
+        for face in faces {
+            s.selection = vec![Sel::Face { body: body.name.clone(), index: face.index, point: face.centroid }];
+            let result = s.execute("view.normal_to", &json!({"camera":cam})).unwrap();
+            let to: Camera = serde_json::from_value(result["camera"].clone()).unwrap();
+            assert!(to.back().dist(face.plane_normal.unwrap()) < 2e-6);
+            assert!(to.target.dist(face.centroid) < 1e-9);
+        }
+    }
 
     /// #1541: left, right, up and down turn a quarter turn, or `degrees` (the arrow keys' 15°).
     #[test]

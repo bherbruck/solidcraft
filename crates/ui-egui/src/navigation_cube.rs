@@ -185,7 +185,11 @@ pub(super) fn show(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect) {
     if let Some(face) = hovered.and_then(|i| faces.get(i)) {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         ui.interact(Rect::from_center_size(hover.unwrap_or(face.centre), vec2(2.0, 2.0)), ui.id().with("navigation_cube_tip"), Sense::hover())
-            .on_hover_text(format!("{} view. Drag to orbit; hold Shift to snap.", face.label));
+            .on_hover_text(format!(
+                "{} view. Drag to orbit{}.",
+                face.label,
+                if app.preferences.nav == "solidworks" { "" } else { "; hold Shift to snap" }
+            ));
         if ui.input(|i| i.pointer.primary_clicked()) {
             navigate(app, None, Some(face.direction));
         }

@@ -295,6 +295,10 @@ completed drawings publish atomically. The browser still exports synchronously.
 
 ## View navigation
 
+- SolidWorks navigation uses continuous screen-axis rotation for the mouse and 3D mouse,
+  including through the top and bottom poles, without orbit snapping. Its face context menu
+  offers Normal to Selection (`view.normal_to`) for one planar face, preserving scale and projection.
+
 - Desktop Ctrl/Cmd +/- and 0 change or reset the saved UI scale. The scale slider keeps
   its layout stable during a drag and applies the selected scale on release.
 
