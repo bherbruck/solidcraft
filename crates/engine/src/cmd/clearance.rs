@@ -17,7 +17,7 @@ use super::CommandSpec;
 use crate::params::{bad, num, str_, string_list};
 use crate::{Result, Session};
 
-pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new("inspect.clearance", "Clearance", clearance).noundo().params(
+pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new("inspect.clearance", "Clearance", clearance).icon("interference").noundo().params(
     "bodies?: [names] (default: every solid body, in world placement, but those in `against`); against?: [names] (only pairs with one body in `bodies` and the other here); \
      min_volume?: mm³ (default 0.01: smaller overlaps count as contact); clearance?: mm (default 0: report pairs closer than this); \
      nearest?: n (each body of `bodies` gets its n nearest others); skip_within?: \"occurrence\" (pairs of bodies of one occurrence) | \

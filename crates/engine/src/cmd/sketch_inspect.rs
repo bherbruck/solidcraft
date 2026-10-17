@@ -13,7 +13,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .at("SKETCH", "INSPECT")
         .icon("curvature_comb")
         .noundo()
-        .params("curves?: [sketch curve ids] (sketch?: id|name, default active) | edges?: [[x,y,z] points on body edges]; density?: teeth per curve (default 40), scale?: comb length per unit curvature (default auto)"),
+        .params("curves?: [sketch curve ids] (sketch?: id|name, default active) | edges?: [[x,y,z] points on body edges] | faces?: [[x,y,z] points on faces] with count?: isoparametric curves each way (default 4; combs along the face's iso grid); density?: teeth per curve (default 40), scale?: comb length per unit curvature (default auto)"),
     CommandSpec::new("inspect.minimum_radius", "Minimum Radius Analysis", minimum_radius)
         .at("SKETCH", "INSPECT")
         .icon("min_radius")
@@ -113,8 +113,25 @@ fn curvature_comb(s: &mut Session, p: &Value) -> Result<Value> {
             combs.push((format!("edge@{},{},{}", at.x, at.y, at.z), teeth_3d(&pts)));
         }
     }
+    if let Some(faces) = p.get("faces") {
+        let faces = faces.as_array().filter(|a| !a.is_empty()).ok_or_else(|| bad(cmd, "`faces` must list points [x,y,z]"))?;
+        let count = match p.get("count") {
+            None | Some(Value::Null) => 4,
+            Some(_) => {
+                num(p, "count").filter(|c| c.is_finite()).map(|c| c.clamp(1.0, 50.0) as usize).ok_or_else(|| bad(cmd, "`count` must be a number"))?
+            }
+        };
+        for v in faces.iter().take(100) {
+            let at = vec3(v).ok_or_else(|| bad(cmd, "`faces` must list points [x,y,z]"))?;
+            let (bi, f) = face_at(&st, at).ok_or_else(|| bad(cmd, "no face there"))?;
+            let m = st.bodies.get(bi).map(|b| b.mesh()).ok_or_else(|| bad(cmd, "that face's body is not evaluated"))?;
+            for (k, w) in solidcraft_doc::iso_grid(&m, f, at, count).iter().enumerate() {
+                combs.push((format!("face@{},{},{}#{k}", at.x, at.y, at.z), teeth_3d(w)));
+            }
+        }
+    }
     if combs.is_empty() {
-        return Err(bad(cmd, "give `curves` or `edges`"));
+        return Err(bad(cmd, "give `curves`, `edges` or `faces`"));
     }
     // One scale for all combs: the longest tooth is a fifth of the largest curve's size.
     let kmax = combs.iter().flat_map(|c| c.1.iter().map(|t| t.1.abs())).fold(0.0_f64, f64::max);
@@ -348,6 +365,15 @@ mod tests {
         let r = s.execute("inspect.curvature_comb", &json!({"edges": [[58, 0, 10]]})).unwrap();
         assert!((r["combs"][0]["min_radius"].as_f64().unwrap() - 8.0).abs() < 0.5, "{r}");
         assert!(s.execute("inspect.curvature_comb", &json!({})).is_err());
+        // Combs along the side face's isocurves: rings of radius 8 and straight lines along it.
+        let r = s.execute("inspect.curvature_comb", &json!({"faces": [[58, 0, 5]], "count": 3})).unwrap();
+        let combs = r["combs"].as_array().unwrap();
+        assert!(combs.len() >= 6, "{}", combs.len());
+        let rings = combs.iter().filter(|c| c["min_radius"].as_f64().is_some_and(|m| (m - 8.0).abs() < 0.5)).count();
+        let straight = combs.iter().filter(|c| c["min_radius"].is_null() || c["min_radius"].as_f64().is_some_and(|m| m > 1e3)).count();
+        assert!(rings >= 3 && straight >= 3, "{rings} rings, {straight} straight: {r}");
+        assert!(s.execute("inspect.curvature_comb", &json!({"faces": []})).is_err());
+        assert!(s.execute("inspect.curvature_comb", &json!({"faces": [[58, 0, 5]], "count": "x"})).is_err());
     }
 
     #[test]

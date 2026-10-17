@@ -170,6 +170,17 @@ Changes:
   (`onto_edges`). Points within `TOLERANCE` stay on the surface, so exact geometry meshes as
   before. The meshes Boolean operations intersect keep truck's points.
 
+- `tessellation/triangulation.rs`: in display and export meshes (`Deflection::rulings`), a
+  direction left undivided along the rulings of a face ruled one way also gets a grid line
+  through each point of the face's boundary that lies inside the face along it
+  (`with_boundary_lines`), when there are at most 16 such points: corners standing into the
+  face, not a boundary curve running through it, which the triangulation already follows. A hole in a cone or cylinder smaller than one cell (a notch into a
+  chamfer) or a trim crossing the rulings of a narrow band (an oblique plane through a bore's
+  chamfer) had no grid point beside it, and the triangulation fanned from it to the far ends of
+  the face, many degrees round: those triangles cut through the surface and folded over each
+  other (a cone face with a small hole meshed several mm² too large, and the boolean that made
+  it was refused for its volume).
+
 ## matext4cgmath 0.1.0 (Apache-2.0, © RICOS Co. Ltd., https://github.com/ricosjp/matext4cgmath)
 
 truck-geometry uses it for a matrix's operator norm (an intersection curve scales its tolerance

@@ -390,13 +390,13 @@ fn build_scene(
     };
     let b = bounds(s);
     sc.radius = (b.diagonal() * 0.5).max(cam.half_height()).max(10.0) + b.center().dist(cam.target);
-    // Grid on the ground plane (XY with Z up, XZ with Y up), or the upright origin plane facing
-    // a view that sees the ground edge-on ([`grid_plane`]), drawn under the model as in the viewport.
+    // Grid on the ground plane (XY with Z up, XZ with Y up), drawn under the model as in the viewport.
     if guides.grid {
         let (minor, major) = grid_step(cam.half_height());
         let ext = (cam.half_height() * 3.0 / major).ceil() * major;
         let tf = cam.to_frame(cam.target);
-        let (u, v) = grid_plane(cam.to_frame(cam.back()));
+        // Headless pictures keep the grid on the ground, the viewport's default.
+        let (u, v) = (Vec3::X, Vec3::Y);
         let snap = |a: Vec3| a * ((tf.dot(a) / major).round() * major);
         let c = snap(u) + snap(v);
         let w = |p: Vec3| cam.from_frame(p);

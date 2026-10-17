@@ -313,6 +313,104 @@ fn joined_loft_frames_plan_their_display_at_every_quality() {
     }
 }
 
+/// A chamfered 240° ring cut by two prisms whose outlines have a corner exactly on its bore and
+/// one in its end face, then notched into its top outer chamfer: each cut is exact (no retry
+/// moved the tool), the two mirrored cuts take the same material, the notch takes what its
+/// integral says, and the result meshes to its volume at a coarse tolerance too. The prism cuts
+/// went to the last-resort nudge (seconds each, a face of no width left at each corner) and the
+/// notch was refused for its volume: its hole in the chamfer meshed several mm² too large.
+#[test]
+fn oblique_cuts_through_a_chamfered_ring_are_exact() {
+    let script: Value = serde_json::from_str(include_str!("../../../examples/regressions/oblique_cuts_through_chamfered_ring.json")).unwrap();
+    let steps = script.get("commands").and_then(Value::as_array).unwrap();
+    let mut s = Session::default();
+    let mut volumes = Vec::new();
+    for step in steps {
+        let reply = s.execute(step["command"].as_str().unwrap(), &step["params"]).unwrap();
+        if step["command"] == "solid.extrude" {
+            assert!(reply["warning"].is_null(), "{reply}");
+        }
+        if matches!(step["command"].as_str(), Some("solid.move" | "solid.extrude")) {
+            volumes.push(s.model.state().body("R").unwrap().body.tessellate(1e-5).unwrap().measure().volume);
+        }
+    }
+    // Pappus: the profile's moment about the axis turned through 240°.
+    let profile = [(16.6, 0.0), (17.5, 0.0), (18.5, 1.0), (18.5, 7.0), (17.5, 8.0), (16.6, 8.0), (16.4, 7.8), (16.4, 0.2)];
+    let moment: f64 = (0..profile.len())
+        .map(|i| {
+            let ((x0, y0), (x1, y1)) = (profile[i], profile[(i + 1) % profile.len()]);
+            (x0 * y1 - x1 * y0) * (x0 + x1) / 6.0
+        })
+        .sum();
+    let ring = moment.abs() * 4.0 * std::f64::consts::PI / 3.0;
+    let [whole, first, second, notched] = volumes[..] else { panic!("{volumes:?}") };
+    // Volumes from meshes at 1e-5 mm: within a few millionths of the ring's.
+    assert!((whole - ring).abs() < 1e-5 * ring, "{whole} vs {ring}");
+    // The ring and the two prisms are mirror images across XZ.
+    let (cut1, cut2) = (whole - first, first - second);
+    assert!(cut1 > 5.0 && (cut1 - cut2).abs() < 1e-6, "{cut1} vs {cut2}");
+    let notch = ring_notch();
+    assert!(((second - notched) - notch).abs() < 1e-4, "{} vs {notch}", second - notched);
+    let state = s.model.state();
+    let body = &state.body("R").unwrap().body;
+    assert!(body.validity().is_empty(), "{:?}", body.validity());
+    // Faces meshed coarsely keep to their surfaces: chords cut a little area off round faces,
+    // and nothing adds any (triangles fanning across a chamfer from the notch's hole or from the
+    // cuts' trims, folded over each other, added a few mm² each).
+    let (coarse, fine) = (body.tessellate(0.05).unwrap().measure().area, body.tessellate(1e-5).unwrap().measure().area);
+    assert!(coarse < fine && coarse > fine - 2.0, "area meshed at 0.05: {coarse} vs {fine}");
+    println!(
+        "ring {whole:.6} / {ring:.6} mm³; cuts {cut1:.6}, {cut2:.6}; notch {:.6} / {notch:.6}; area meshed at 0.05 {coarse:.4} / {fine:.4}",
+        second - notched
+    );
+}
+
+/// The ring's notch alone: its hole in the top outer chamfer meshed several mm² too large, and
+/// the cut was refused for an implausible volume after more than a minute; it takes what its
+/// integral says.
+#[test]
+fn notch_into_a_ring_chamfer_is_cut_exactly() {
+    let script: Value = serde_json::from_str(include_str!("../../../examples/regressions/oblique_cuts_through_chamfered_ring.json")).unwrap();
+    let steps = script.get("commands").and_then(Value::as_array).unwrap();
+    let mut s = Session::default();
+    let measure = |s: &Session| s.model.state().body("R").unwrap().body.tessellate(1e-5).unwrap().measure().volume;
+    s.run_script(&Value::Array(steps[..5].to_vec())).unwrap();
+    let before = measure(&s);
+    // The notch's sketch and its cut.
+    for step in &steps[steps.len() - 4..] {
+        let reply = s.execute(step["command"].as_str().unwrap(), &step["params"]).unwrap();
+        assert!(reply["warning"].is_null(), "{reply}");
+    }
+    let (got, want) = (before - measure(&s), ring_notch());
+    assert!((got - want).abs() < 1e-4, "{got} vs {want}");
+}
+
+/// What the ring's notch takes: a band 0.9 wide about a radius, from 17.6 out along it, and from
+/// z 7.1 up to the top outer chamfer (r = 25.5 - z). Across the band (s), along it from 17.6 to
+/// where r = 18.4, the height 18.4 - r: along it in closed form, across by Simpson's rule.
+fn ring_notch() -> f64 {
+    let along = |s: f64| {
+        let x1 = (18.4f64 * 18.4 - s * s).sqrt();
+        let g = |x: f64| {
+            let r = (x * x + s * s).sqrt();
+            18.4 * x - 0.5 * (x * r + s * s * (x + r).ln())
+        };
+        g(x1) - g(17.6)
+    };
+    let n = 2000;
+    let h = 0.9 / n as f64;
+    let weight = |i: usize| {
+        if i == 0 || i == n {
+            1.0
+        } else if i % 2 == 1 {
+            4.0
+        } else {
+            2.0
+        }
+    };
+    (0..=n).map(|i| weight(i) * along(-0.45 + i as f64 * h)).sum::<f64>() * h / 3.0
+}
+
 /// The wedge of #1617: a side profile in (y, z) extruded 138 mm along x, its back face leaning
 /// by `lean` (the tangent of its angle), with the issue's rounds. The last one runs along the
 /// outline of both ends. The issue asked for R1 with `fit: reduce`, which reduces it to 0.854 mm;

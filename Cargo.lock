@@ -198,15 +198,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arbitrary"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bc62ac97cc33321f50863d514c3bc38a453947a8f9e781137e47c7401020aed"
-dependencies = [
- "derive_arbitrary",
-]
-
-[[package]]
 name = "arboard"
 version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1071,17 +1062,6 @@ dependencies = [
  "once_cell",
  "sha2 0.10.9",
  "zeroize",
-]
-
-[[package]]
-name = "derive_arbitrary"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b034bd7d5f032402a2479444dcc6f74e36a03f31854d41680fb240ef682a1ac"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.6",
 ]
 
 [[package]]
@@ -2539,6 +2519,18 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "memoffset",
+]
+
+[[package]]
+name = "nix"
+version = "0.31.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf20d2fde8ff38632c426f1165ed7436270b44f199fc55284c38276f9db47c3d"
+dependencies = [
+ "bitflags 2.13.2",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
 ]
 
 [[package]]
@@ -4057,7 +4049,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "block2 0.6.2",
  "eframe",
@@ -4087,7 +4079,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-cli"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "image",
  "serde_json",
@@ -4098,7 +4090,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-derive"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4107,7 +4099,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-doc"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "log",
  "serde",
@@ -4124,7 +4116,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-engine"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "log",
  "serde",
@@ -4141,7 +4133,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-geom"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -4150,7 +4142,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-gpu"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "log",
  "naga",
@@ -4167,7 +4159,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-io"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "cadmpeg-core",
  "cadmpeg-ir",
@@ -4182,12 +4174,12 @@ dependencies = [
  "solidcraft-geom",
  "solidcraft-kernel",
  "thiserror 2.0.21",
- "zip 3.0.0",
+ "zip 9.0.4",
 ]
 
 [[package]]
 name = "solidcraft-kernel"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "log",
  "proptest",
@@ -4207,7 +4199,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-mcp"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "serde_json",
  "solidcraft-engine",
@@ -4216,7 +4208,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-render"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "image",
  "moxcms",
@@ -4230,7 +4222,7 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-sketch"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -4241,11 +4233,11 @@ dependencies = [
 
 [[package]]
 name = "solidcraft-space-mouse"
-version = "0.14.0"
+version = "0.15.0"
 
 [[package]]
 name = "solidcraft-ui-egui"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "egui",
  "egui-wgpu",
@@ -4264,12 +4256,12 @@ dependencies = [
  "ttf-parser",
  "web-time",
  "winreg",
- "zip 3.0.0",
+ "zip 9.0.4",
 ]
 
 [[package]]
 name = "solidcraft-web"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "eframe",
  "egui",
@@ -5799,7 +5791,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "serde_json",
  "sha2 0.10.9",
@@ -5850,7 +5842,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "hex",
- "nix",
+ "nix 0.29.0",
  "ordered-stream",
  "rand 0.8.8",
  "serde",
@@ -6092,20 +6084,6 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12598812502ed0105f607f941c386f43d441e00148fce9dec3ca5ffb0bde9308"
-dependencies = [
- "arbitrary",
- "crc32fast",
- "flate2",
- "indexmap",
- "memchr",
- "zopfli",
-]
-
-[[package]]
-name = "zip"
 version = "8.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d04a6b5381502aa6087c94c669499eb1602eb9c5e8198e534de571f7154809b"
@@ -6116,6 +6094,21 @@ dependencies = [
  "memchr",
  "typed-path",
  "zstd 0.13.3",
+]
+
+[[package]]
+name = "zip"
+version = "9.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a954114b47a54df49f83d2722814e86b23d4bb1b54a1b90fb7d92b41619ddc22"
+dependencies = [
+ "crc32fast",
+ "flate2",
+ "indexmap",
+ "memchr",
+ "nix 0.31.3",
+ "typed-path",
+ "zopfli",
 ]
 
 [[package]]
