@@ -83,6 +83,13 @@ Changes:
 ## truck-meshalgo 0.4.0 (Apache-2.0, © RICOS Co. Ltd., https://github.com/ricosjp/truck)
 
 Changes:
+- `tessellation/triangulation.rs`, `closed.rs`: retry nearest trim projections outside a
+  spline's knot domain without the preceding point's hint, preferring a bounded fit within
+  the caller's chord tolerance, with a bounded damped least-squares fallback where
+  Newton's method diverges. Affine plane charts remain unbounded; modelling surfaces may
+  retain genuine continuation when no bounded fit is accurate enough. Geometrically closed,
+  smooth spline seams get a local periodic chart during meshing, with wrapped evaluation,
+  so a trim crossing the seam stays a small patch. The stored geometry is unchanged (#1974).
 - `tessellation/mod.rs`, `triangulation.rs`: a separate provisional `preview_face`
   path accepts at most 4,096 already sampled boundary points and a fixed grid of
   at most 16 subdivisions per direction, including periodic seam connections.

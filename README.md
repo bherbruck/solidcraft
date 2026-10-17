@@ -63,6 +63,10 @@
 The downloads aren't signed yet. On Windows, if SmartScreen warns you, choose **More info**, then
 **Run anyway**. On macOS, the first time, right-click SolidCraft in Applications and choose **Open**.
 
+**On SolidCraft 0.11 to 0.14?** Its **Update now** can't install 0.15.0 or later, because the
+releases moved to a new address. Download the new version once from the links above; after that,
+updating from inside SolidCraft works again ([details](https://docs.solidcraft.io/guide/updates.html#updating-from-011-to-014)).
+
 Older versions, checksums and other formats are on the [releases page](https://github.com/tangency-labs/solidcraft/releases).
 Install details, upgrading from earlier builds and building from source are in
 [Getting started](https://docs.solidcraft.io/guide/getting-started.html).
@@ -215,7 +219,7 @@ unaccepted artwork Open; run `cargo xtask icons` to check the collection.
 
 Windows builds: `cargo xwin build --release --target x86_64-pc-windows-msvc -p solidcraft`.
 
-On Windows and Linux, SolidCraft detects a connected 3D mouse through its HID multi-axis
+On Windows, macOS and Linux, SolidCraft detects a connected 3D mouse through its HID multi-axis
 controller interface: a 3Dconnexion SpaceNavigator or SpaceMouse, or a homemade device that
 declares itself one. Move the cap to pan and zoom, and tilt or twist it to rotate the 3D view.
 While editing a sketch, the cap pans and zooms without changing the sketch view. The Navigation
@@ -252,6 +256,13 @@ SolidCraft finds the axes from the device's report descriptor, so it doesn't mat
 lays them out: translation and rotation in separate reports (3Dconnexion's wired devices), all six
 in one (its wireless ones and most homemade devices), after the buttons, or narrower than 16 bits.
 Each axis is scaled from the range the descriptor declares.
+
+On macOS SolidCraft talks to the 3Dconnexion driver (3DxWare) when it is installed, through the
+driver's client API (`crates/threedx-client`; the framework is loaded at run time, never bundled).
+The driver keeps the device to itself, and sends it only to a program it can identify: SolidCraft
+as an `.app` (the packaged app). Without the driver, or with its helper not running, SolidCraft reads the device through IOKit like on Windows.
+
+SolidCraft does not follow 3DxWare's profile on macOS. Its default is 3DxWare's object mode.
 
 In the browser: `cd apps/solidcraft-web && trunk build --release --public-url ./` (WebGPU, or
 WebGL2 with `?webgl`; `?sample` opens the sample part).

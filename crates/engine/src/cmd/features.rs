@@ -18,7 +18,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .at("SOLID", "CREATE")
         .icon("extrude")
         .key("E")
-        .params("distance: expr (or through_all: true); taper?: angle expr; sketch?: id|name (default: active or last sketch); profiles?: all | [index] | [{curves: [ids]}] (the profile whose outer loop is made of exactly these curves, or pieces of them; found again on every recompute, so it follows parameter changes; islands inside are its holes; an error when no profile or several match) | [{point:[x,y]}] (index and point picks are stored by their curves when that finds the same profile); face?: [x,y,z] (extrude a planar body face instead of a sketch profile); face_body?: name (whose face, where faces of several bodies meet at the point); direction?: positive|negative|symmetric (distance is total thickness, split evenly around the start plane); convention?: total_distance|legacy_per_side (default total_distance; legacy preserves older symmetric extents); distance2?; start_offset?: expr (along the sketch normal, also with direction: negative); to?: [x,y,z] (To Object: a face, vertex or point; to_offset?: expr past it); from?: [x,y,z] (From Object: start at that face or point); operation?: new|join|cut|intersect|auto (cut into a body, otherwise join existing solids; new in an empty component); targets?: [body] (Join from a face, or from a sketch on a body's face, defaults to that face's body; explicit targets or participants override); name?; body_name?; thin?: true (Thin: a wall along sketch curves instead of the profiles) with curves?: [curve ids] (open chains and closed loops, joined where they meet end to end; default: every drawn curve of the sketch), thickness: expr, side?: center|inside|outside|two_sides (a closed loop's inside is the area it encloses, an open chain's the side it bends toward, a straight line's the left of its first curve as drawn; default center), thickness2?: expr (two_sides: the thickness outside); corners are mitred, crossing walls are one"),
+        .params("distance: expr (or through_all: true); taper?: angle expr; sketch?: id|name (default: active or last sketch); profiles?: all | [index] | [{curves: [ids]}] (the profile whose outer loop is made of exactly these curves, or pieces of them; found again on every recompute, so it follows parameter changes; islands inside are its holes; an error when no profile or several match) | [{point:[x,y]}] (index and point picks are stored by their curves when that finds the same profile); face?: [x,y,z] (extrude a planar body face instead of a sketch profile); faces?: [[x,y,z],…] (coplanar faces of one body); face_body?: name (whose face, where faces of several bodies meet at the point); direction?: positive|negative|symmetric (distance is total thickness, split evenly around the start plane); convention?: total_distance|legacy_per_side (default total_distance; legacy preserves older symmetric extents); distance2?; start_offset?: expr (along the sketch normal, also with direction: negative); to?: [x,y,z] (To Object: a face, vertex or point; to_offset?: expr past it); from?: [x,y,z] (From Object: start at that face or point); operation?: new|join|cut|intersect|auto (cut into a body, otherwise join existing solids; new in an empty component); targets?: [body] (Join from a face, or from a sketch on a body's face, defaults to that face's body; explicit targets or participants override); name?; body_name?; thin?: true (Thin: a wall along sketch curves instead of the profiles) with curves?: [curve ids] (open chains and closed loops, joined where they meet end to end; default: every drawn curve of the sketch), thickness: expr, side?: center|inside|outside|two_sides (a closed loop's inside is the area it encloses, an open chain's the side it bends toward, a straight line's the left of its first curve as drawn; default center), thickness2?: expr (two_sides: the thickness outside); corners are mitred, crossing walls are one"),
     CommandSpec::new("solid.revolve", "Revolve", revolve)
         .at("SOLID", "CREATE")
         .icon("revolve")
@@ -118,7 +118,7 @@ pub static COMMANDS: &[CommandSpec] = &[
 /// Where an extrude starts and which way is positive: a point inside the (first) profile or
 /// face, and the unit normal.
 fn extrude_base(s: &Session, p: &Value) -> Option<(Vec3, Vec3)> {
-    if let Some(fp) = p.get("face").and_then(vec3) {
+    if let Some(fp) = p.get("face").or_else(|| p.get("faces").and_then(Value::as_array).and_then(|faces| faces.first())).and_then(vec3) {
         return Some((fp, super::face::face_normal_in(s, fp, str_(p, "face_body"))?));
     }
     let sid = feature_sketch(s, p, "Extrude").ok()?;
@@ -167,19 +167,38 @@ const START_PROBE_MM: f64 = 0.1;
 /// direction it grows, or halfway along it. With the halfway point alone, a cut dragged far
 /// past a body's far side read as a Join (#1257).
 pub fn auto_operation(s: &Session, p: &Value) -> Option<&'static str> {
-    let d = extrude_reach(s, p)?;
+    auto_operation_in(s, p, true)
+}
+
+fn auto_operation_in(s: &Session, p: &Value, world_faces: bool) -> Option<&'static str> {
     let symmetric = p.get("to").is_none() && str_(p, "direction").is_some_and(|d| d.eq_ignore_ascii_case("symmetric"));
-    let (base, n) = extrude_base(s, p)?;
-    let st = s.model.state();
+    // Imported face groups can belong to a child of an empty active component.
+    // Probe in the same coordinate frame as the face picks.
+    let grouped = p.get("faces").and_then(Value::as_array).and_then(|faces| faces.first()).and_then(vec3);
+    let st = if grouped.is_some() && world_faces { s.world_state() } else { s.model.state() };
+    let (base, n) = if let Some(point) = grouped {
+        let (mesh, index, distance, name) = super::face::face_at_state(&st, point, str_(p, "face_body")).ok().flatten()?;
+        if distance > (mesh.bounds().diagonal() * 1e-3).max(1e-3) * 10.0 {
+            return None;
+        }
+        let normal = st.body(&name)?.body.planar_face(index as usize)?.normal();
+        (point, normal)
+    } else {
+        extrude_base(s, p)?
+    };
+    let d = if grouped.is_some() && p.get("to").is_some() { (p.get("to").and_then(vec3)? - base).dot(n) } else { extrude_reach(s, p)? };
     if st.bodies.is_empty() || !d.is_finite() {
         return Some("new");
     }
-    // Only the active component's bodies take part (or the ones named as participants).
+    // Match the evaluator's implicit participants: a grouped cut from an empty
+    // assembly component considers every body; otherwise keep the active scope.
+    // Explicit participants override either default.
     let parts = string_list(p, "participants");
+    let implicit_all = grouped.is_some() && !st.bodies.iter().any(|body| s.doc.model_body_component(body) == s.active_component);
     let bodies: Vec<_> = st
         .bodies
         .iter()
-        .filter(|b| if parts.is_empty() { s.doc.model_body_component(b) == s.active_component } else { parts.contains(&b.name) })
+        .filter(|b| if parts.is_empty() { implicit_all || s.doc.model_body_component(b) == s.active_component } else { parts.contains(&b.name) })
         .collect();
     if bodies.is_empty() {
         return Some("new");
@@ -470,7 +489,8 @@ fn add_feature_in(s: &mut Session, p: &Value, kind: FeatureKind, world: bool) ->
     // takes part in every body instead, which it changes only where it meets them.
     let participants = if participants.is_empty()
         && !primitive
-        && matches!(str_(p, "operation").and_then(Operation::parse), Some(Operation::Cut | Operation::Intersect))
+        && (matches!(str_(p, "operation").and_then(Operation::parse), Some(Operation::Cut | Operation::Intersect))
+            || p.get("faces").is_some() && matches!(&kind, FeatureKind::Extrude { operation: Operation::Cut | Operation::Intersect, .. }))
         && {
             let st = s.model.state();
             !st.bodies.is_empty() && !st.bodies.iter().any(|b| s.doc.model_body_component(b) == s.active_component)
@@ -545,13 +565,31 @@ fn add_feature_in(s: &mut Session, p: &Value, kind: FeatureKind, world: bool) ->
 
 fn extrude(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "solid.extrude";
-    // A planar body face extrudes like a profile: its boundary is copied into a sketch on it.
-    let (sketch, face_profile, face_body) = match p.get("face").and_then(vec3) {
-        Some(fp) => {
-            let (id, inside, body) = super::face::sketch_of_face(s, fp, cmd, str_(p, "face_body"))?;
-            (id, Some(ProfileSel::Points { points: vec![inside] }), Some(body))
+    let grouped = if let Some(value) = p.get("faces") {
+        if p.get("face").is_some() || p.get("sketch").is_some() || p.get("profiles").is_some() {
+            return Err(bad(cmd, "faces cannot be combined with face, sketch or profiles"));
         }
-        None => (feature_sketch(s, p, cmd)?, None, None),
+        let faces = value
+            .as_array()
+            .filter(|faces| !faces.is_empty() && faces.len() <= 1024)
+            .ok_or_else(|| bad(cmd, "faces must contain between 1 and 1024 points"))?;
+        let points = faces.iter().map(|point| vec3(point).ok_or_else(|| bad(cmd, "faces must be points [x,y,z]"))).collect::<Result<Vec<_>>>()?;
+        let (id, points, body) = super::face::sketch_of_faces(s, &points, cmd, str_(p, "face_body"))?;
+        Some((id, Some(ProfileSel::Points { points }), Some(body)))
+    } else {
+        None
+    };
+    // A planar body face extrudes like a profile: its boundary is copied into a sketch on it.
+    let (sketch, face_profile, face_body) = if let Some(grouped) = grouped {
+        grouped
+    } else {
+        match p.get("face").and_then(vec3) {
+            Some(fp) => {
+                let (id, inside, body) = super::face::sketch_of_face(s, fp, cmd, str_(p, "face_body"))?;
+                (id, Some(ProfileSel::Points { points: vec![inside] }), Some(body))
+            }
+            None => (feature_sketch(s, p, cmd)?, None, None),
+        }
     };
     let extent = extent_param(s, p, cmd)?;
     let thin = match bool_(p, "thin") {
@@ -565,7 +603,7 @@ fn extrude(s: &mut Session, p: &Value) -> Result<Value> {
         _ => None,
     };
     let operation = match str_(p, "operation") {
-        Some(o) if o.eq_ignore_ascii_case("auto") => Operation::parse(auto_operation(s, p).unwrap_or("new")).unwrap_or(Operation::NewBody),
+        Some(o) if o.eq_ignore_ascii_case("auto") => Operation::parse(auto_operation_in(s, p, false).unwrap_or("new")).unwrap_or(Operation::NewBody),
         _ => operation(p, cmd)?,
     };
     let mut targets = string_list(p, "targets");

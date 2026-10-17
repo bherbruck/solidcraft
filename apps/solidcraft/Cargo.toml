@@ -41,7 +41,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 # Keychain on macOS, Credential Manager on Windows, the Secret Service (pure-Rust D-Bus) elsewhere.
 keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
 
-[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+[target.'cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))'.dependencies]
 quick-xml = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -65,6 +65,11 @@ windows-sys = { version = "0.61", features = [
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# The 3D mouse through the 3Dconnexion driver, which keeps the device to itself (src/space_mouse.rs).
+solidcraft-3dx-client = { workspace = true }
+# The 3D mouse (src/space_mouse.rs), in the shared-device open mode so that a running 3DxWare
+# driver does not shut the app out.
+hidapi = { version = "2.6.7", default-features = false, features = ["macos-shared-device"] }
 # Files opened from Finder and the Dock (src/open_documents.rs); all already come with eframe and rfd.
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder"] }

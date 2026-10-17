@@ -1193,10 +1193,18 @@ pub(crate) fn imprint_union(a: &Body, b: &Body, accept: &dyn Fn(&Body) -> bool) 
 /// faces): every such pair of faces goes and the shells are stitched along their edges. `None`
 /// when no such pair of faces exists.
 pub(crate) fn glue(a: &Body, b: &Body) -> Option<Result<Body>> {
+    glue_impl(a, b, false)
+}
+
+/// Glue every certified start cap, retaining each tool's original contact tolerance.
+pub(crate) fn glue_all_caps(a: &Body, b: &Body) -> Option<Result<Body>> {
+    glue_impl(a, b, true)
+}
+
+fn glue_impl(a: &Body, b: &Body, all_caps: bool) -> Option<Result<Body>> {
     use mt::{BoundedCurve, ParametricCurve};
     let size = a.size().max(b.size());
     let tol = (size * 1e-7).max(1e-9) * 10.0;
-    let key = |p: Vec3| ((p.x / tol).round() as i64, (p.y / tol).round() as i64, (p.z / tol).round() as i64);
     let mid = |e: &mt::Edge| {
         let c = e.curve();
         let (t0, t1) = c.range_tuple();
@@ -1205,14 +1213,40 @@ pub(crate) fn glue(a: &Body, b: &Body) -> Option<Result<Body>> {
     // Matching faces: same plane, opposite normals, the same edges. Every pair is glued: a
     // pair left behind would stay inside the result as a zero-thickness slit (issue #616).
     let (pa, pb) = (planes(a), planes(b));
+    let mut tool_sizes = HashMap::new();
+    if all_caps {
+        for shell in b.solid.boundaries() {
+            let mut bounds = solidcraft_geom::Aabb3::EMPTY;
+            for vertex in shell.vertex_iter() {
+                bounds.add(from_p3(vertex.point()));
+            }
+            let size = bounds.diagonal();
+            if !size.is_finite() {
+                return None;
+            }
+            for face in shell.face_iter() {
+                tool_sizes.insert(face.id(), size);
+            }
+        }
+    }
     let fa_list: Vec<&mt::Face> = a.solid.face_iter().collect();
     let fb_list: Vec<&mt::Face> = b.solid.face_iter().collect();
     // B edge → the matching A edge; B vertex → the matching A vertex.
     let mut map: HashMap<mt::EdgeID, mt::Edge> = HashMap::new();
     let mut vmap: HashMap<mt::VertexID, mt::Vertex> = HashMap::new();
     let (mut glued_a, mut glued_b): (Vec<usize>, Vec<usize>) = (Vec::new(), Vec::new());
+    if all_caps && pa.len().saturating_mul(pb.len()) > 2_000_000 {
+        return None;
+    }
     for (ia, x) in &pa {
         for (ib, y) in &pb {
+            if all_caps
+                && !matches!(b.face_sources().and_then(|sources| sources.get(*ib)), Some(Some(crate::FaceSource::ExtrudeCap { high: false, .. })))
+            {
+                continue;
+            }
+            let tol = if all_caps { (a.size().max(*tool_sizes.get(&fb_list.get(*ib)?.id())?) * 1e-7).max(1e-9) * 10.0 } else { tol };
+            let key = |p: Vec3| ((p.x / tol).round() as i64, (p.y / tol).round() as i64, (p.z / tol).round() as i64);
             if glued_a.contains(ia) || glued_b.contains(ib) || x.n.dot(y.n) > -1.0 + 1e-9 || (x.d + y.d).abs() > tol {
                 continue;
             }
@@ -1263,6 +1297,14 @@ pub(crate) fn glue(a: &Body, b: &Body) -> Option<Result<Body>> {
             glued_a.push(*ia);
             glued_b.push(*ib);
         }
+    }
+    if all_caps
+        && b.face_sources()?
+            .iter()
+            .enumerate()
+            .any(|(index, source)| matches!(source, Some(crate::FaceSource::ExtrudeCap { high: false, .. })) && !glued_b.contains(&index))
+    {
+        return None;
     }
     if glued_a.is_empty() {
         return None;

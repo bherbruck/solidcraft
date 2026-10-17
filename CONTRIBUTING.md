@@ -110,9 +110,10 @@ The [README](README.md#architecture) has the layer table. The short version:
    `cargo xtask assets` enforces this.
 4. **Never crash.** People trust a CAD app with their work.
    - Non-test code never uses `unwrap`, `expect`, `panic!` or indexing on input-derived data.
-     There's no `unsafe` outside `apps/solidcraft/src/open_documents.rs` (macOS file-open events)
-     and `apps/solidcraft/src/native_crash.rs` (Windows native crash capture), and the compiler
-     denies it.
+     There's no `unsafe` outside `apps/solidcraft/src/open_documents.rs` (macOS file-open events),
+     `apps/solidcraft/src/native_crash.rs` (Windows native crash capture) and
+     `crates/threedx-client/src/macos.rs` (the 3Dconnexion driver's client API on macOS), and the
+     compiler denies it.
    - An unsupported case returns an error ("not supported yet: …"); it never panics.
    - Every call into truck goes through `solidcraft_kernel::guard`.
    - Every crash fix comes with a regression test.
