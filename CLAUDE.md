@@ -27,8 +27,10 @@ new uses of it anywhere else. Public docs/web/Flatpak deployments use project Pa
 ## Never crash
 People trust SolidCraft with their designs; a crash loses their work. **This outranks feature work.**
 - **No panics in non-test code:** no `unwrap()`, `expect()`, `panic!`, `unreachable!`, `todo!`,
-  `unimplemented!`; no `unsafe` (`unsafe_code = "forbid"`). The three exceptions, in the app crate
-  (which denies it instead), have no safe API: two functions in
+  `unimplemented!`; no `unsafe` (`unsafe_code = "forbid"`). The exceptions, in the app crate and in
+  `crates/threedx-client` (which deny it instead), have no safe API: the macOS-only
+  `crates/threedx-client/src/macos.rs` (loads the 3Dconnexion driver's client framework at run time
+  and calls through its function pointers), two functions in
   `apps/solidcraft/src/open_documents.rs` (macOS hands Finder files only to an Objective-C
   method), the Windows-only `apps/solidcraft/src/native_crash.rs` (the exception filter that
   records crashes inside native code such as graphics drivers) and the Windows-only

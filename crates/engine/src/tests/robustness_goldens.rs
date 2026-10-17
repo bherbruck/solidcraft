@@ -54,6 +54,24 @@ fn differs(want: &Value, got: &Value) -> Option<String> {
     (!out.is_empty()).then(|| out.join("; "))
 }
 
+/// Platform records only override the seeds explicitly verified on that platform.
+fn expected<'a>(file: &'a Value, seed: u64, platform: &str) -> &'a Value {
+    let key = seed.to_string();
+    file.get("platforms")
+        .and_then(|platforms| platforms.get(platform))
+        .and_then(|record| record.get("seeds"))
+        .and_then(|seeds| seeds.get(&key))
+        .unwrap_or(&file["seeds"][key])
+}
+
+#[test]
+fn platform_records_keep_shared_references_for_every_other_seed_and_platform() {
+    let file = json!({"seeds":{"1":{"volume":10},"2":{"volume":20}},"platforms":{"windows":{"seeds":{"1":{"volume":11}}}}});
+    assert_eq!(expected(&file, 1, "windows")["volume"], 11);
+    assert_eq!(expected(&file, 1, "linux")["volume"], 10);
+    assert_eq!(expected(&file, 2, "windows")["volume"], 20);
+}
+
 fn check(seed: u64) {
     let got: BTreeMap<u64, Value> = BTreeMap::from([(seed, fuzz::golden(seed, MAX_STEPS))]);
     let _lock = FILE.lock().unwrap_or_else(|e| e.into_inner());
@@ -61,7 +79,7 @@ fn check(seed: u64) {
     let changed: Vec<(u64, String)> = got
         .iter()
         .filter_map(|(seed, g)| {
-            let w = &file["seeds"][seed.to_string()];
+            let w = expected(&file, *seed, std::env::consts::OS);
             if w.is_null() { Some((*seed, "new".to_string())) } else { differs(w, g).map(|d| (*seed, d)) }
         })
         .collect();
@@ -75,20 +93,34 @@ fn check(seed: u64) {
                 "What each robustness seed builds (crates/engine/src/tests/robustness_goldens.rs, docs/robustness.md). Record changes with ROBUSTNESS_GOLDENS_BLESS=\"why\"."
             );
         }
+        let platform = std::env::consts::OS;
+        let platform_record = file["platforms"][platform]["seeds"].is_object();
         for (seed, g) in &got {
-            file["seeds"][seed.to_string()] = g.clone();
+            if platform_record {
+                if changed.iter().any(|(changed, _)| changed == seed) {
+                    file["platforms"][platform]["seeds"][seed.to_string()] = g.clone();
+                }
+            } else {
+                file["seeds"][seed.to_string()] = g.clone();
+            }
         }
         let mut notes = file["notes"].as_array().cloned().unwrap_or_default();
         let seeds: Vec<u64> = changed.iter().map(|(s, _)| *s).collect();
         // The parts of one record (the tests run side by side) share one note.
         match notes.last_mut() {
-            Some(last) if last["reason"] == json!(reason) => {
+            Some(last) if last["reason"] == json!(reason) && (!platform_record || last["platform"] == json!(platform)) => {
                 let mut all: Vec<u64> = last["seeds"].as_array().into_iter().flatten().filter_map(Value::as_u64).chain(seeds).collect();
                 all.sort_unstable();
                 all.dedup();
                 last["seeds"] = json!(all);
             }
-            _ => notes.push(json!({"reason": reason, "seeds": seeds})),
+            _ => {
+                let mut note = json!({"reason": reason, "seeds": seeds});
+                if platform_record {
+                    note["platform"] = json!(platform);
+                }
+                notes.push(note);
+            }
         }
         file["notes"] = Value::Array(notes);
         // Seeds in order, one per line, so a change is a small diff.
@@ -100,7 +132,11 @@ fn check(seed: u64) {
             s += &format!("  \"{k}\": {}{}\n", v, if i + 1 < n { "," } else { "" });
         }
         let notes: Vec<String> = file["notes"].as_array().into_iter().flatten().map(|n| format!("  {n}")).collect();
-        s += &format!(" }},\n \"notes\": [\n{}\n ]\n}}\n", notes.join(",\n"));
+        s += " },\n";
+        if let Some(platforms) = file.get("platforms") {
+            s += &format!(" \"platforms\": {platforms},\n");
+        }
+        s += &format!(" \"notes\": [\n{}\n ]\n}}\n", notes.join(",\n"));
         std::fs::write(path(), s).unwrap_or_else(|e| panic!("{}: {e}", path().display()));
         return;
     }

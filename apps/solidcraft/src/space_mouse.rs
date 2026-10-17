@@ -1,4 +1,4 @@
-//! 3D mouse navigation on Windows (through hidapi) and Linux (through spacenavd when it runs, else
+//! 3D mouse navigation on Windows and macOS (through hidapi) and Linux (through spacenavd when it runs, else
 //! hidraw). Read directly, any HID multi-axis controller works: 3Dconnexion's and homemade ones.
 //! The device reader never touches the document or UI; it publishes the latest axes, and the egui
 //! thread applies them once per frame.
@@ -8,11 +8,12 @@ mod hidraw;
 #[cfg(target_os = "linux")]
 mod spacenavd;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use egui::Context;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use hidapi::{DeviceInfo, HidApi};
 use quick_xml::Reader;
 use quick_xml::events::Event;
@@ -21,6 +22,14 @@ use solidcraft_ui_egui::SolveApp;
 use solidcraft_ui_egui::space_mouse::{Axes, AxisRule, DriverMapping, WheelGuard, navigate_frame};
 
 const STALE_AFTER: Duration = Duration::from_millis(150);
+/// Whether the 3Dconnexion driver (macOS) has the device: it then reports the cap, and reading
+/// the HID device would fail or report it twice.
+static DRIVER_CONNECTED: AtomicBool = AtomicBool::new(false);
+/// Whether this app registered with the 3Dconnexion driver (macOS). The driver then has the device
+/// whether or not it has said so yet, so a failure to open it by HID is no news.
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+static DRIVER_REGISTERED: AtomicBool = AtomicBool::new(false);
+
 const RETRY_AFTER: Duration = Duration::from_secs(2);
 const MAX_PROFILE_BYTES: u64 = 1024 * 1024;
 /// Room for one input report: the 4096 bytes `solidcraft_space_mouse` places fields in, plus the
@@ -188,7 +197,7 @@ impl Reading {
 
 /// The Generic Desktop "Multi-Axis Controller" usage names a 3D mouse's motion interface, whoever
 /// made it, and excludes ordinary mice and the keyboard interfaces of 3D mice.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn is_3d_mouse(info: &DeviceInfo) -> bool {
     info.usage_page() == 0x01 && info.usage() == 0x08
 }
@@ -210,6 +219,9 @@ fn decode_report(report: &[u8], layout: Layout, reading: &mut Reading, now: Inst
 
 /// Publishes one input report from the device to the egui thread.
 fn publish(ctx: &Context, shared: &Mutex<Reading>, layout: Layout, report: &[u8]) {
+    if DRIVER_CONNECTED.load(Ordering::Relaxed) {
+        return;
+    }
     if let Ok(mut reading) = shared.lock()
         && decode_report(report, layout, &mut reading, Instant::now())
     {
@@ -234,7 +246,7 @@ fn reset(ctx: &Context, shared: &Mutex<Reading>) {
     ctx.request_repaint();
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn reader(ctx: Context, shared: Arc<Mutex<Reading>>) {
     let Ok(mut api) = HidApi::new() else {
         log::warn!("3D mouse: HID initialization failed");
@@ -244,7 +256,16 @@ fn reader(ctx: Context, shared: Arc<Mutex<Reading>>) {
         if let Err(error) = api.refresh_devices() {
             log::warn!("3D mouse: device scan failed: {error}");
         } else if let Some((device, layout)) = api.device_list().filter(|info| is_3d_mouse(info)).find_map(|info| {
-            let device = info.open_device(&api).ok()?;
+            let device = info
+                .open_device(&api)
+                .inspect_err(|error| {
+                    // On macOS: missing Input Monitoring permission, or the 3DxWare helper holding the device.
+                    // The driver having the device is the reason it cannot be opened, not a problem.
+                    if !DRIVER_CONNECTED.load(Ordering::Relaxed) && !DRIVER_REGISTERED.load(Ordering::Relaxed) {
+                        log::warn!("3D mouse: cannot open the device: {error}");
+                    }
+                })
+                .ok()?;
             let layout = device_layout(&device, info.vendor_id())?;
             Some((device, layout))
         }) {
@@ -270,7 +291,7 @@ fn reader(ctx: Context, shared: Arc<Mutex<Reading>>) {
 /// read, or it's empty), a 3Dconnexion device (Logitech's id for the old SpaceNavigator,
 /// 3Dconnexion's own for the rest) gets 3Dconnexion's layout, and any other device is left alone
 /// rather than guessed at.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn device_layout(device: &hidapi::HidDevice, vendor_id: u16) -> Option<Layout> {
     let mut descriptor = [0_u8; hidapi::MAX_REPORT_DESCRIPTOR_SIZE];
     let read = device.get_report_descriptor(&mut descriptor);
@@ -335,6 +356,34 @@ fn reader(ctx: Context, shared: Arc<Mutex<Reading>>) {
     }
 }
 
+/// macOS: the 3Dconnexion driver gives the device to its own clients only, so SolidCraft registers
+/// as one. Without the driver (or with its helper not running) the HID reader above takes over.
+#[cfg(target_os = "macos")]
+fn start_driver_client(ctx: &Context, shared: &Arc<Mutex<Reading>>) {
+    use solidcraft_3dx_client::Event;
+    let (ctx, shared) = (ctx.clone(), Arc::clone(shared));
+    let started = solidcraft_3dx_client::start("SolidCraft", move |event| match event {
+        Event::DeviceAdded => DRIVER_CONNECTED.store(true, Ordering::Relaxed),
+        Event::DeviceRemoved => {
+            DRIVER_CONNECTED.store(false, Ordering::Relaxed);
+            reset(&ctx, &shared);
+        }
+        Event::Axes { translation, rotation } => {
+            if let Ok(mut reading) = shared.lock() {
+                let now = Instant::now();
+                reading.axes = Axes { translation, rotation };
+                reading.at = [now; 6];
+                ctx.request_repaint();
+            }
+        }
+        Event::Buttons(_) => {}
+    });
+    match started {
+        Ok(()) => DRIVER_REGISTERED.store(true, Ordering::Relaxed),
+        Err(error) => log::info!("3D mouse: no driver client: {error}"),
+    }
+}
+
 pub struct SpaceMouse {
     shared: Arc<Mutex<Reading>>,
     last_frame: Instant,
@@ -354,6 +403,8 @@ impl SpaceMouse {
         if let Err(error) = std::thread::Builder::new().name("solidcraft-3d-mouse".into()).spawn(move || reader(worker_ctx, worker_state)) {
             log::warn!("3D mouse: reader could not start: {error}");
         }
+        #[cfg(target_os = "macos")]
+        start_driver_client(ctx, &shared);
         Self {
             shared,
             last_frame: now,

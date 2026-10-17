@@ -3760,7 +3760,36 @@ fn dialog_commands(app: &SolveApp, d: &Dialog) -> Result<Vec<(String, Value)>, S
             if !sketch.is_null() {
                 out.push(("solid.extrude".to_string(), with(json!({"sketch": sketch, "profiles": idx}))));
             }
-            // Each planar body face extrudes on its own.
+            // Coplanar faces of one body share one sketch and Boolean. Mixed selections
+            // retain their original order and explicit face-body scope.
+            let state = s.world_state();
+            let mut group: Option<(String, solidcraft_engine::geom::Plane, Vec<Value>)> = None;
+            let mut coplanar = true;
+            for pick in sels(d, 0) {
+                let Sel::Face { body, index, point } = pick else { continue };
+                let Some(source) = state.body(body) else { return Err("selected body disappeared".into()) };
+                let Some(plane) = source.body.planar_face(*index) else {
+                    coplanar = false;
+                    break;
+                };
+                let tolerance = (source.body.size() * 1e-9).max(1e-8);
+                if let Some((name, base, points)) = &mut group {
+                    if name != body || base.normal().dot(plane.normal()) <= 1.0 - 1e-9 || base.height(plane.origin).abs() > tolerance {
+                        coplanar = false;
+                        break;
+                    }
+                    points.push(pt(*point));
+                } else {
+                    group = Some((body.clone(), plane, vec![pt(*point)]));
+                }
+            }
+            if coplanar
+                && let Some((body, _, points)) = group
+                && points.len() > 1
+            {
+                out.push(("solid.extrude".to_string(), with(json!({"faces": points, "face_body": body}))));
+                return Ok(out);
+            }
             for pick in sels(d, 0) {
                 if let Sel::Face { body, point, .. } = pick {
                     out.push(("solid.extrude".to_string(), with(json!({"face": pt(*point), "face_body": body}))));

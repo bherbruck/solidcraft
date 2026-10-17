@@ -20,6 +20,7 @@ mod construct;
 mod curves;
 mod decompose;
 mod dims;
+mod ends;
 mod fonts;
 mod freeform_offset;
 pub mod linalg;
@@ -44,6 +45,7 @@ pub use curves::{
 };
 pub use decompose::Budget;
 pub use dims::{DimFrame, DimLayout, chain_centres, default_text, dim_frame, dim_layout, dim_layout_reaching, dim_reach, encode_text};
+pub use ends::{END_TOL, EndReport, EndTouch, UntiedEnd, loose_ends};
 pub use fonts::{DEFAULT_FONT_FAMILY, FontData, families_in, find_style_in, font_data, font_data_styled, installed_families, set_font_file_check};
 pub use freeform_offset::{FreeformOffset, OFFSET_TOLERANCE};
 pub use link::{Link, LinkGeom, LinkKind, LinkSource, MAX_LINK_ENTITIES, SKETCH_AXIS_HALF, TextExprs, sketch_axis_geom};
@@ -73,6 +75,8 @@ mod construct_rounds_tests;
 mod construct_tests;
 #[cfg(test)]
 mod continuation_tests;
+#[cfg(test)]
+mod ends_tests;
 #[cfg(test)]
 mod font_tests;
 #[cfg(test)]

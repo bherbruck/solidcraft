@@ -175,7 +175,10 @@ pub use mesh_convert::convert_prismatic_mesh;
 pub use meshbody::{MAX_TRIANGLES, mesh_body};
 pub use native::{decode_native_body, encode_native_body, native_preview_mesh};
 pub use offset::with_same_surface;
-pub use ops::{BoolOp, boolean, can_join_touching_faces, half_space, join_apart, split_by_plane, transform, transform_matrix, union_apart};
+pub use ops::{
+    BoolOp, boolean, can_join_all_touching_faces, can_join_touching_faces, compound_disjoint_extrusions, half_space, is_planar, join_apart,
+    split_by_plane, transform, transform_matrix, union_apart,
+};
 pub use polybool::{faceted_boolean, planar_boolean};
 pub use polyhedron::{HalfSpace, convex_polyhedron, draft, offset_faces, shell};
 pub use prism::{PLANAR_FIT_TOL, extrude_planar_regions, planar_regions_boolean};
