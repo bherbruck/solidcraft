@@ -463,6 +463,13 @@ fn fits_note(size: Size, largest: Option<f64>) -> String {
     largest.map(|v| format!("; the largest {unit} that fits is {} mm", show(v))).unwrap_or_default()
 }
 
+// Whether a blend build is running only to verify the size a refusal's note names: a refusal
+// from inside such a build keeps the model's note (its text is usually thrown away, and
+// following it would explain blends by building blends).
+thread_local! {
+    static VERIFYING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 /// Refuse a blend of `edges` at `size` that runs into other faces of `body` or into another of
 /// the blends, with [`KernelError::TooLarge`] naming the largest size that fits.
 pub(crate) fn check(body: &Body, edges: &[Vec3], size: Size) -> Result<()> {
@@ -483,9 +490,14 @@ fn check_in(sel: &Selection, size: Size) -> Result<()> {
     Err(KernelError::TooLarge(format!("{} mm is too large for this {what}: {into}{}", show(size.value()), fits_note(size, largest))))
 }
 
-/// A blend's refusal `e`, with the largest size that fits added when the size is why.
+/// A blend's refusal `e`, with the largest size that fits added when the size is why. The wedges
+/// model what fits geometrically, not everything the build refuses (#1955: a frame whose fillet
+/// fails at every radius was told the largest radius that fits is 4 mm), so at the top level the
+/// note names a size the build itself vouched for; inside a verifying build the model's word
+/// stands.
 pub(crate) fn explain(body: &Body, edges: &[Vec3], size: Size, e: KernelError) -> KernelError {
     let note = match misfit(body, edges, size) {
+        Ok(Some((_, Some(largest)))) if !VERIFYING.with(std::cell::Cell::get) => verified_note(size, largest, body, edges),
         Ok(Some((_, largest @ Some(_)))) => fits_note(size, largest),
         _ => return e,
     };
@@ -494,6 +506,35 @@ pub(crate) fn explain(body: &Body, edges: &[Vec3], size: Size, e: KernelError) -
         KernelError::Failed(m) => KernelError::Failed(format!("{m}{note}")),
         other => other,
     }
+}
+
+/// [`fits_note`] for the largest size that fits and builds: the model's answer when a blend of
+/// `edges` really builds at it, else the largest of that answer's steps below that does (a few
+/// real blends; the refusal already cost one). Nothing when none does: the model does not know
+/// every reason the build refuses. What is named is a size that was built, though between it and
+/// the model's answer may lie sizes never tried.
+fn verified_note(size: Size, largest: f64, body: &Body, edges: &[Vec3]) -> String {
+    let asked = size.value();
+    let builds = |v: f64| {
+        let was = VERIFYING.replace(true);
+        let ok = crate::blend::blend_builds(body, edges, size.scaled(v / asked));
+        VERIFYING.set(was);
+        ok
+    };
+    if builds(largest) {
+        return fits_note(size, Some(largest));
+    }
+    let q = step(asked);
+    let (mut lo, mut hi) = (0u64, (largest / q) as u64);
+    for _ in 0..4 {
+        let Some(mid) = (hi.saturating_sub(lo) > 1).then(|| lo + (hi - lo) / 2).filter(|m| *m > 0) else { break };
+        if builds(mid as f64 * q) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    if lo > 0 { fits_note(size, Some(lo as f64 * q)) } else { String::new() }
 }
 
 /// A blend of `edges` at `size` that turned `input` into `out`, if it fits ([`check`]) and
