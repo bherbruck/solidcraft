@@ -18,8 +18,10 @@ fn replaced_body_name_uses_evaluated_owner_in_browser_and_component_actions() {
     assert_eq!(h.app.session.doc.model_body_component(body), 0);
     assert_eq!(context_menu::component_bodies(&h.app, 0), ["Block"]);
     assert!(context_menu::component_bodies(&h.app, owner).is_empty());
-    assert_eq!(super::entries(&h.app, 0, "bodies").iter().map(|entry| entry.key.as_str()).collect::<Vec<_>>(), ["Block"]);
-    assert!(super::entries(&h.app, owner, "bodies").is_empty());
+    let cache = h.app.tree.cache.as_ref().unwrap();
+    assert_eq!(cache.root.folders[0].as_ref().unwrap().entries().map(|entry| entry.key.as_str()).collect::<Vec<_>>(), ["Block"]);
+    let occurrence = h.app.session.doc.occurrence_of(owner).unwrap().id;
+    assert!(cache.occurrences.get([occurrence].as_slice()).unwrap().folders[0].as_ref().unwrap().entries().next().is_none());
     let bounds = h.app.session.world_state().body("Block").unwrap().mesh().bounds();
     assert!((bounds.min.x - 30.0).abs() < 1e-9);
     assert!((bounds.max.x - 35.0).abs() < 1e-9);
@@ -35,6 +37,39 @@ fn fixture() -> (Harness, u64, u64, u64) {
     let second = h.app.run("occurrence.copy", json!({"occurrence":first,"translate":[50,0,0]})).unwrap()["occurrence"].as_u64().unwrap();
     h.frames(3);
     (h, component, first, second)
+}
+
+#[test]
+fn browser_reuses_unchanged_rows_and_refreshes_live_state_and_replaced_documents() {
+    let (mut h, _, first, second) = fixture();
+    let second_body = h.app.session.occurrence_bodies(&[second], false).unwrap().pop().unwrap();
+    let first_body = h.app.session.occurrence_bodies(&[first], false).unwrap().pop().unwrap();
+    let row = |h: &Harness| {
+        let cache = h.app.tree.cache.as_ref().unwrap();
+        let entry = cache.occurrences.get([second].as_slice()).unwrap().folders[0].as_ref().unwrap().entries().next().unwrap();
+        (entry.row_key.as_ptr(), entry.row_key.len())
+    };
+    let before = row(&h);
+    assert_ne!(first_body, second_body);
+    h.frames(3);
+    assert_eq!(row(&h), before, "unchanged frames replaced cached row storage");
+    h.app.run("select.set", json!({"items":[Sel::Body { name: second_body.clone() }]})).unwrap();
+    h.app.session.visibility.hidden_bodies.push(second_body.clone());
+    h.frames(2);
+    let entry =
+        h.app.tree.cache.as_ref().unwrap().occurrences.get([second].as_slice()).unwrap().folders[0].as_ref().unwrap().entries().next().unwrap();
+    assert_eq!(entry.row_key.strip_prefix("b:"), Some(second_body.as_str()));
+    assert!(entry.is_selected(&h.app));
+    assert!(!entry.is_visible(&h.app));
+    assert!(h.app.session.body_visible(&first_body));
+    assert_eq!(row(&h), before, "selection or visibility rebuilt stable row data");
+
+    let revision = h.app.session.revision;
+    h.app.session = solidcraft_engine::Session::new(solidcraft_engine::doc::Document::new("Replacement"));
+    h.app.session.revision = revision;
+    h.frames(2);
+    assert!(super::drawn_rows().iter().any(|row| row.0 == "Replacement"));
+    assert!(super::drawn_occurrences().is_empty());
 }
 
 fn click(h: &mut Harness, path: &[u64], control: &str) {
