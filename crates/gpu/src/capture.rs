@@ -314,6 +314,7 @@ fn frame(scene: &Scene, cam: &Camera, [width, height]: [u32; 2], key: u64, acces
         hl_slot: empty(),
         pv_key: 0,
         pv_slot: empty(),
+        pv_hide: false,
         view_proj: cam.view_proj(f64::from(width) / f64::from(height.max(1)), scene.radius.max(1.0)).to_f32(),
         back: cam.back().to_f32(),
         size_px: [width as f32, height as f32],

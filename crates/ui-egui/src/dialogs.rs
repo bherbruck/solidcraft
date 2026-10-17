@@ -15,7 +15,57 @@ use solidcraft_engine::geom::{Aabb3, Vec3};
 use crate::SolveApp;
 use crate::selection::{self, AXES, Accept, BODIES, CURVES, EDGES, FACES, PLANAR_FACES, PLANES, PROFILES, SelInput};
 use crate::theme::Tokens;
+use crate::tool_modifiers::{Audit, Scope, ToolModifiers};
 use crate::viewport::Hit;
+
+const SELECT_ONLY: &[Scope] = &[Scope::Selection, Scope::FeaturePreview];
+const SELECT_MANIP: &[Scope] = &[Scope::Selection, Scope::Manipulator, Scope::FeaturePreview];
+
+/// Per-tool modifier descriptors owned by this host file (SOLID / construct / inspect dialogs).
+pub const MODIFIERS: &[ToolModifiers] = &[
+    ToolModifiers { tool: "sketch.create", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.extrude", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.revolve", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.fillet", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.chamfer", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.shell", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.draft", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.mirror", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.rib", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.web", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.emboss", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.replace_face", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.boundary_fill", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.align", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.remove", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    // Pattern parameters are dialog-only - no viewport modifier chords.
+    ToolModifiers { tool: "solid.pattern.path", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.pattern.rectangular", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.pattern.circular", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.pipe", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.bounding_solid", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "construct.plane.offset", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "construct.plane.along_path", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "construct.plane.at_angle", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.split_body", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.scale", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.offset_face", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.thread", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "material.assign", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "inspect.section", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "inspect.measure", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.loft", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.sweep", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    // Move: no Alt-copy / inventable chords; inherits Selection + Manipulator only.
+    ToolModifiers { tool: "solid.move", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.hole", scopes: SELECT_MANIP, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.box", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.cylinder", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.sphere", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.torus", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.coil", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "solid.combine", scopes: SELECT_ONLY, bindings: &[], audit: Audit::VerifiedNoOp },
+];
 
 pub(crate) const OPS: [&str; 4] = ["new", "join", "cut", "intersect"];
 pub(crate) const OP_LABELS: [&str; 4] = ["New Body", "Join", "Cut", "Intersect"];

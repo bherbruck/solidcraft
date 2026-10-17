@@ -318,23 +318,26 @@ pub fn is_open(app: &SolveApp) -> bool {
     app.viewport.select_other.popup.is_some()
 }
 
-/// Pick row `i` of the open list (`add`: Shift/Ctrl, add to the selection) and close it.
-pub fn choose(app: &mut SolveApp, i: usize, add: bool) -> Result<Row, String> {
+/// Pick row `i` of the open list and close it.
+///
+/// `add` / `toggle` match viewport selection (Shift pure-add, Primary toggle when
+/// `selection_shift_add_only` is on).
+pub fn choose(app: &mut SolveApp, i: usize, add: bool, toggle: bool) -> Result<Row, String> {
     let Some(p) = app.viewport.select_other.popup.as_ref() else { return Err("Select Other is not open".into()) };
     let at = p.at;
     let row = p.rows.get(i).cloned().ok_or_else(|| format!("no row {i} (the list has {})", p.rows.len()))?;
     close(app);
-    apply(app, &row, add);
+    apply(app, &row, add, toggle);
     remember(app, at, if add { None } else { Some(row.sel.clone()) });
     Ok(row)
 }
 
 /// Select a row's entity: into the dialog's active input, or as a click does.
-fn apply(app: &mut SolveApp, row: &Row, add: bool) {
+fn apply(app: &mut SolveApp, row: &Row, add: bool, toggle: bool) {
     if app.dialog.as_ref().is_some_and(|d| d.wants_picks()) {
         crate::viewport::dialog_pick(app, &row.hit, row.sel.clone());
     } else {
-        crate::viewport::select(app, Some(row.sel.clone()), add);
+        crate::viewport::select(app, Some(row.sel.clone()), add, toggle);
     }
 }
 
@@ -376,7 +379,9 @@ pub fn control(app: &mut SolveApp, p: &Value) -> Result<Value, String> {
         return Ok(describe(app));
     }
     if let Some(i) = p.get("pick").and_then(Value::as_u64) {
-        let row = choose(app, i as usize, p.get("add").and_then(Value::as_bool).unwrap_or(false))?;
+        // Control channel: `add` enables both add and toggle (legacy API).
+        let add = p.get("add").and_then(Value::as_bool).unwrap_or(false);
+        let row = choose(app, i as usize, add, add)?;
         return Ok(json!({ "picked": row.label, "sel": row.sel, "selection": app.session.selection }));
     }
     Ok(describe(app))
@@ -487,7 +492,7 @@ pub fn cycle_click(app: &mut SolveApp, proj: &Proj, at: Pos2) -> bool {
     }
     let next = rows.iter().position(|r| crate::selection::same_item(&r.sel, &c.chosen)).map_or(0, |k| (k + 1) % rows.len());
     let Some(row) = rows.get(next).cloned() else { return false };
-    apply(app, &row, false);
+    apply(app, &row, false, false);
     app.status = Some((format!("{} ({} of {})", row.label, next + 1, rows.len()), crate::now_ms(), false));
     remember(app, c.at, Some(row.sel));
     true
@@ -552,7 +557,9 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     }
     let (pressed, pointer, mods) = ctx.input(|i| (i.pointer.any_pressed(), i.pointer.interact_pos(), i.modifiers));
     if let Some(i) = picked {
-        let _ = choose(app, i, mods.shift || mods.ctrl || mods.command);
+        let held = crate::tool_modifiers::Held::from_modifiers(mods);
+        let (add, toggle) = crate::tool_modifiers::selection_click(held, app.preferences.selection_shift_add_only);
+        let _ = choose(app, i, add, toggle);
     } else if pressed && !pointer.is_some_and(|q| resp.response.rect.contains(q)) {
         // A press elsewhere only closes the list.
         close(app);

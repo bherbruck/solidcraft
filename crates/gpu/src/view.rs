@@ -221,6 +221,8 @@ pub struct Frame {
     /// The live preview scene and its key.
     pub pv_key: u64,
     pub pv_slot: SceneSlot,
+    /// Fusion PreviewReselect: skip drawing the preview while Primary rolls it back.
+    pub pv_hide: bool,
     /// Column-major view-projection.
     pub view_proj: [[f32; 4]; 4],
     /// Direction toward the eye (for lighting).
@@ -1409,8 +1411,13 @@ impl Renderer {
                 }
             }
         };
-        let (m, sk, h, pv) =
-            if cb.product { (&res.product, &res.empty, &res.empty, &res.empty) } else { (&res.model, &res.sketch, &res.highlight, &res.preview) };
+        let (m, sk, h, pv) = if cb.product {
+            (&res.product, &res.empty, &res.empty, &res.empty)
+        } else if cb.pv_hide {
+            (&res.model, &res.sketch, &res.highlight, &res.empty)
+        } else {
+            (&res.model, &res.sketch, &res.highlight, &res.preview)
+        };
         lines(pass, &res.overlay, &m.under);
         lines(pass, &res.overlay, &sk.under);
         pass.set_bind_group(1, &res.access_bind, &[]);

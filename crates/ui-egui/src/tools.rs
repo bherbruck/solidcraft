@@ -6,7 +6,43 @@ use serde_json::{Value, json};
 use solidcraft_engine::geom::Vec2;
 
 use crate::SolveApp;
+use crate::tool_modifiers::{Audit, Scope, ToolModifiers};
 use crate::viewport::{Hit, Proj, pick, sketch_point_at};
+
+const DRAW_SCOPES: &[Scope] = &[Scope::SketchDraw, Scope::SketchDrag];
+
+/// Per-tool modifier descriptors owned by this host file (coordinator seeds / audits these).
+pub const MODIFIERS: &[ToolModifiers] = &[
+    ToolModifiers { tool: "sketch.line", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.rectangle.two_point", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.rectangle.center", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.rectangle.rounded", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.rectangle.three_point", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.circle.center", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.circle.two_point", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.circle.three_point", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.arc.three_point", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.arc.center_point", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.polygon.inscribed", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.polygon.circumscribed", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.polygon.edge", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.slot.center_to_center", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.slot.overall", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.point", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    ToolModifiers { tool: "sketch.dimension", scopes: DRAW_SCOPES, bindings: &[], audit: Audit::Implemented },
+    // Constraint tools: pick-only; no tool-specific modifier chords.
+    ToolModifiers { tool: "sketch.constraint.horizontal_vertical", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.constraint.fix", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.constraint.coincident", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.constraint.tangent", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.constraint.equal", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.constraint.parallel", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.constraint.perpendicular", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.constraint.concentric", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.constraint.collinear", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.constraint.midpoint", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+    ToolModifiers { tool: "sketch.constraint.symmetry", scopes: &[], bindings: &[], audit: Audit::VerifiedNoOp },
+];
 
 #[cfg(test)]
 #[path = "sketch_display_preview_tests.rs"]

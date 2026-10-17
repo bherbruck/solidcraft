@@ -270,6 +270,7 @@ fn offscreen(
         hl_slot: Arc::new(Mutex::new(highlight)),
         pv_key: 0,
         pv_slot: none(),
+        pv_hide: false,
         view_proj,
         back,
         size_px: [size as f32; 2],

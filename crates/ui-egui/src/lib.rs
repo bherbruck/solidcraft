@@ -175,6 +175,7 @@ mod thin_extrude_tests;
 pub mod timeline;
 pub mod timeline_left;
 pub mod titlebar;
+pub mod tool_modifiers;
 pub mod toolbar;
 pub mod toolbar_custom;
 pub mod tools;

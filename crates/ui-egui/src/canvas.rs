@@ -578,8 +578,9 @@ fn drag_arrow(
         && let Some(p) = r.interact_pointer_pos()
         && let Some(v) = along(proj, p, base, n)
     {
+        crate::tool_modifiers::set_manipulator_dragging(true);
         let v = v - ui.data(|d| d.get_temp::<f64>(grab)).unwrap_or(0.0);
-        let free = ui.input(|i| i.modifiers.alt || i.modifiers.ctrl || i.modifiers.command);
+        let free = crate::tool_modifiers::manipulator_free();
         let step = snap_step(half_height);
         let mut v = if free { v } else { (v / step).round() * step };
         if !signed {
@@ -752,7 +753,8 @@ fn radius_spline_handles(app: &SolveApp, ui: &mut egui::Ui, painter: &egui::Pain
                 && let Some(p) = r.interact_pointer_pos()
                 && let Some(v) = along(proj, p, at(*u), e.n)
             {
-                let free = ui.input(|i| i.modifiers.alt || i.modifiers.ctrl || i.modifiers.command);
+                crate::tool_modifiers::set_manipulator_dragging(true);
+                let free = crate::tool_modifiers::manipulator_free();
                 let step = snap_step(half_height);
                 let v = if free { v } else { (v / step).round() * step };
                 // Zero only at an end, where the round closes to a point.
@@ -946,9 +948,10 @@ fn taper_handle(
         && let Some(p) = r.interact_pointer_pos()
         && let Some(s) = along(proj, p, foot + span, e)
     {
+        crate::tool_modifiers::set_manipulator_dragging(true);
         let mut deg = s.atan2(l).to_degrees();
         let (lo, hi) = limits;
-        if ui.input(|i| i.modifiers.alt || i.modifiers.ctrl || i.modifiers.command) {
+        if crate::tool_modifiers::manipulator_free() {
             deg = deg.clamp(lo, hi);
         } else {
             // Whole degrees, rounded towards zero at a limit so they stay inside it.
@@ -1227,7 +1230,7 @@ fn rotation_handle(
                 .min_by(|a, b| (a - boundary).abs().total_cmp(&(b - boundary).abs()))
                 .unwrap_or_else(|| raw.clamp(bounds.0, bounds.1));
             let mut angle = (boundary_angle.clamp(bounds.0, bounds.1) * scale + offset).to_degrees();
-            if !ui.input(|input| input.modifiers.alt || input.modifiers.ctrl || input.modifiers.command) {
+            if !crate::tool_modifiers::manipulator_free() {
                 angle = (angle / 5.0).round() * 5.0;
             }
             if angle.abs() < 0.05 {

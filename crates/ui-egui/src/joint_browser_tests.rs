@@ -83,7 +83,7 @@ fn a_hidden_joint_still_drives_and_shows_while_picked() {
     assert_eq!(h.app.tree.picked_joints, [hinge]);
     assert!(drawn(&h).contains(&(hinge, true)), "{:?}", drawn(&h));
     assert!(!h.app.session.joint_visible(hinge), "picking doesn't show it");
-    crate::viewport::select(&mut h.app, None, false);
+    crate::viewport::select(&mut h.app, None, false, false);
     assert!(h.app.tree.picked_joints.is_empty());
     assert!(!drawn(&h).iter().any(|(j, _)| *j == hinge));
 }
