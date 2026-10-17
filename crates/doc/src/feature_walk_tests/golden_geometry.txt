@@ -157,6 +157,8 @@ surface_offset
 surface_blend
   moves: align[0][0], align[0][1], align[0][2], align[1][0], align[1][1], align[1][2], from.edges[0][0], from.edges[0][1], from.edges[0][2], to.edges[0][0], to.edges[0][1], to.edges[0][2]
 surface_boundary
+surface_network
+  moves: u[1].edges[0][0], u[1].edges[0][1], u[1].edges[0][2], v[1].point[0], v[1].point[1], v[1].point[2]
 surface_match
   moves: edges[0][0], edges[0][1], edges[0][2], faces[0][0], faces[0][1], faces[0][2]
   face points: [0, 0, 0]

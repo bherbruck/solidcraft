@@ -1,0 +1,157 @@
+{
+ "id": "83-boundary-loop-thicken",
+ "name": "Boundary surface through a loop, thickened",
+ "description": "Four sketch curves on XY (a 10x10 square's bottom, right and left sides, and a half circle of radius 5 bulging up for its top) make one boundary surface; thickened 2 mm symmetrically, the surface then removed.",
+ "exercises": [
+  "boundary_surface",
+  "thicken"
+ ],
+ "units": {
+  "length": "mm",
+  "angle": "deg",
+  "area": "mm2",
+  "volume": "mm3"
+ },
+ "conventions": {
+  "world": "right-handed; Z up. XY/XZ/YZ are the origin planes.",
+  "sketch_frame": "sketch-local 2D coords; world = plane.origin + x*plane.x_dir + y*plane.y_dir (origin in mm). Profile 'loops' list sketch entity ids.",
+  "point_refs": "'<id>.start' / '<id>.end' / '<id>.center' reuse (share) that existing sketch point; 'at' is its position when referenced.",
+  "extrude_direction": "positive = along sketch plane normal unless stated",
+  "selections": "selected faces/edges carry 'point': a world-space point on the face / the edge's parametric midpoint; pick the nearest face/edge to it."
+ },
+ "parameters": [],
+ "features": [
+  {
+   "op": "sketch",
+   "name": "Loop",
+   "plane": {
+    "ref": "XY",
+    "origin": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "x_dir": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "y_dir": [
+     0.0,
+     1.0,
+     0.0
+    ],
+    "normal": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   },
+   "entities": [
+    {
+     "type": "line",
+     "start": {
+      "at": [
+       0,
+       0
+      ]
+     },
+     "end": {
+      "at": [
+       10,
+       0
+      ]
+     },
+     "id": "s1"
+    },
+    {
+     "type": "line",
+     "start": {
+      "ref": "s1.end",
+      "at": [
+       10,
+       0
+      ]
+     },
+     "end": {
+      "at": [
+       10,
+       10
+      ]
+     },
+     "id": "s2"
+    },
+    {
+     "type": "arc_three_point",
+     "start": {
+      "ref": "s2.end",
+      "at": [
+       10,
+       10
+      ]
+     },
+     "end": {
+      "at": [
+       0,
+       10
+      ]
+     },
+     "mid": [
+      5,
+      15
+     ],
+     "id": "a3"
+    },
+    {
+     "type": "line",
+     "start": {
+      "ref": "a3.end",
+      "at": [
+       0,
+       10
+      ]
+     },
+     "end": {
+      "ref": "s1.start",
+      "at": [
+       0,
+       0
+      ]
+     },
+     "id": "s4"
+    }
+   ]
+  },
+  {
+   "op": "boundary_surface",
+   "name": "Patch",
+   "sketch": "Loop",
+   "curves": [
+    "s1",
+    "s2",
+    "a3",
+    "s4"
+   ],
+   "result_bodies": [
+    "Sheet"
+   ]
+  },
+  {
+   "op": "thicken",
+   "name": "Slab",
+   "bodies": [
+    "Sheet"
+   ],
+   "thickness": 2,
+   "symmetric": true,
+   "operation": "new"
+  },
+  {
+   "op": "remove",
+   "name": "Clear",
+   "bodies": [
+    "Sheet"
+   ]
+  }
+ ]
+}

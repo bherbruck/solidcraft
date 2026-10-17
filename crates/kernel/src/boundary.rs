@@ -6,13 +6,16 @@
 //! surface — its tangent plane, its curvature, the change of that curvature — as the side's order
 //! asks for, with `crown` shaping the middle without touching a boundary condition.
 //!
-//! A patch through *three or four* boundaries is refused rather than built approximately. At a
-//! corner two sides prescribe the same entries of the control net from two different surfaces, and
-//! a tensor-product patch can hold both only where those two prescriptions already agree (one wall
-//! carrying every side, say). Where they do not — the general case — the requested order would
+//! A patch through *three or four* boundaries is refused here rather than built approximately. At
+//! a corner two sides prescribe the same entries of the control net from two different surfaces,
+//! and a tensor-product patch can hold both only where those two prescriptions already agree (one
+//! wall carrying every side, say). Where they do not — the general case — the requested order would
 //! silently drop near the corner, or the boundary curve would visibly leave its stations, and a
 //! Gregory-type corner (a rational blend of the sides' own data) is needed to hold them instead
-//! (issue #763). Everything this module refuses is an error, never a quietly worse surface.
+//! (issue #763). A loop of one sketch's curves is the case where they agree: it lies in the
+//! sketch's plane, and its flat Coons patch ([`crate::boundary_network`]) holds every order
+//! exactly; the network there refuses G1/G2 on two sides that meet at a corner for the same
+//! reason. Everything this module refuses is an error, never a quietly worse surface.
 
 use solidcraft_geom::Vec3;
 

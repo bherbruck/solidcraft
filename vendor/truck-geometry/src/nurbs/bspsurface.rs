@@ -729,11 +729,15 @@ impl<P: ControlPoint<f64>> ParametricSurface for BSplineSurface<P> {
             };
             basis1.iter().enumerate().fold(sum, closure)
         };
+        // SolidCraft: the second derivative of a degree-p spline is p·(p − 1) times the sum of the
+        // second differences against the degree p − 2 basis (as `BSplineCurve::der2` has it). The
+        // factor p − 1 was missing, which halved the second derivative of a cubic surface.
         basis0
             .into_iter()
             .enumerate()
             .fold(P::Diff::zero(), closure)
             * degree0 as f64
+            * (degree0 - 1) as f64
     }
 
     /// Substitutes 2nd-ord derived B-spline surface by the second parameter `v`.
@@ -778,11 +782,13 @@ impl<P: ControlPoint<f64>> ParametricSurface for BSplineSurface<P> {
             };
             basis0.iter().enumerate().fold(sum, closure)
         };
+        // SolidCraft: times p·(p − 1), as in `uuder`.
         basis1
             .into_iter()
             .enumerate()
             .fold(P::Diff::zero(), closure)
             * degree1 as f64
+            * (degree1 - 1) as f64
     }
 
     /// Substitutes 2nd-ord derived B-spline surface by the both parameters `u, v`.

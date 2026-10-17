@@ -182,6 +182,10 @@ surface_blend
 surface_boundary
   sketches: [1]
   remap_refs: sketch
+surface_network
+  sketches: [1, 2]
+  remap_refs: u[0].sketch, v[0].sketch
+  remap_bodies: u[1].body
 surface_match
   remap_bodies: body
 surface_fair

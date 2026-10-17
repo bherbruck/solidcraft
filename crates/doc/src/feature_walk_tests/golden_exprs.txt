@@ -342,6 +342,7 @@ surface_offset
   expressions: soff.distance, soff.tolerance
 surface_blend
 surface_boundary
+surface_network
 surface_match
 surface_fair
   inputs:

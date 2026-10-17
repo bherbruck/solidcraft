@@ -59,6 +59,10 @@ Changes:
   back to the seam at the other end of the period and fold its parameter polygon over itself (no
   intersection loop then lay inside the face). `crates/kernel/src/seam_faces_tests.rs` holds it
   to a cone read from STEP.
+- `nurbs/bspsurface.rs`: `uuder` and `vvder` multiply by p·(p − 1), as `BSplineCurve::der2`
+  does. They multiplied by p only, so the second derivatives of every B-spline and NURBS surface
+  of degree p ≥ 3 were 1/(p − 1) of their value (a cubic surface's curvature read as half, #763).
+  `crates/kernel/src/surface_second_derivative_tests.rs` holds them to finite differences.
 
 ## truck-stepio 0.3.0 (Apache-2.0, © RICOS Co. Ltd., https://github.com/ricosjp/truck)
 

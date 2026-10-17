@@ -1033,6 +1033,20 @@ fn placement_digest(doc: &Document, f: &Feature) -> u64 {
         }
         return hash.finish();
     }
+    // A network through 3D sketch curves reads their points through the components the
+    // feature and those sketches are placed in, as a sweep's wired path does.
+    if let FeatureKind::SurfaceNetwork { u, v, .. } = &f.kind {
+        let sketches: Vec<crate::SketchId> = u.iter().chain(v).filter_map(|c| c.sketch).collect();
+        if sketches.iter().any(wired) {
+            let mut hash = std::collections::hash_map::DefaultHasher::new();
+            doc.component_transform(f.component).iter().flatten().for_each(|value| value.to_bits().hash(&mut hash));
+            for sketch in &sketches {
+                let owner = doc.feature(sketch.0).map(|feature| feature.component).unwrap_or(0);
+                doc.component_transform(owner).iter().flatten().for_each(|value| value.to_bits().hash(&mut hash));
+            }
+            return hash.finish();
+        }
+    }
     // To / From Object finds its target where that target's component is placed (#928).
     let to_object = match &f.kind {
         FeatureKind::Extrude { extent, .. } => extent.to.is_some() || extent.from.is_some(),
@@ -4585,6 +4599,7 @@ fn eval_feature(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, st:
         | FeatureKind::SurfaceLoft { .. }
         | FeatureKind::SurfaceBlend { .. }
         | FeatureKind::SurfaceBoundary { .. }
+        | FeatureKind::SurfaceNetwork { .. }
         | FeatureKind::SurfaceMatch { .. }
         | FeatureKind::SurfaceFair { .. }
         | FeatureKind::SurfaceOffset { .. }

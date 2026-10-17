@@ -978,6 +978,7 @@ fn redefine(s: &mut Session, p: &Value) -> Result<Value> {
         .chain(super::features_more::COMMANDS)
         .chain(super::construct::COMMANDS)
         .chain(super::surface::COMMANDS)
+        .chain(super::surface_boundary::COMMANDS)
         .any(|candidate| candidate.id == spec.id)
         || matches!(
             spec.id,
@@ -1049,7 +1050,10 @@ fn redefine(s: &mut Session, p: &Value) -> Result<Value> {
     {
         *after = before.clone();
     }
-    if std::mem::discriminant(&new.kind) != std::mem::discriminant(&old.kind) {
+    // A boundary surface's loop of sketch curves and its curve network are one command's two
+    // forms: an edit may turn one into the other.
+    let boundary = |k: &FeatureKind| matches!(k, FeatureKind::SurfaceBoundary { .. } | FeatureKind::SurfaceNetwork { .. });
+    if std::mem::discriminant(&new.kind) != std::mem::discriminant(&old.kind) && !(boundary(&new.kind) && boundary(&old.kind)) {
         return Err(bad(cmd, format!("{} is not a {} feature", old.name, cid)));
     }
     // Optional inputs can move other inputs' positions (e.g. Distance 2 goes before Taper).

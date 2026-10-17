@@ -48,7 +48,7 @@ fn surface_of(shell: mt::Shell) -> Body {
 
 /// A body from faces: a solid when they close, else a surface; with the history of the
 /// operation that made the faces from `operands` as `rec` records.
-fn body_of(faces: Vec<mt::Face>, operands: &[&mt::Solid], rec: &Rebuild) -> Result<Body> {
+pub(crate) fn body_of(faces: Vec<mt::Face>, operands: &[&mt::Solid], rec: &Rebuild) -> Result<Body> {
     let shell = mt::Shell::from(faces);
     if shell.shell_condition() == mt::ShellCondition::Closed {
         crate::record::rebuilt(mt::Solid::new_unchecked(vec![shell]), operands, rec)

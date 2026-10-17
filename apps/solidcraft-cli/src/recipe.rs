@@ -423,6 +423,24 @@ pub fn to_script(recipe: &Value) -> Result<Value, String> {
                     "sketch": profile_sketch(f), "profiles": profiles_of(f), "path_sketch": path.get("sketch"), "path": path.get("curves"),
                     "operation": op(f), "name": name, "body_names": bodies}}));
             }
+            // A boundary surface: a loop of one sketch's curves (`sketch`, `curves`), or a network
+            // (`u`, `v`), as `surface.boundary` takes them.
+            Some("boundary_surface") => {
+                let mut p = json!({"name": name});
+                for k in ["sketch", "curves", "continuity", "u", "v", "operation"] {
+                    if let Some(v) = f.get(k) {
+                        p[k] = v.clone();
+                    }
+                }
+                if let Some(b) = bodies.as_array().and_then(|a| a.first()) {
+                    p["body_name"] = b.clone();
+                }
+                out.push(json!({"command": "surface.boundary", "params": p}));
+            }
+            Some("thicken") => out.push(json!({"command": "surface.thicken", "params": {
+                "bodies": f.get("bodies"), "thickness": f.get("thickness"), "symmetric": f.get("symmetric").cloned().unwrap_or(json!(false)),
+                "operation": op(f), "name": name}})),
+            Some("remove") => out.push(json!({"command": "solid.remove", "params": {"bodies": f.get("bodies"), "name": name}})),
             Some("shell") => {
                 let faces: Vec<Value> = f.get("faces_removed").and_then(Value::as_array).into_iter().flatten().filter_map(|x| x.get("point").cloned()).collect();
                 out.push(json!({"command": "solid.shell", "params": {"faces": faces, "thickness": f.get("inside_thickness"), "name": name}}));

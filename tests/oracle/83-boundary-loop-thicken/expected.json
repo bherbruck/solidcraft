@@ -1,0 +1,25 @@
+{
+  "source": "analytic",
+  "method": "region = 10 x 10 square + half disc r 5 on its top side: A = 100 + 12.5 pi, centroid by moments (half disc's at 4r / (3 pi) above its diameter); slab of thickness 2 over it (symmetric about z = 0): V = 2A, area = 2A + 2 (30 + 5 pi)",
+  "body_count": 1,
+  "volume_mm3": 278.53981633974485,
+  "area_mm2": 369.9557428756428,
+  "center_of_mass": [
+    4.999999999999999,
+    7.008207500514442,
+    0.0
+  ],
+  "bbox": {
+    "min": [
+      0.0,
+      0.0,
+      -1.0
+    ],
+    "max": [
+      10.0,
+      15.0,
+      1.0
+    ]
+  },
+  "faces": 6
+}
