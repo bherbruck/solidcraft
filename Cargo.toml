@@ -26,6 +26,7 @@ solidcraft-ui-egui = { path = "crates/ui-egui" }
 solidcraft-space-mouse = { path = "crates/space-mouse" }
 solidcraft-mcp = { path = "crates/mcp" }
 solidcraft-derive = { path = "crates/derive" }
+solidcraft-3dx-client = { path = "crates/threedx-client" }
 
 # foundation
 thiserror = "2"

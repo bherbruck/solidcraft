@@ -23,10 +23,165 @@ pub enum BoolOp {
     Intersect,
 }
 
+/// Exact planar Booleans need no sampled enlargement of their tool footprint.
+pub fn is_planar(body: &Body) -> bool {
+    if body.is_mesh() || body.face_count() > 16_384 {
+        return false;
+    }
+    guard("planar body", || Ok(body.solid.face_iter().all(|face| matches!(face.oriented_surface(), mt::Surface::Plane(_))))).unwrap_or(false)
+}
+
+/// Batch separated extrusion tools without repeatedly unioning an ever-growing target.
+/// Construction caps provide conservative bounds, including the full circle of each arc;
+/// unsupported or touching tools retain the caller's sequential Boolean path.
+pub fn compound_disjoint_extrusions(tools: &[Body]) -> Result<Option<Body>> {
+    if tools.len() < 2 || tools.len() > 1024 {
+        return Ok(None);
+    }
+    guard("compound extrusion tools", || {
+        let mut bounds = Vec::with_capacity(tools.len());
+        let mut corners = Vec::with_capacity(tools.len());
+        let mut axes = Vec::with_capacity(tools.len());
+        let mut remaining = 16_384usize;
+        for tool in tools {
+            let Some(sources) = tool.face_sources() else { return Ok(None) };
+            if sources.len() != tool.face_count() {
+                return Ok(None);
+            }
+            let mut bb = solidcraft_geom::Aabb3::EMPTY;
+            let mut points = Some(Vec::new());
+            let mut directions = Vec::new();
+            let mut caps = 0;
+            for source in sources {
+                let Some(left) = remaining.checked_sub(1) else { return Ok(None) };
+                remaining = left;
+                match source {
+                    Some(crate::FaceSource::ExtrudeCap { region, plane, high }) => {
+                        caps += 1;
+                        // The bottom support is outward-facing, but its region retains
+                        // the original sketch coordinates (see build::extrude).
+                        let plane = if *high { *plane } else { solidcraft_geom::Plane { y: -plane.y, ..*plane } };
+                        for segment in &region.outer.segs {
+                            let Some(left) = remaining.checked_sub(1) else { return Ok(None) };
+                            remaining = left;
+                            match *segment {
+                                solidcraft_geom::Seg2::Line { a, b } => {
+                                    let (a, b) = (plane.to_world(a), plane.to_world(b));
+                                    bb.add(a);
+                                    bb.add(b);
+                                    if let Some(points) = points.as_mut() {
+                                        points.extend([a, b]);
+                                    }
+                                    if let Some(axis) = (b - a).cross(plane.normal()).normalized() {
+                                        directions.push(axis);
+                                    }
+                                }
+                                solidcraft_geom::Seg2::Arc { center, radius, .. } => {
+                                    points = None;
+                                    for x in [-radius, radius] {
+                                        for y in [-radius, radius] {
+                                            bb.add(plane.to_world(center + solidcraft_geom::Vec2::new(x, y)));
+                                        }
+                                    }
+                                }
+                                _ => return Ok(None),
+                            }
+                        }
+                    }
+                    Some(crate::FaceSource::ExtrudeSide { .. }) => {}
+                    _ => return Ok(None),
+                }
+            }
+            if caps != 2 || bb.is_empty() || !bb.min.is_finite() || !bb.max.is_finite() {
+                return Ok(None);
+            }
+            bounds.push(bb);
+            corners.push(points);
+            axes.push(directions);
+        }
+        let mut remaining_separation_work = 16_000_000usize;
+        for (i, a) in bounds.iter().enumerate() {
+            for (j, b) in bounds.iter().enumerate().skip(i + 1) {
+                let gap = (a.diagonal().max(b.diagonal()) * 1e-6).max(1e-7);
+                let separated = a.max.x + gap < b.min.x
+                    || b.max.x + gap < a.min.x
+                    || a.max.y + gap < b.min.y
+                    || b.max.y + gap < a.min.y
+                    || a.max.z + gap < b.min.z
+                    || b.max.z + gap < a.min.z;
+                if separated {
+                    continue;
+                }
+                let (Some(Some(x)), Some(Some(y))) = (corners.get(i), corners.get(j)) else { return Ok(None) };
+                let Some(origin) = x.first() else { return Ok(None) };
+                // Every straight extrusion lies inside the hull of its cap corners.
+                // A separating cap-edge axis therefore proves clearance even when
+                // rotated tools' world-coordinate boxes overlap. Arcs retain the box test.
+                let range = |points: &[Vec3], axis: Vec3| {
+                    points.iter().map(|p| (*p - *origin).dot(axis)).fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| (lo.min(v), hi.max(v)))
+                };
+                let rounding = origin.x.abs().max(origin.y.abs()).max(origin.z.abs()) * f64::EPSILON * 128.0;
+                let separated = axes.get(i).into_iter().flatten().chain(axes.get(j).into_iter().flatten()).any(|axis| {
+                    let Some(left) = remaining_separation_work.checked_sub(x.len().saturating_add(y.len())) else { return false };
+                    remaining_separation_work = left;
+                    let (a, b) = (range(x, *axis), range(y, *axis));
+                    a.1 + gap + rounding < b.0 || b.1 + gap + rounding < a.0
+                });
+                if !separated {
+                    return Ok(None);
+                }
+            }
+        }
+        let sources: std::collections::HashMap<_, _> = tools
+            .iter()
+            .flat_map(|tool| {
+                tool.solid
+                    .face_iter()
+                    .zip(tool.face_sources().unwrap_or_default())
+                    .map(|(face, source)| (face.id(), (face.orientation(), source.clone())))
+            })
+            .collect();
+        let operands: Vec<_> = tools.iter().collect();
+        let shells = tools.iter().flat_map(|tool| tool.solid.boundaries().clone()).collect();
+        let solid = Solid::try_new(shells).map_err(|error| KernelError::Failed(format!("extrusion compound: {error}")))?;
+        let faces = tools
+            .iter()
+            .enumerate()
+            .flat_map(|(operand, tool)| (0..tool.face_count()).map(move |face| record::from_face(operand, face, crate::history::Change::Kept)))
+            .collect();
+        let mut edges = HashMap::new();
+        for (operand, tool) in tools.iter().enumerate() {
+            edges.extend(record::edge_origins(&tool.solid, operand));
+        }
+        record::build(solid, &record::counts(&operands), Some(faces), Some(&edges)).map(|mut body| {
+            body.regularization_protected = tools.iter().any(|tool| tool.regularization_protected);
+            // Only unchanged face identities carry these transient tool witnesses.
+            // No whole-compound extrusion/producer certificate is created.
+            let mapped = body
+                .solid
+                .face_iter()
+                .map(|face| {
+                    sources.get(&face.id()).filter(|(orientation, _)| *orientation == face.orientation()).and_then(|(_, source)| source.clone())
+                })
+                .collect();
+            Some(body.with_face_sources(Some(std::sync::Arc::new(mapped))))
+        })
+    })
+}
+
 /// Whether a union can sew two matching planar faces without intersecting them.
 /// Callers can retain the exact touching tool instead of extending it into material.
 pub fn can_join_touching_faces(a: &Body, b: &Body) -> bool {
     a.solid.boundaries().len() == 1 && b.solid.boundaries().len() == 1 && crate::coplanar::glue(a, b).is_some_and(|r| r.is_ok())
+}
+
+/// Check all separated extrusion starts in one construction, without rebuilding
+/// the unchanged target once for each face. Partial seams keep the ordinary path.
+pub fn can_join_all_touching_faces(a: &Body, b: &Body) -> bool {
+    if a.solid.boundaries().len() != 1 || !(2..=1024).contains(&b.solid.boundaries().len()) || a.face_count().max(b.face_count()) > 16_384 {
+        return false;
+    }
+    guard("check extrusion seams", || Ok(crate::coplanar::glue_all_caps(a, b).is_some_and(|result| result.is_ok()))).unwrap_or(false)
 }
 
 /// Shifts applied to both operands on retries. The boolean classifies some faces by casting a
@@ -236,6 +391,97 @@ mod shortcut_tests {
         assert!(meeting_size(&periodic, &block).is_infinite());
         let thin = crate::box_solid(Vec3::ZERO, Vec3::new(80.0, 80.0, 1e-5)).unwrap();
         assert!((meeting_size(&thin, &thin) - 1e-5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn rotated_extrusion_bounds_use_exact_cap_separation_and_keep_sources() {
+        use solidcraft_geom::{Loop2, Plane, Region2, Vec2};
+        let rectangle = |angle: f64, offset: f64| {
+            let (c, s) = (angle.cos(), angle.sin());
+            Region2 {
+                outer: Loop2::polygon(
+                    &[(-2., -0.5), (2., -0.5), (2., 0.5), (-2., 0.5)].map(|(x, y)| Vec2::new(x * c - (y + offset) * s, x * s + (y + offset) * c)),
+                ),
+                holes: vec![],
+            }
+        };
+        for offset in [1.2, 1., 0.8] {
+            let tools = crate::extrude(&Plane::XY, &[rectangle(0.7, 0.), rectangle(0.7, offset)], 0., 2.).unwrap();
+            let compound = compound_disjoint_extrusions(&tools).unwrap();
+            assert_eq!(compound.is_some(), offset > 1.);
+            if let Some(compound) = compound {
+                let sources = compound.face_sources().unwrap();
+                assert_eq!(sources.len(), compound.face_count());
+                assert_eq!(sources.iter().filter(|source| matches!(source, Some(crate::FaceSource::ExtrudeCap { high: false, .. }))).count(), 2);
+                assert!(compound.validity().is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn batched_contact_test_matches_individual_tolerances() {
+        let target = crate::cylinder(Vec3::ZERO, Vec3::Z, 5., 3.).unwrap();
+        let tools = [
+            crate::box_solid(Vec3::new(-1., -1., 3.), Vec3::new(1., 1., 5.)).unwrap(),
+            crate::box_solid(Vec3::new(-1., -1., 3.002), Vec3::new(1., 1., 5.)).unwrap(),
+            crate::sphere(Vec3::new(20., 0., 1.), 1.).unwrap(),
+        ];
+        let expected = tools.iter().map(|tool| target.meets(tool).unwrap()).collect::<Vec<_>>();
+        assert_eq!(target.meets_each(&tools).unwrap(), expected);
+        assert!(target.meets_each(&[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn compound_span_does_not_relax_full_face_seam_tolerance() {
+        use solidcraft_geom::{Loop2, Plane, Region2, Vec2};
+        let mut target = crate::box_solid(Vec3::new(0., 0., -3.), Vec3::new(100., 2., -2.)).unwrap();
+        for x in [0., 98.] {
+            let boss = crate::box_solid(Vec3::new(x, 0., -2.), Vec3::new(x + 2., 2., 0.)).unwrap();
+            target = boolean(&target, &boss, BoolOp::Union).unwrap().unwrap();
+        }
+        let regions: Vec<_> = [0., 98.]
+            .into_iter()
+            .map(|x| Region2 {
+                outer: Loop2::polygon(&[Vec2::new(x, 0.), Vec2::new(x + 2., 0.), Vec2::new(x + 2., 2.), Vec2::new(x, 2.)]),
+                holes: vec![],
+            })
+            .collect();
+        let tools = crate::extrude(&Plane::XY, &regions, 0.000_105, 200.).unwrap();
+        assert!(tools.iter().all(|tool| !can_join_touching_faces(&target, tool)));
+        let compound = compound_disjoint_extrusions(&tools).unwrap().unwrap();
+        assert!(!can_join_all_touching_faces(&target, &compound));
+    }
+
+    #[test]
+    fn extrusion_compound_requires_separated_construction_bounds() {
+        use solidcraft_geom::{Loop2, Plane, Region2, Vec2};
+        let rectangle = |x: f64| Region2 {
+            outer: Loop2::polygon(&[Vec2::new(x, 0.0), Vec2::new(x + 2.0, 0.0), Vec2::new(x + 2.0, 2.0), Vec2::new(x, 2.0)]),
+            holes: vec![],
+        };
+        let plane = Plane::from_normal(Vec3::new(100.0, -20.0, 8.0), Vec3::new(1.0, 2.0, 3.0)).unwrap();
+        let tools = crate::extrude(&plane, &[rectangle(0.0), rectangle(20.0)], -1.0, 5.0).unwrap();
+        let compound = compound_disjoint_extrusions(&tools).unwrap().unwrap();
+        assert_eq!(compound.shell_count(), 2);
+        assert_eq!(compound.history().unwrap().operands, 2);
+        assert!((crate::measure(&compound).unwrap().volume - 48.0).abs() < 1e-8);
+        assert!(compound.validity().is_empty());
+        for x in [1.0, 2.0, 2.000_000_1] {
+            let touching = crate::extrude(&solidcraft_geom::Plane::XY, &[rectangle(0.0), rectangle(x)], 0.0, 5.0).unwrap();
+            assert!(compound_disjoint_extrusions(&touching).unwrap().is_none());
+        }
+        let unsupported = [crate::sphere(Vec3::ZERO, 1.0).unwrap(), crate::sphere(Vec3::new(10.0, 0.0, 0.0), 1.0).unwrap()];
+        assert!(compound_disjoint_extrusions(&unsupported).unwrap().is_none());
+    }
+
+    #[test]
+    fn extrusion_compound_includes_arc_extrema_between_seam_vertices() {
+        use solidcraft_geom::{Loop2, Plane, Region2, Vec2};
+        let circle = |x| Region2 { outer: Loop2::circle(Vec2::new(x, 0.0), 2.0), holes: vec![] };
+        let separated = crate::extrude(&Plane::XY, &[circle(0.0), circle(8.0)], 0.0, 5.0).unwrap();
+        assert!(compound_disjoint_extrusions(&separated).unwrap().is_some());
+        let overlapping = crate::extrude(&Plane::XY, &[circle(0.0), circle(3.0)], 0.0, 5.0).unwrap();
+        assert!(compound_disjoint_extrusions(&overlapping).unwrap().is_none());
     }
 
     #[test]
@@ -756,14 +1002,13 @@ fn boolean_whole_with_refinement(a: &Body, b: &Body, op: BoolOp, refine: bool) -
         }
     }
     // Bodies touching along one whole face (a part joined with its mirror image).
-    if op == BoolOp::Union
-        && a.solid.boundaries().len() == 1
-        && b.solid.boundaries().len() == 1
-        && let Some(Ok(body)) = crate::coplanar::glue(a, b)
-    {
-        let (ok, _) = check(&body);
-        if ok {
-            return Ok(Some(body));
+    if op == BoolOp::Union && a.solid.boundaries().len() == 1 {
+        let glued = if b.solid.boundaries().len() == 1 { crate::coplanar::glue(a, b) } else { crate::coplanar::glue_all_caps(a, b) };
+        if let Some(Ok(body)) = glued {
+            let (ok, _) = check(&body);
+            if ok {
+                return Ok(Some(body));
+            }
         }
     }
     // Bores on a common cylinder (a pad's bore around the hole it is joined over, a disc filling
