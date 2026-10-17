@@ -163,7 +163,14 @@ no LTO, and debug assertions off (truck has debug-only assertions that reject va
 builds several times faster than `--release`. If a test fails only in a plain debug build, say so
 in the PR. `cargo xtask test` builds the tests with it and then runs every test binary at once
 (`cargo test` runs them one after another); arguments after `--` go to each binary, e.g.
-`cargo xtask test -- shell`. Tests run beside each other on a busy machine, so a test must not
+`cargo xtask test -- shell`. Set `SOLIDCRAFT_TEST_JOBS` to a positive integer to opt into a
+shared bound on top-level test/side commands for `cargo xtask test` and `cargo xtask ci`.
+For example, `SOLIDCRAFT_TEST_JOBS=2` allows two commands at once; the sequential wasm/doc
+worker consumes one of those slots. Every binary and side check still runs after failures.
+Without the variable the existing concurrency is unchanged. `RUST_TEST_THREADS`,
+`ACTION_MATRIX_JOBS` and Cargo's build-job setting remain independent caller overrides;
+this limit does not choose their values or change test filters, timeouts or baselines.
+Tests run beside each other on a busy machine, so a test must not
 depend on wall-clock timing.
 
 **PRs test what they touch; main and nightly test everything.** On a pull request, CI maps the

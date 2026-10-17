@@ -55,7 +55,8 @@ commands:
                   message catalogs in assets/locales); --fix sorts them
   test [CARGO ARGS] [-- TEST ARGS]
                   build the tests with the ci profile, then run every test binary at once
-                  (and the doc tests alongside)
+                  (and the doc tests alongside); SOLIDCRAFT_TEST_JOBS=N bounds concurrent test
+                  and side commands for test/ci; inherited per-test/worker overrides are unchanged
   wasm            cargo check every library crate and the web app for wasm32-unknown-unknown
   web-offline [DIR]
                   write the web build's service worker (sw.js: offline use, updates); run by

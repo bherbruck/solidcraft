@@ -82,7 +82,7 @@ def scan():
     for f in glob.glob(ROOT + '/crates/ui-egui/src/**/*.rs', recursive=True):
         t = open(f, encoding='utf-8').read()
         for name in ui_icon_names(t):
-            uses[name].append('ui:' + os.path.relpath(f, ROOT + '/crates/ui-egui/src'))
+            uses[name].append('ui:' + os.path.relpath(f, ROOT + '/crates/ui-egui/src').replace(os.sep, '/'))
     mk = ROOT + '/assets/icons/ui/source/markers.rs'
     if os.path.exists(mk):
         for name in re.findall(r'=> "(c_[a-z_]+)"', open(mk, encoding='utf-8').read()): uses[name].append('ui:sketch constraint glyph')
@@ -284,7 +284,7 @@ if '--serve' in args:
                         request_id = uuid.uuid4().hex
                         path = os.path.join(REQUESTS, request_id + '.json')
                         # Publish a complete snapshot atomically so the chat never reads half a request.
-                        with open(path + '.tmp', 'w') as f:
+                        with open(path + '.tmp', 'w', encoding='utf-8') as f:
                             json.dump({'version': 1, 'id': request_id,
                                        'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
                                        'notes': {i: r['notes'][i] for i in todo}}, f, indent=1)

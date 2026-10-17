@@ -80,16 +80,14 @@ if os.path.exists(references):
 for message in icon_palette.validation_errors(pal, names | set(al)):
     err(d + '/palette.toml', message)
 # an icon accepted as final on the review page must not change (un-accept it there to work on it again)
-import json, hashlib
+import json, review_state
 rp = d + '/review.json'
 if os.path.exists(rp):
-    fin = json.load(open(rp)).get('final', {})
+    fin = json.load(open(rp, encoding='utf-8')).get('final', {})
     for iid, want in (fin.items() if isinstance(fin, dict) else []):
         v = al.get(iid, iid); m = v.get('master') if isinstance(v, dict) else v
         if not want: continue
-        h = hashlib.sha256()
-        for f in sorted(glob.glob(d + '/svg/*/' + m + '.svg')):
-            h.update(os.path.relpath(f, d).replace(os.sep, '/').encode()); h.update(open(f, 'rb').read())
-        if h.hexdigest() != want: err(rp, 'final icon %s changed (master %s): un-accept it on the review page before editing it' % (iid, m))
+        # The review page's own hash, so the two can't disagree.
+        if review_state.master_hash(m, d) != want: err(rp, 'final icon %s changed (master %s): un-accept it on the review page before editing it' % (iid, m))
 print('\n'.join(bad) if bad else 'icons: %d masters, palette, naming and element rules ok' % len(files))
 sys.exit(1 if bad else 0)
