@@ -864,7 +864,15 @@ mod tests {
 
     fn solved(mut sketch: solidcraft_sketch::Sketch) -> SolvedSketch {
         let report = solidcraft_sketch::solve(&mut sketch);
-        SolvedSketch { feature: 1, name: "sources".into(), plane: solidcraft_geom::Plane::XY, sketch, report, profiles: Vec::new() }
+        SolvedSketch {
+            feature: 1,
+            name: "sources".into(),
+            plane: solidcraft_geom::Plane::XY,
+            sketch,
+            report,
+            profiles: Vec::new(),
+            ends: Default::default(),
+        }
     }
 
     #[test]

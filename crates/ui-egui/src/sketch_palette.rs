@@ -340,10 +340,16 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     if !visible(app, ctx) {
         return;
     }
-    let (opts, dof_line, ok) = {
+    let (opts, dof_line, ok, open_ends, untied_ends) = {
         let st = app.session.world_state();
         let Some(ss) = app.session.active_sketch.and_then(|s| st.sketch(s)) else { return };
-        (ss.sketch.view.clone(), dof_text(ss.report.dof, ss.report.ok()), ss.report.ok() && ss.report.dof == 0)
+        (
+            ss.sketch.view.clone(),
+            dof_text(ss.report.dof, ss.report.ok()),
+            ss.report.ok() && ss.report.dof == 0,
+            ss.ends.open.len(),
+            ss.ends.untied.len(),
+        )
     };
     let t = Tokens::get();
     let vp = viewport(app, ctx);
@@ -369,6 +375,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     let mut linetype: Option<u8> = None;
     let mut look = false;
     let mut finish = false;
+    let mut tie = false;
     let mut start: Option<&'static str> = None;
     let feature = active_feature(app);
     let has_curves = !selected_curves(app).is_empty();
@@ -429,7 +436,8 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
         });
         if !ofold {
             // Keep room for the footer: status heading and line, a line, Finish Sketch, a line.
-            let footer = 5.0 * line + ui.spacing().interact_size.y + 6.0 * gap + 8.0;
+            let ends_rows = if open_ends > 0 { line + gap } else { 0.0 } + if untied_ends > 0 { ui.spacing().interact_size.y + gap } else { 0.0 };
+            let footer = 5.0 * line + ui.spacing().interact_size.y + 6.0 * gap + 8.0 + ends_rows;
             let options_height = (bottom - ui.cursor().top() - footer).max(24.0);
             let options =
                 egui::ScrollArea::vertical().id_salt("sc_palette_options").max_height(options_height).auto_shrink([false, true]).show(ui, |ui| {
@@ -537,6 +545,22 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
             ui.label(RichText::new(app.tr("ui.sketch_status")).size(12.0));
         });
         ui.label(RichText::new(crate::i18n::tr_dyn(&dof_line)).color(if ok { t.sketch_accent } else { t.text_dim }));
+        // Where a profile can fail (the viewport rings and diamonds them).
+        if open_ends > 0 {
+            let text = crate::i18n::format("sketch.open_ends", &[("count", &open_ends.to_string())]);
+            ui.label(RichText::new(text).color(t.warning)).on_hover_text(app.tr("ui.open_ends_tip"));
+        }
+        if untied_ends > 0 {
+            ui.horizontal(|ui| {
+                let text = crate::i18n::format("sketch.untied_ends", &[("count", &untied_ends.to_string())]);
+                ui.label(RichText::new(text).color(t.warning)).on_hover_text(app.tr("ui.untied_ends_tip"));
+                let button = ui.button(app.tr("ui.tie_ends")).on_hover_text(app.tr("ui.tie_ends_tip"));
+                crate::scenario::publish_handle("sketch_palette:tie_ends", button.rect.center());
+                if button.clicked() {
+                    tie = true;
+                }
+            });
+        }
         // One line between the status and Finish Sketch, and below it to the edge.
         ui.add_space((line - gap).max(0.0));
         // A row as tall as the button, so the gap below it is just the line.
@@ -576,6 +600,9 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     }
     if look {
         crate::dialogs::look_at_sketch_again(app);
+    }
+    if tie && let Err(e) = app.run("sketch.loose_ends.tie", json!({})) {
+        app.set_status(e, true);
     }
     if finish {
         app.finish_sketch();
@@ -746,6 +773,28 @@ mod tests {
         let (yaw, pitch) = (h.app.cam.yaw, h.app.cam.pitch);
         assert!((pitch - std::f64::consts::FRAC_PI_2).abs() < 0.01, "must look straight down the XY sketch plane: pitch={pitch}");
         assert!(yaw.abs() < 0.01, "must align with the sketch's own x axis: yaw={yaw}");
+    }
+
+    #[test]
+    fn status_counts_loose_ends_and_tie_closes_the_untied_ones() {
+        let mut h = crate::scenario::Harness::new();
+        h.app.run("sketch.create", json!({"plane":"XY"})).unwrap();
+        // A square of separate lines (closed by position only) and one lone line (two open ends).
+        let c = [[0, 0], [10, 0], [10, 10], [0, 10]];
+        for i in 0..4 {
+            h.app.run("sketch.line", json!({"points": [c[i], c[(i + 1) % 4]], "infer": false, "connect": false})).unwrap();
+        }
+        h.app.run("sketch.line", json!({"points": [[20, 0], [30, 5]], "infer": false, "connect": false})).unwrap();
+        h.settle();
+        assert!(h.widget("Open 2").is_some(), "the status counts the open ends");
+        assert!(h.widget("Untied 4").is_some(), "the status counts the untied ends");
+        let at = crate::scenario::handle_at("sketch_palette:tie_ends").unwrap();
+        h.call("ui.click", json!({"x": at.x, "y": at.y}));
+        h.settle();
+        assert!(h.widget("Untied 4").is_none(), "Tie constrains every untied end");
+        assert!(h.widget("Open 2").is_some(), "open ends have nothing to tie to");
+        let r = h.app.run("sketch.loose_ends", json!({})).unwrap();
+        assert!(r["untied"].as_array().is_some_and(Vec::is_empty), "{r}");
     }
 
     #[test]

@@ -3177,6 +3177,7 @@ fn overlays(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
             painter.rect_filled(Rect::from_center_size(sp, vec2(5.0, 5.0)), 0.0, c);
         }
     }
+    loose_end_markers(sk, &ss.ends, &ss.plane, painter, proj, &t);
     // Sketch status.
     if let Some(r) = app.viewport.rect {
         let msg = if !ss.report.ok() {
@@ -3188,6 +3189,28 @@ fn overlays(app: &SolveApp, painter: &egui::Painter, proj: &Proj) {
         };
         let c = if ss.report.ok() { t.sketch_accent } else { t.error };
         painter.text(pos2(r.left() + 12.0, r.top() + 12.0), Align2::LEFT_TOP, msg, FontId::proportional(13.0), c);
+    }
+}
+
+/// Where a profile can fail: a ring round each open end (it touches no other curve) and a
+/// diamond round each untied one (it touches another curve only by position), told apart by
+/// shape. Both are warnings, not errors: an open sketch (a sweep path, an axis) is valid.
+fn loose_end_markers(
+    sk: &solidcraft_engine::sketch::Sketch,
+    ends: &solidcraft_engine::sketch::EndReport,
+    plane: &solidcraft_engine::geom::Plane,
+    painter: &egui::Painter,
+    proj: &Proj,
+    t: &Tokens,
+) {
+    let screen = |i: usize| sk.point(i).and_then(|p| proj.to_screen(plane.to_world(p)));
+    for sp in ends.open.iter().filter_map(|&i| screen(i)) {
+        painter.circle_stroke(sp, 7.0, Stroke::new(1.8, t.warning));
+    }
+    for sp in ends.untied.iter().filter_map(|u| screen(u.point)) {
+        let r = 7.5;
+        let diamond = vec![pos2(sp.x, sp.y - r), pos2(sp.x + r, sp.y), pos2(sp.x, sp.y + r), pos2(sp.x - r, sp.y)];
+        painter.add(egui::Shape::closed_line(diamond, Stroke::new(1.8, t.warning)));
     }
 }
 
