@@ -1,0 +1,17 @@
+{
+  "description": "Issue #2005: redefine a 90 degree new-body sweep around a circle to a 180 degree cut inside a torus. A closed tool must join back to its starting section without coincident caps.",
+  "commands": [
+    {"command": "sketch.create", "params": {"plane": "XY", "name": "Path"}},
+    {"command": "sketch.circle.center", "params": {"center": [0, 0], "radius": 30}},
+    {"command": "sketch.finish", "params": {}},
+    {"command": "sketch.create", "params": {"plane": "XZ", "name": "Tube"}},
+    {"command": "sketch.circle.center", "params": {"center": [30, 0], "radius": 8}},
+    {"command": "sketch.finish", "params": {}},
+    {"command": "solid.revolve", "params": {"axis": "Z", "body_name": "Torus"}},
+    {"command": "sketch.create", "params": {"plane": "XZ", "name": "SweepProfile"}},
+    {"command": "sketch.line", "params": {"points": [[26, -4], [34, -4], [34, 4], [26, 4]], "closed": true}},
+    {"command": "sketch.finish", "params": {}},
+    {"command": "solid.sweep", "params": {"sketch": 4, "path_sketch": 1, "path": ["c1"], "operation": "new_body", "twist": "90 deg"}},
+    {"command": "timeline.redefine", "params": {"feature": 5, "command": "solid.sweep", "params": {"sketch": 4, "path_sketch": 1, "path": ["c1"], "profiles": [0], "operation": "cut", "twist": "180 deg"}}}
+  ]
+}

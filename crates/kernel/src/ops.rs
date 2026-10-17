@@ -226,6 +226,19 @@ mod shortcut_tests {
     use super::*;
 
     #[test]
+    fn seam_roundoff_is_not_a_thin_meeting_but_real_thin_solids_are() {
+        use solidcraft_geom::{Loop2, Plane, Region2, Vec2};
+
+        // This circle's seams lie on the X axis: its cylinder's vertex box is flat in Y.
+        let region = Region2 { outer: Loop2::circle(Vec2::ZERO, 8.0), holes: vec![] };
+        let periodic = crate::extrude(&Plane::XY, &[region], 0.0, 20.0).unwrap().pop().unwrap();
+        let block = crate::box_solid(Vec3::new(-40.0, -40.0, -10.0), Vec3::new(40.0, 40.0, 10.0)).unwrap();
+        assert!(meeting_size(&periodic, &block).is_infinite());
+        let thin = crate::box_solid(Vec3::ZERO, Vec3::new(80.0, 80.0, 1e-5)).unwrap();
+        assert!((meeting_size(&thin, &thin) - 1e-5).abs() < 1e-12);
+    }
+
+    #[test]
     fn curved_near_contact_never_uses_a_shell_only_boolean_candidate() {
         let direction = Vec3::new(1.0, 2.0, 3.0).normalized().unwrap();
         let outer = crate::sphere(Vec3::ZERO, 10.0).unwrap();
@@ -513,7 +526,11 @@ fn meeting_size(a: &Body, b: &Body) -> f64 {
     };
     let (ba, bb) = (bbox(a), bbox(b));
     let s = solidcraft_geom::Aabb3 { min: ba.min.max(bb.min), max: ba.max.min(bb.max) }.size();
-    if s.x > 0.0 && s.y > 0.0 && s.z > 0.0 { s.x.min(s.y).min(s.z) } else { f64::INFINITY }
+    // A closed sweep's section seams need not span its geometry. Roundoff in a flat
+    // vertex box is not a thin meeting region: refining for it
+    // makes millions of triangles and skips the bounded containment shortcut (#2005).
+    let roundoff = a.size().max(b.size()) * 1e-12;
+    if s.x > roundoff && s.y > roundoff && s.z > roundoff { s.x.min(s.y).min(s.z) } else { f64::INFINITY }
 }
 
 /// Smallest side of the box where the bounds of two meshes overlap (infinite when they don't).

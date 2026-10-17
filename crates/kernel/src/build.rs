@@ -1562,6 +1562,15 @@ pub(crate) fn cap_and_close(sides: Vec<Side>, w0: &[mt::Wire], w1: &[mt::Wire], 
     Err(KernelError::Failed(format!("closing the shell: {last}")))
 }
 
+/// A sweep whose walls already close, including separate shells around profile holes.
+pub(crate) fn close_sweep(sides: Vec<Side>) -> Result<Body> {
+    let sources: std::collections::HashMap<_, _> = sides.iter().map(|(f, p)| (f.id(), p.clone())).collect();
+    let shell: mt::Shell = sides.into_iter().map(|(f, _)| f).collect();
+    let solid = Solid::try_new(shell.connected_components()).map_err(|e| KernelError::Failed(format!("closing the sweep: {e}")))?;
+    let history = solid.face_iter().map(|f| sources.get(&f.id()).cloned().flatten()).collect();
+    record::attach(Body::new(solid)?, &[], history, Default::default())
+}
+
 /// Ruled loft through two or more planar sections (outer loops only). The sections and the
 /// same sections in reverse order give the same body.
 pub fn loft(sections: &[(Plane, Loop2)]) -> Result<Body> {
@@ -1881,6 +1890,25 @@ pub fn sweep(plane: &Plane, region: &Region2, path: &[PathSeg]) -> Result<Body> 
     if corner {
         return crate::sweep_path::sweep_path(plane, region, &path_polyline(path)?);
     }
+    let points = path_polyline(path)?;
+    if crate::sweep_path::closed_path(&points) {
+        // Sketch circles have two half arcs. Sweep the whole turn in one operation so truck
+        // shares the closing edges itself. Other closed paths use stations with shared ends.
+        if let Some((center, axis, angle)) = full_circle(path) {
+            return guard("closed sweep", || {
+                let profile = region_wires(plane, &oriented(region)?)?;
+                let mut sides = Vec::new();
+                for p in &profile {
+                    let shell: mt::Shell = builder::rsweep(&p.wire, p3(center), v3(axis), mt::Rad(angle));
+                    let numbers = seeds(std::slice::from_ref(p));
+                    let prov = record::columns(shell.face_iter(), &numbers, None, record::Column::ToEnd, &[]);
+                    sides.extend(shell.face_iter().enumerate().map(|(i, f)| (f.clone(), prov.as_ref().and_then(|p| p.get(i)).cloned().flatten())));
+                }
+                close_sweep(sides)
+            });
+        }
+        return crate::sweep_path::sweep_path(plane, region, &points);
+    }
     // The outer loop and each hole, swept along the path; the ends are capped with holes.
     let profile = region_wires(plane, &oriented(region)?)?;
     let starts = wires_of(&profile);
@@ -1925,6 +1953,23 @@ pub fn sweep(plane: &Plane, region: &Region2, path: &[PathSeg]) -> Result<Body> 
         };
         cap_and_close(sides, &starts, &ends, false)
     })
+}
+
+/// A connected, single turn about one centre and axis, possibly split into sketch arcs.
+fn full_circle(path: &[PathSeg]) -> Option<(Vec3, Vec3, f64)> {
+    let PathSeg::Arc { a: first, center, axis, .. } = *path.first()? else { return None };
+    let axis = axis.normalized()?;
+    let mut end = first;
+    let mut total = 0.0;
+    for seg in path {
+        let PathSeg::Arc { a, center: c, axis: k, angle } = *seg else { return None };
+        if a.dist(end) > 1e-7 || c.dist(center) > 1e-7 || k.normalized()?.dist(axis) > 1e-9 || !angle.is_finite() {
+            return None;
+        }
+        total += angle;
+        end = rotate_about(a, c, axis, angle);
+    }
+    ((total.abs() - std::f64::consts::TAU).abs() < 1e-9).then_some((center, axis, total))
 }
 
 /// Cox–de Boor basis values N_{j,3}(u) for all j.
