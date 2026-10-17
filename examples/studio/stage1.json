@@ -1,0 +1,217 @@
+{
+  "commands": [
+    {
+      "command": "file.new",
+      "params": {
+        "name": "Original studio light and coating study"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Studio floor",
+        "corner": [
+          -1500,
+          -1500,
+          -4
+        ],
+        "length": 3000,
+        "width": 3000,
+        "height": 4,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Coated curved shell profile",
+        "plane": {
+          "origin": [
+            -42,
+            8,
+            35
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -42.5,
+          -32.5
+        ],
+        "p1": [
+          42.5,
+          32.5
+        ],
+        "radius": 20
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -38.5,
+          -28.5
+        ],
+        "p1": [
+          38.5,
+          28.5
+        ],
+        "radius": 16
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 65,
+        "operation": "new",
+        "body_name": "Coated curved shell",
+        "profiles": [
+          {
+            "point": [
+              -40.5,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Floating coated lid profile",
+        "plane": {
+          "origin": [
+            -42,
+            8,
+            121
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -42.5,
+          -32.5
+        ],
+        "p1": [
+          42.5,
+          32.5
+        ],
+        "radius": 20
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 5,
+        "operation": "new",
+        "body_name": "Floating coated lid"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Chrome sphere",
+        "center": [
+          60,
+          -3,
+          60
+        ],
+        "radius": 29,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Chrome floating puck",
+        "base": [
+          63,
+          5,
+          112
+        ],
+        "radius": 24,
+        "height": 7,
+        "axis": "Z",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Coated curved shell",
+          "Floating coated lid"
+        ],
+        "color": "#101318",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Chrome sphere",
+          "Chrome floating puck"
+        ],
+        "color": "#d5d9dd",
+        "pbr": {
+          "metallic": 1,
+          "roughness": 0.12,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Studio floor"
+        ],
+        "color": "#e8e8e8",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.65,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  ]
+}

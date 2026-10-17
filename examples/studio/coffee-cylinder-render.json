@@ -1,0 +1,182 @@
+{
+  "progressive": true,
+  "samples": 256,
+  "max_depth": 12,
+  "seed": 1948,
+  "tone_map": "aces_fitted",
+  "settings": {
+    "width": 1920,
+    "height": 1080,
+    "camera": {
+      "target": [
+        -25,
+        -10,
+        170
+      ],
+      "yaw": 0.5235987755982988,
+      "pitch": 0.3141592653589793,
+      "roll": 0,
+      "distance": 950,
+      "fov": 0.5934119456780721
+    },
+    "background": [
+      240,
+      240,
+      240
+    ]
+  },
+  "lighting": {
+    "environment": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "area_lights": [
+      {
+        "center": [
+          -392.0,
+          -364.0,
+          784.0
+        ],
+        "u": [
+          308.0,
+          0.0,
+          0.0
+        ],
+        "v": [
+          0.0,
+          -196.0,
+          0.0
+        ],
+        "radiance": [
+          8,
+          8,
+          8
+        ]
+      },
+      {
+        "center": [
+          784,
+          -448,
+          504
+        ],
+        "u": [
+          0.0,
+          -168.0,
+          0.0
+        ],
+        "v": [
+          0.0,
+          0.0,
+          251.99999999999997
+        ],
+        "radiance": [
+          6,
+          6,
+          6
+        ]
+      },
+      {
+        "center": [
+          0.0,
+          475.99999999999994,
+          700.0
+        ],
+        "u": [
+          196.0,
+          0.0,
+          0.0
+        ],
+        "v": [
+          0.0,
+          0.0,
+          182.0
+        ],
+        "radiance": [
+          10,
+          10,
+          10
+        ]
+      }
+    ]
+  },
+  "raytrace": {
+    "clear_coats": [
+      {
+        "body_index": 1,
+        "body_name": "Housing plinth",
+        "weight": 1,
+        "roughness": 0.12,
+        "ior": 1.5
+      },
+      {
+        "body_index": 2,
+        "body_name": "Housing shell",
+        "weight": 1,
+        "roughness": 0.12,
+        "ior": 1.5
+      },
+      {
+        "body_index": 3,
+        "body_name": "Housing upper shoulder",
+        "weight": 1,
+        "roughness": 0.12,
+        "ior": 1.5
+      },
+      {
+        "body_index": 5,
+        "body_name": "Open brewing head",
+        "weight": 1,
+        "roughness": 0.12,
+        "ior": 1.5
+      },
+      {
+        "body_index": 6,
+        "body_name": "Brewing head roof",
+        "weight": 1,
+        "roughness": 0.12,
+        "ior": 1.5
+      },
+      {
+        "body_index": 16,
+        "body_name": "Drip tray",
+        "weight": 1,
+        "roughness": 0.12,
+        "ior": 1.5
+      },
+      {
+        "body_index": 18,
+        "body_name": "Rounded tray cap",
+        "weight": 1,
+        "roughness": 0.12,
+        "ior": 1.5
+      }
+    ],
+    "dielectrics": [
+      {
+        "body_index": 12,
+        "body_name": "Smoky D tank",
+        "ior": 1.586,
+        "absorption_per_mm": [
+          0.045,
+          0.075,
+          0.12
+        ],
+        "boundary": "closed_mesh",
+        "thickness_mm": 0
+      },
+      {
+        "body_index": 15,
+        "body_name": "Clear ribbed bin",
+        "ior": 1.49,
+        "absorption_per_mm": [
+          0.0004,
+          0.00015,
+          5e-05
+        ],
+        "boundary": "closed_mesh",
+        "thickness_mm": 0
+      }
+    ]
+  }
+}

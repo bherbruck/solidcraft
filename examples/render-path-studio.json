@@ -1,0 +1,18 @@
+{
+  "commands": [
+    {"command":"file.new","params":{"name":"Original opaque enclosure"}},
+    {"command":"solid.box","params":{"body_name":"Base","corner":[-48,-32,0],"length":96,"width":64,"height":4}},
+    {"command":"solid.box","params":{"body_name":"Left wall","corner":[-48,-32,4],"length":4,"width":64,"height":14}},
+    {"command":"solid.box","params":{"body_name":"Right wall","corner":[44,-32,4],"length":4,"width":64,"height":14}},
+    {"command":"solid.box","params":{"body_name":"Back wall","corner":[-44,28,4],"length":88,"width":4,"height":14}},
+    {"command":"solid.box","params":{"body_name":"Front wall","corner":[-44,-32,4],"length":88,"width":4,"height":14}},
+    {"command":"solid.box","params":{"body_name":"Teal insert","corner":[-33,-19,4],"length":66,"width":38,"height":10}},
+    {"command":"solid.cylinder","params":{"body_name":"Fastener A","base":[-39,-23,4],"radius":3,"height":11}},
+    {"command":"solid.cylinder","params":{"body_name":"Fastener B","base":[39,-23,4],"radius":3,"height":11}},
+    {"command":"solid.cylinder","params":{"body_name":"Fastener C","base":[-39,23,4],"radius":3,"height":11}},
+    {"command":"solid.cylinder","params":{"body_name":"Fastener D","base":[39,23,4],"radius":3,"height":11}},
+    {"command":"appearance.assign","params":{"bodies":["Base","Left wall","Right wall","Back wall","Front wall"],"color":"#c5c9d2","pbr":{"metallic":0,"roughness":0.6,"dielectric_ior":1.5}}},
+    {"command":"appearance.assign","params":{"bodies":["Teal insert"],"color":"#218e9b","pbr":{"metallic":0,"roughness":0.35,"dielectric_ior":1.5}}},
+    {"command":"appearance.assign","params":{"bodies":["Fastener A","Fastener B","Fastener C","Fastener D"],"color":"#d2d4d8","pbr":{"metallic":1,"roughness":0.25,"dielectric_ior":1.5}}}
+  ]
+}

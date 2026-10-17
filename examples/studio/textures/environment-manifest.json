@@ -1,0 +1,29 @@
+{
+  "author": "SolidCraft contributors; original mathematical sky gradient",
+  "license": "MIT OR Apache-2.0",
+  "no_external_images": true,
+  "width": 512,
+  "height": 256,
+  "color_space": "linear sRGB / D65",
+  "sun_baked_in": false,
+  "bytes": 11428,
+  "sha256": "a078163c28d0e56b0e91784e8193ac00a792cac15c382f5d676b4d82b27ed72e",
+  "gradient": {
+    "zenith": [
+      0.16,
+      0.32,
+      0.7
+    ],
+    "horizon": [
+      0.8,
+      0.9,
+      1.0
+    ],
+    "ground": [
+      0.12,
+      0.1,
+      0.08
+    ]
+  },
+  "encoding": "Radiance RGBE -Y +X; quantized texel-centre gradient"
+}

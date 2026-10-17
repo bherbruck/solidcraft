@@ -1,0 +1,419 @@
+{
+  "progressive": true,
+  "samples": 2048,
+  "max_depth": 16,
+  "seed": 1948,
+  "tone_map": "aces_fitted",
+  "settings": {
+    "width": 1920,
+    "height": 1080,
+    "camera": {
+      "target": [
+        -8,
+        -8,
+        537
+      ],
+      "yaw": -0.17453292519943295,
+      "pitch": 0.2617993877991494,
+      "roll": 0,
+      "distance": 670,
+      "fov": 0.6981317007977318
+    },
+    "background": [
+      218,
+      222,
+      226
+    ]
+  },
+  "lens": {
+    "aperture_radius_mm": 5.5,
+    "focus_distance_mm": 670
+  },
+  "lighting": {
+    "environment": [
+      0,
+      0,
+      0
+    ],
+    "area_lights": [],
+    "sun": {
+      "direction": [
+        -0.4,
+        1,
+        0.4
+      ],
+      "angular_radius_rad": 0.00465,
+      "radiance": [
+        18000,
+        16500,
+        14000
+      ]
+    }
+  },
+  "raytrace": {
+    "dielectrics": [
+      {
+        "body_index": 8,
+        "body_name": "Tall thick tumbler",
+        "ior": 1.52,
+        "absorption_per_mm": [
+          0.0008,
+          0.00025,
+          0.00012
+        ],
+        "boundary": "closed_mesh",
+        "thickness_mm": 0,
+        "shadow_transmission": false
+      },
+      {
+        "body_index": 9,
+        "body_name": "Short thick tumbler",
+        "ior": 1.52,
+        "absorption_per_mm": [
+          0.0008,
+          0.00025,
+          0.00012
+        ],
+        "boundary": "closed_mesh",
+        "thickness_mm": 0,
+        "shadow_transmission": false
+      }
+    ],
+    "textures": [
+      {
+        "body_index": 3,
+        "body_name": "Walnut tabletop",
+        "frame": {
+          "origin": [
+            0,
+            0,
+            480
+          ],
+          "u": [
+            900,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            90,
+            0
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/walnut-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/walnut-normal-opengl.png",
+        "normal_strength": 0.65
+      },
+      {
+        "body_index": 10,
+        "body_name": "Sofa plinth",
+        "frame": {
+          "origin": [
+            0,
+            740,
+            165
+          ],
+          "u": [
+            24,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            -24
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 11,
+        "body_name": "Sofa back",
+        "frame": {
+          "origin": [
+            0,
+            1270,
+            490
+          ],
+          "u": [
+            24,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            -24
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 12,
+        "body_name": "Left sofa arm",
+        "frame": {
+          "origin": [
+            -760,
+            725,
+            407.5
+          ],
+          "u": [
+            24,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            -24
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 13,
+        "body_name": "Right sofa arm",
+        "frame": {
+          "origin": [
+            760,
+            725,
+            407.5
+          ],
+          "u": [
+            24,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            -24
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 15,
+        "body_name": "Back cushion 1",
+        "frame": {
+          "origin": [
+            -460,
+            1140,
+            545
+          ],
+          "u": [
+            24,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            -24
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 17,
+        "body_name": "Back cushion 2",
+        "frame": {
+          "origin": [
+            0,
+            1140,
+            545
+          ],
+          "u": [
+            24,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            -24
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 19,
+        "body_name": "Back cushion 3",
+        "frame": {
+          "origin": [
+            460,
+            1140,
+            545
+          ],
+          "u": [
+            24,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            -24
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 14,
+        "body_name": "Seat cushion 1",
+        "frame": {
+          "origin": [
+            -460,
+            1020,
+            360
+          ],
+          "u": [
+            24,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            24,
+            0
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 16,
+        "body_name": "Seat cushion 2",
+        "frame": {
+          "origin": [
+            0,
+            1020,
+            360
+          ],
+          "u": [
+            24,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            24,
+            0
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 18,
+        "body_name": "Seat cushion 3",
+        "frame": {
+          "origin": [
+            460,
+            1020,
+            360
+          ],
+          "u": [
+            24,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            24,
+            0
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 20,
+        "body_name": "Ochre throw cushion",
+        "frame": {
+          "origin": [
+            -540.0861,
+            1028.1813,
+            560
+          ],
+          "u": [
+            22.82536,
+            -7.41641,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            -24
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      },
+      {
+        "body_index": 21,
+        "body_name": "Taupe throw cushion",
+        "frame": {
+          "origin": [
+            547.9164,
+            1052.517,
+            545
+          ],
+          "u": [
+            23.07028,
+            6.6153,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            -24
+          ]
+        },
+        "base_color_srgb": "examples/studio/textures/linen-base-srgb.png",
+        "normal_opengl": "examples/studio/textures/linen-normal-opengl.png",
+        "normal_strength": 0.55
+      }
+    ]
+  },
+  "environment": {
+    "kind": "sky",
+    "gradient": {
+      "zenith": [
+        0.16,
+        0.32,
+        0.7
+      ],
+      "horizon": [
+        0.8,
+        0.9,
+        1
+      ],
+      "ground": [
+        0.12,
+        0.1,
+        0.08
+      ]
+    },
+    "intensity": 1,
+    "rotation_rad": 0
+  }
+}

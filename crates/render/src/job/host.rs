@@ -1,4 +1,4 @@
-//! Caller-owned CPU execution host. One worker, two bounded queued inputs; browser pumping
+//! Caller-owned image execution host. One worker, two bounded queued inputs; browser pumping
 //! uses the same incremental task without threads. Shared ownership never includes CAD state.
 
 use std::collections::VecDeque;
@@ -12,8 +12,8 @@ use std::sync::{
 use serde::Serialize;
 
 use super::{
-    Admission, AlphaConvention, CancelToken, ColourEncoding, ErrorCode, FrameInfo, ImageRequest, ImageTask, JobError, JobId, Phase, Progress, Result,
-    TaskPoll, admit,
+    Admission, AlphaConvention, CancelToken, ColourEncoding, ErrorCode, FrameInfo, ImageExecutor, ImageRequest, ImageTask, ImageWork, JobError,
+    JobId, JobOptions, Phase, Progress, Result, TaskPoll, admit,
 };
 use crate::{
     Availability, ExecutorDescriptor, ExecutorId, ProductScene, RenderFormat, RenderLimits, RenderMode, RenderOperation, RenderProfile, ScratchLayout,
@@ -48,7 +48,7 @@ impl Budget {
             let next = used
                 .checked_add(bytes)
                 .filter(|n| *n <= MEMORY_LIMIT)
-                .ok_or_else(|| JobError::new(ErrorCode::LimitExceeded, "CPU image host's 512 MiB admission pool is full"))?;
+                .ok_or_else(|| JobError::new(ErrorCode::LimitExceeded, "image host's 512 MiB admission pool is full"))?;
             match self.used.compare_exchange_weak(used, next, Ordering::AcqRel, Ordering::Acquire) {
                 Ok(_) => break,
                 Err(current) => used = current,
@@ -90,7 +90,10 @@ pub struct JobStatus {
     pub job: JobId,
     pub scene_generation: u64,
     pub request: ImageRequest,
+    pub environment: Option<crate::lighting::environment::EnvironmentInfo>,
     pub resolved: crate::ResolvedRequest,
+    pub options: JobOptions,
+    pub textures: Option<super::textures::TextureSummary>,
     pub progress: Progress,
     pub error: Option<JobError>,
     pub frame: Option<FrameInfo>,
@@ -102,11 +105,14 @@ struct Data {
     frame: Option<Arc<RenderFrame>>,
 }
 struct Record {
+    textures: Option<super::textures::TextureSummary>,
     id: JobId,
     scene_generation: u64,
     request: ImageRequest,
+    environment: Option<crate::lighting::environment::EnvironmentInfo>,
     resolved: crate::ResolvedRequest,
     cancel: CancelToken,
+    options: JobOptions,
     data: Mutex<Data>,
     #[cfg(not(target_arch = "wasm32"))]
     done: Condvar,
@@ -132,7 +138,10 @@ impl JobHandle {
             job: self.0.id,
             scene_generation: self.0.scene_generation,
             request: self.0.request.clone(),
+            environment: self.0.environment.clone(),
             resolved: self.0.resolved.clone(),
+            options: self.0.options,
+            textures: self.0.textures.clone(),
             progress: data.progress,
             error: data.error.clone(),
             frame: data.frame.as_ref().map(|f| f.info.clone()),
@@ -176,12 +185,16 @@ impl JobHandle {
 }
 
 struct Work {
+    request: ImageRequest,
+    executor: Arc<dyn ImageExecutor>,
     scene: ProductScene,
     handle: JobHandle,
     reservation: Reservation,
 }
 struct Running {
-    task: ImageTask,
+    /// Taken and dropped as the frame completes, before the reservation shrinks to the PNG: the
+    /// task owns its scratch (pixels, device buffers), which the full reservation pays for.
+    task: Option<Box<dyn ImageWork>>,
     handle: JobHandle,
     reservation: Option<Reservation>,
 }
@@ -214,9 +227,12 @@ impl Running {
         {
             data.progress.phase = Phase::Preparing;
         }
-        let task = ImageTask::new(work.scene, work.handle.0.request.clone(), work.handle.0.cancel.clone());
+        let task = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            work.executor.begin(work.scene, work.request, work.handle.0.options, work.handle.0.cancel.clone())
+        }))
+        .unwrap_or_else(|_| Err(JobError::new(ErrorCode::Internal, "image executor failed while preparing the job")));
         match task {
-            Ok(task) => Some(Self { task, handle: work.handle, reservation: Some(work.reservation) }),
+            Ok(task) => Some(Self { task: Some(task), handle: work.handle, reservation: Some(work.reservation) }),
             Err(e) => {
                 terminal(&work.handle, e);
                 None
@@ -225,7 +241,8 @@ impl Running {
     }
 
     fn advance(&mut self, units: usize) -> Result<bool> {
-        let result = self.task.step(units)?;
+        let task = self.task.as_mut().ok_or_else(|| JobError::new(ErrorCode::Internal, "render task already finished"))?;
+        let result = task.step(units)?;
         let mut data = self.handle.0.data.lock().map_err(|_| JobError::new(ErrorCode::Internal, "render status lock poisoned"))?;
         // The final publication check is under the same lock as cancellation.
         if self.handle.0.cancel.is_cancelled() {
@@ -240,6 +257,8 @@ impl Running {
                 Ok(true)
             }
             TaskPoll::Complete(png) => {
+                // The task's scratch goes before its charge does (still under the publication lock).
+                drop(self.task.take());
                 let mut reservation = self.reservation.take().ok_or_else(|| JobError::new(ErrorCode::Internal, "missing render reservation"))?;
                 reservation.shrink(png.capacity() as u64 + 1024)?;
                 let info = FrameInfo {
@@ -269,7 +288,7 @@ impl Running {
                 false
             }
             Err(_) => {
-                terminal(&self.handle, JobError::new(ErrorCode::Internal, "CPU image host encountered an internal error"));
+                terminal(&self.handle, JobError::new(ErrorCode::Internal, "image host encountered an internal error"));
                 false
             }
         }
@@ -286,6 +305,7 @@ struct Shared {
 }
 
 struct Owner {
+    executor: Arc<dyn ImageExecutor>,
     shared: Arc<Shared>,
     kind: HostKind,
     running: Mutex<Option<Running>>,
@@ -320,9 +340,12 @@ impl Drop for Owner {
 }
 
 #[derive(Clone)]
-pub struct CpuHost(Arc<Owner>);
+pub struct ImageHost(Arc<Owner>);
 
-impl CpuHost {
+/// Backwards-compatible CPU host constructors. Additional executors use `ImageHost::with_executor`.
+pub type CpuHost = ImageHost;
+
+impl ImageHost {
     fn shared() -> Arc<Shared> {
         Arc::new(Shared {
             queue: Mutex::new(VecDeque::new()),
@@ -335,7 +358,13 @@ impl CpuHost {
     }
 
     pub fn cooperative() -> Self {
+        Self::cooperative_with(Arc::new(CpuExecutor))
+    }
+
+    /// A cooperative host over `executor` (pumped by its caller).
+    fn cooperative_with(executor: Arc<dyn ImageExecutor>) -> Self {
         Self(Arc::new(Owner {
+            executor,
             shared: Self::shared(),
             kind: HostKind::Cooperative,
             running: Mutex::new(None),
@@ -351,14 +380,29 @@ impl CpuHost {
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let shared = Self::shared();
-            let worker_shared = shared.clone();
-            let worker = std::thread::Builder::new()
-                .name("solidcraft-render".into())
-                .spawn(move || native_worker(worker_shared))
-                .map_err(|e| JobError::new(ErrorCode::HostUnavailable, format!("could not start CPU image worker: {e}")))?;
-            Ok(Self(Arc::new(Owner { shared, kind: HostKind::NativeWorker, running: Mutex::new(None), _worker: Some(worker) })))
+            Self::with_executor(Arc::new(CpuExecutor))
         }
+    }
+
+    /// Start an isolated bounded native worker. GPU discovery occurs before registration.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_executor(executor: Arc<dyn ImageExecutor>) -> Result<Self> {
+        let descriptor = executor.descriptor()?;
+        if descriptor.profiles.len() != 1
+            || descriptor
+                .profiles
+                .iter()
+                .any(|p| p.mode != RenderMode::Preview || p.operation != RenderOperation::Image || p.formats != [RenderFormat::Png])
+        {
+            return Err(JobError::new(ErrorCode::InvalidRequest, "image worker currently accepts one Preview/Image/PNG profile"));
+        }
+        let shared = Self::shared();
+        let worker_shared = shared.clone();
+        let worker = std::thread::Builder::new()
+            .name("solidcraft-render".into())
+            .spawn(move || native_worker(worker_shared))
+            .map_err(|e| JobError::new(ErrorCode::HostUnavailable, format!("could not start image worker: {e}")))?;
+        Ok(Self(Arc::new(Owner { executor, shared, kind: HostKind::NativeWorker, running: Mutex::new(None), _worker: Some(worker) })))
     }
 
     pub fn kind(&self) -> HostKind {
@@ -376,31 +420,38 @@ impl CpuHost {
     }
 
     pub fn descriptor(&self) -> Result<ExecutorDescriptor> {
-        Ok(ExecutorDescriptor {
-            id: ExecutorId::new("cpu-product").map_err(|e| JobError::new(ErrorCode::Internal, e.to_string()))?,
-            availability: if self.0.shared.stop.load(Ordering::Acquire) {
-                Availability::Unavailable { reason: "CPU image host has stopped".into() }
-            } else {
-                Availability::Available
-            },
-            profiles: vec![RenderProfile {
-                mode: RenderMode::Preview,
-                operation: RenderOperation::Image,
-                formats: vec![RenderFormat::Png],
-                features: vec![crate::RenderFeature::Pbr],
-            }],
-            limits: RenderLimits::default(),
-            scratch: ScratchLayout { sample_scale: 2, sample_bytes_per_pixel: 8, output_bytes_per_pixel: 8, encoding_bytes_per_pixel: 8 },
-        })
+        let mut descriptor = self.0.executor.descriptor()?;
+        if !self.is_available() {
+            descriptor.availability = Availability::Unavailable { reason: "image host has stopped".into() };
+        }
+        Ok(descriptor)
+    }
+
+    pub fn admit(&self, scene: &ProductScene, request: &ImageRequest, options: JobOptions) -> Result<Admission> {
+        options.validate()?;
+        self.0.executor.admit(scene, request, options)
     }
 
     pub fn submit(&self, id: JobId, scene_generation: u64, scene: ProductScene, request: ImageRequest) -> Result<JobHandle> {
+        self.submit_with_options(id, scene_generation, scene, request, JobOptions::default())
+    }
+
+    pub fn submit_with_options(
+        &self,
+        id: JobId,
+        scene_generation: u64,
+        scene: ProductScene,
+        request: ImageRequest,
+        options: JobOptions,
+    ) -> Result<JobHandle> {
         if id.session == 0 || id.serial == 0 || id.generation == 0 {
             return Err(JobError::new(ErrorCode::InvalidRequest, "invalid render job identity"));
         }
-        let Admission { estimated_total_bytes, .. } = admit(&scene, &request)?;
+        let Admission { estimated_total_bytes, .. } = self.admit(&scene, &request, options)?;
         let mut backend = crate::builtin_backend();
-        backend.executors.push(self.descriptor()?);
+        let descriptor = self.descriptor()?;
+        let executor = descriptor.id.clone();
+        backend.executors = vec![descriptor];
         let resolved = crate::resolve_request(
             &[backend],
             &crate::RenderRequest {
@@ -415,29 +466,37 @@ impl CpuHost {
             },
         )
         .map_err(|e| JobError::new(ErrorCode::HostUnavailable, e.to_string()))?;
-        if resolved.executor.as_str() != "cpu-product" {
-            return Err(JobError::new(ErrorCode::HostUnavailable, "CPU product executor is unavailable"));
+        if resolved.executor != executor {
+            return Err(JobError::new(ErrorCode::HostUnavailable, "image executor is unavailable"));
         }
         let mut queue = self.0.shared.queue.lock().map_err(|_| JobError::new(ErrorCode::HostUnavailable, "render queue lock poisoned"))?;
         if self.0.shared.stop.load(Ordering::Acquire) {
-            return Err(JobError::new(ErrorCode::HostUnavailable, "CPU image host has stopped"));
+            return Err(JobError::new(ErrorCode::HostUnavailable, "image host has stopped"));
         }
         queue.retain(|work| !work.handle.0.cancel.is_cancelled());
         if queue.len() >= QUEUE_LIMIT {
-            return Err(JobError::new(ErrorCode::QueueFull, "CPU image queue is full"));
+            return Err(JobError::new(ErrorCode::QueueFull, "image queue is full"));
         }
         let reservation = self.0.shared.budget.reserve(estimated_total_bytes)?;
+        // Keep large captured sources in admitted work only. Status/retained frames
+        // must not keep resource bytes alive after the reservation is shrunk.
+        let environment = request.environment.as_ref().map(|source| source.info().clone());
+        let public_request = ImageRequest { textures: None, environment: None, ..request.clone() };
+        let textures = request.textures.as_ref().map(|t| t.summary());
         let handle = JobHandle(Arc::new(Record {
+            textures,
             id,
             scene_generation,
-            request,
+            request: public_request,
+            environment,
             resolved,
             cancel: CancelToken::default(),
+            options,
             data: Mutex::new(Data { progress: Progress { phase: Phase::Queued, done: 0, total: 1 }, error: None, frame: None }),
             #[cfg(not(target_arch = "wasm32"))]
             done: Condvar::new(),
         }));
-        queue.push_back(Work { scene, handle: handle.clone(), reservation });
+        queue.push_back(Work { request, executor: self.0.executor.clone(), scene, handle: handle.clone(), reservation });
         drop(queue);
         #[cfg(not(target_arch = "wasm32"))]
         self.0.shared.wake.notify_one();
@@ -512,5 +571,33 @@ fn native_worker(shared: Arc<Shared>) {
         if let Ok(mut active) = shared.active.lock() {
             *active = None;
         }
+    }
+}
+
+struct CpuExecutor;
+impl ImageExecutor for CpuExecutor {
+    fn descriptor(&self) -> Result<ExecutorDescriptor> {
+        Ok(ExecutorDescriptor {
+            id: ExecutorId::new("cpu-product").map_err(|e| JobError::new(ErrorCode::Internal, e.to_string()))?,
+            availability: Availability::Available,
+            profiles: vec![RenderProfile {
+                mode: RenderMode::Preview,
+                operation: RenderOperation::Image,
+                formats: vec![RenderFormat::Png],
+                features: vec![crate::RenderFeature::Pbr],
+            }],
+            limits: RenderLimits::default(),
+            scratch: ScratchLayout { sample_scale: 2, sample_bytes_per_pixel: 8, output_bytes_per_pixel: 8, encoding_bytes_per_pixel: 8 },
+        })
+    }
+
+    fn admit(&self, scene: &ProductScene, request: &ImageRequest, options: JobOptions) -> Result<Admission> {
+        if options != JobOptions::default() {
+            return Err(JobError::new(ErrorCode::InvalidRequest, "CPU product does not support sampling or exposure controls"));
+        }
+        admit(scene, request)
+    }
+    fn begin(&self, scene: ProductScene, request: ImageRequest, _options: JobOptions, cancel: CancelToken) -> Result<Box<dyn ImageWork>> {
+        Ok(Box::new(ImageTask::new(scene, request, cancel)?))
     }
 }

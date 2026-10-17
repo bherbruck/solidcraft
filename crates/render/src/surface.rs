@@ -16,12 +16,14 @@ pub struct OpaqueSurface {
     metallic: f64,
     roughness: f64,
     dielectric_ior: f64,
+    clear_coat: Option<crate::clear_coat::ClearCoat>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SurfaceError {
     BaseColor,
     Metallic,
+    CoatWeight,
     Roughness,
     DielectricIor,
     Direction,
@@ -32,6 +34,7 @@ impl std::fmt::Display for SurfaceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::BaseColor => "linear base color channels must be finite and in [0, 1]",
+            Self::CoatWeight => "clear-coat weight must be finite and in [0, 1]",
             Self::Metallic => "metallic fraction must be finite and in [0, 1]",
             Self::Roughness => "perceptual roughness must be finite and in [0.045, 1]",
             Self::DielectricIor => "dielectric IOR must be finite and in [1, 3]",
@@ -58,7 +61,16 @@ impl OpaqueSurface {
         if !dielectric_ior.is_finite() || !(1.0..=3.0).contains(&dielectric_ior) {
             return Err(SurfaceError::DielectricIor);
         }
-        Ok(Self { base_color, metallic, roughness, dielectric_ior })
+        Ok(Self { base_color, metallic, roughness, dielectric_ior, clear_coat: None })
+    }
+
+    /// Runtime optical layer; never serialized into a document appearance.
+    pub fn with_clear_coat(mut self, coat: crate::clear_coat::ClearCoat) -> Self {
+        self.clear_coat = if coat.weight() == 0.0 { None } else { Some(coat) };
+        self
+    }
+    pub fn clear_coat(self) -> Option<crate::clear_coat::ClearCoat> {
+        self.clear_coat
     }
 
     pub fn base_color(self) -> Vec3 {
@@ -110,11 +122,12 @@ impl OpaqueSurface {
         let fv = fresnel(nv);
         let fl = fresnel(nl);
         let diffuse = self.base_color * ((1.0 - self.metallic) / PI);
-        Ok(Vec3::new(
+        let base = Vec3::new(
             f.x * specular + (1.0 - fv.x) * (1.0 - fl.x) * diffuse.x,
             f.y * specular + (1.0 - fv.y) * (1.0 - fl.y) * diffuse.y,
             f.z * specular + (1.0 - fv.z) * (1.0 - fl.z) * diffuse.z,
-        ))
+        );
+        Ok(self.clear_coat.map_or(base, |coat| coat.layer(base, nv, nl, nh, vh)))
     }
 }
 

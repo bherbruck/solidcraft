@@ -4149,9 +4149,11 @@ dependencies = [
 name = "solidcraft-gpu"
 version = "0.15.0"
 dependencies = [
+ "image",
  "log",
  "naga",
  "pollster 0.4.0",
+ "robust",
  "serde",
  "serde_json",
  "solidcraft-engine",

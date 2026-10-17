@@ -1,0 +1,3797 @@
+{
+  "commands": [
+    {
+      "command": "file.new",
+      "params": {
+        "name": "Original exploded bench coffee machine"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Studio floor",
+        "corner": [
+          -6000,
+          -6000,
+          -5
+        ],
+        "length": 12000,
+        "width": 12000,
+        "height": 5,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Housing plinth profile",
+        "plane": {
+          "origin": [
+            0,
+            8,
+            30
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -70.0,
+          -65.0
+        ],
+        "p1": [
+          70.0,
+          65.0
+        ],
+        "radius": 24
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 12,
+        "operation": "new",
+        "body_name": "Housing plinth"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Housing shell profile",
+        "plane": {
+          "origin": [
+            0,
+            8,
+            55
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -65.0,
+          -58.0
+        ],
+        "p1": [
+          65.0,
+          58.0
+        ],
+        "radius": 23
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -60.0,
+          -53.0
+        ],
+        "p1": [
+          60.0,
+          53.0
+        ],
+        "radius": 18
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 210,
+        "operation": "new",
+        "body_name": "Housing shell",
+        "profiles": [
+          {
+            "point": [
+              -62.5,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "corner": [
+          -46,
+          -60,
+          88
+        ],
+        "length": 92,
+        "width": 35,
+        "height": 149,
+        "operation": "cut",
+        "targets": [
+          "Housing shell"
+        ],
+        "name": "Open brewing bay"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Housing upper shoulder profile",
+        "plane": {
+          "origin": [
+            0,
+            8,
+            265
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -65.0,
+          -58.0
+        ],
+        "p1": [
+          65.0,
+          58.0
+        ],
+        "radius": 23
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 8,
+        "operation": "new",
+        "body_name": "Housing upper shoulder"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Internal chassis",
+        "corner": [
+          -42,
+          38,
+          63
+        ],
+        "length": 84,
+        "width": 5,
+        "height": 189,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Open brewing head",
+        "base": [
+          0,
+          -76,
+          307
+        ],
+        "radius": 43,
+        "height": 95,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          0,
+          -77,
+          307
+        ],
+        "radius": 31,
+        "height": 97,
+        "axis": "Y",
+        "operation": "cut",
+        "targets": [
+          "Open brewing head"
+        ],
+        "name": "Horizontal open brew bore"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Brewing head roof profile",
+        "plane": {
+          "origin": [
+            0,
+            -6,
+            352
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -57.5,
+          -51.5
+        ],
+        "p1": [
+          57.5,
+          51.5
+        ],
+        "radius": 25
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 7,
+        "operation": "new",
+        "body_name": "Brewing head roof"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "corner": [
+          -18,
+          -9,
+          351
+        ],
+        "length": 36,
+        "width": 7,
+        "height": 9,
+        "operation": "cut",
+        "targets": [
+          "Brewing head roof"
+        ],
+        "name": "Capsule loading slot"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Brewing collar",
+        "base": [
+          0,
+          -88,
+          307
+        ],
+        "radius": 35,
+        "height": 9,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          0,
+          -89,
+          307
+        ],
+        "radius": 28,
+        "height": 11,
+        "axis": "Y",
+        "operation": "cut",
+        "targets": [
+          "Brewing collar"
+        ],
+        "name": "Open brew throat"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Shower screen",
+        "base": [
+          0,
+          10,
+          307
+        ],
+        "radius": 27,
+        "height": 2,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          -10,
+          9,
+          300
+        ],
+        "radius": 1.6,
+        "height": 4,
+        "axis": "Y",
+        "operation": "cut",
+        "targets": [
+          "Shower screen"
+        ],
+        "name": "Shower aperture"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          0,
+          9,
+          300
+        ],
+        "radius": 1.6,
+        "height": 4,
+        "axis": "Y",
+        "operation": "cut",
+        "targets": [
+          "Shower screen"
+        ],
+        "name": "Shower aperture"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          10,
+          9,
+          300
+        ],
+        "radius": 1.6,
+        "height": 4,
+        "axis": "Y",
+        "operation": "cut",
+        "targets": [
+          "Shower screen"
+        ],
+        "name": "Shower aperture"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          -10,
+          9,
+          314
+        ],
+        "radius": 1.6,
+        "height": 4,
+        "axis": "Y",
+        "operation": "cut",
+        "targets": [
+          "Shower screen"
+        ],
+        "name": "Shower aperture"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          0,
+          9,
+          314
+        ],
+        "radius": 1.6,
+        "height": 4,
+        "axis": "Y",
+        "operation": "cut",
+        "targets": [
+          "Shower screen"
+        ],
+        "name": "Shower aperture"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          10,
+          9,
+          314
+        ],
+        "radius": 1.6,
+        "height": 4,
+        "axis": "Y",
+        "operation": "cut",
+        "targets": [
+          "Shower screen"
+        ],
+        "name": "Shower aperture"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Lever centerline profile",
+        "plane": {
+          "origin": [
+            0,
+            -28,
+            0
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            -77,
+            306
+          ],
+          [
+            -77,
+            365
+          ]
+        ],
+        "ids": [
+          "lever_left"
+        ],
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.arc.three_point",
+      "params": {
+        "start": [
+          -77,
+          365
+        ],
+        "through": [
+          -72.6066,
+          375.6066
+        ],
+        "end": [
+          -62,
+          380
+        ],
+        "id": "lever_bend_left"
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            -62,
+            380
+          ],
+          [
+            62,
+            380
+          ]
+        ],
+        "ids": [
+          "lever_top"
+        ],
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.arc.three_point",
+      "params": {
+        "start": [
+          62,
+          380
+        ],
+        "through": [
+          72.6066,
+          375.6066
+        ],
+        "end": [
+          77,
+          365
+        ],
+        "id": "lever_bend_right"
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            77,
+            365
+          ],
+          [
+            77,
+            306
+          ]
+        ],
+        "ids": [
+          "lever_right"
+        ],
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.pipe",
+      "params": {
+        "path_sketch": "Lever centerline profile",
+        "path": [
+          "lever_left",
+          "lever_bend_left",
+          "lever_top",
+          "lever_bend_right",
+          "lever_right"
+        ],
+        "diameter": 9,
+        "operation": "new",
+        "body_name": "Bent chrome lever"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Left lever ball",
+        "center": [
+          -77,
+          -28,
+          306
+        ],
+        "radius": 8,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Right lever ball",
+        "center": [
+          77,
+          -28,
+          306
+        ],
+        "radius": 8,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Smoky D tank profile",
+        "plane": {
+          "origin": [
+            225,
+            35,
+            99
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            -43,
+            0
+          ],
+          [
+            -43,
+            45
+          ],
+          [
+            43,
+            45
+          ],
+          [
+            43,
+            0
+          ],
+          [
+            42.948204616822416,
+            -2.1099099960789744
+          ],
+          [
+            42.79294324690447,
+            -4.214737034171106
+          ],
+          [
+            42.53458992848558,
+            -6.309410401580555
+          ],
+          [
+            42.17376705733891,
+            -8.388883846693515
+          ],
+          [
+            41.71134388736539,
+            -10.448147735840346
+          ],
+          [
+            41.148434436484976,
+            -12.48224112194188
+          ],
+          [
+            40.486394802869896,
+            -14.486263695865462
+          ],
+          [
+            39.72681989798533,
+            -16.455387591698862
+          ],
+          [
+            38.87153960430806,
+            -18.38486901750213
+          ],
+          [
+            37.92261436697927,
+            -20.2700596835179
+          ],
+          [
+            36.8823302300117,
+            -22.10641800030853
+          ],
+          [
+            35.75319332900945,
+            -23.889520019842895
+          ],
+          [
+            34.537923853667735,
+            -25.615070093174634
+          ],
+          [
+            33.23944949459769,
+            -27.278911219036758
+          ],
+          [
+            31.860898390263245,
+            -28.87703505842179
+          ],
+          [
+            30.405591591021544,
+            -30.405591591021544
+          ],
+          [
+            28.87703505842179,
+            -31.86089839026324
+          ],
+          [
+            27.278911219036758,
+            -33.239449494597686
+          ],
+          [
+            25.61507009317464,
+            -34.53792385366773
+          ],
+          [
+            23.889520019842898,
+            -35.75319332900945
+          ],
+          [
+            22.10641800030853,
+            -36.8823302300117
+          ],
+          [
+            20.270059683517907,
+            -37.92261436697926
+          ],
+          [
+            18.384869017502133,
+            -38.87153960430806
+          ],
+          [
+            16.455387591698862,
+            -39.72681989798533
+          ],
+          [
+            14.486263695865462,
+            -40.486394802869896
+          ],
+          [
+            12.48224112194188,
+            -41.14843443648498
+          ],
+          [
+            10.448147735840351,
+            -41.71134388736539
+          ],
+          [
+            8.388883846693519,
+            -42.17376705733891
+          ],
+          [
+            6.309410401580555,
+            -42.53458992848558
+          ],
+          [
+            4.2147370341711135,
+            -42.792943246904464
+          ],
+          [
+            2.1099099960789793,
+            -42.948204616822416
+          ],
+          [
+            2.6329906181668092e-15,
+            -43.0
+          ],
+          [
+            -2.1099099960789744,
+            -42.948204616822416
+          ],
+          [
+            -4.214737034171108,
+            -42.79294324690447
+          ],
+          [
+            -6.309410401580551,
+            -42.53458992848558
+          ],
+          [
+            -8.388883846693512,
+            -42.17376705733891
+          ],
+          [
+            -10.448147735840346,
+            -41.71134388736539
+          ],
+          [
+            -12.482241121941874,
+            -41.14843443648498
+          ],
+          [
+            -14.486263695865457,
+            -40.486394802869896
+          ],
+          [
+            -16.45538759169886,
+            -39.72681989798533
+          ],
+          [
+            -18.38486901750212,
+            -38.87153960430807
+          ],
+          [
+            -20.2700596835179,
+            -37.92261436697927
+          ],
+          [
+            -22.106418000308526,
+            -36.8823302300117
+          ],
+          [
+            -23.889520019842884,
+            -35.75319332900945
+          ],
+          [
+            -25.615070093174634,
+            -34.537923853667735
+          ],
+          [
+            -27.27891121903675,
+            -33.23944949459769
+          ],
+          [
+            -28.877035058421793,
+            -31.860898390263237
+          ],
+          [
+            -30.40559159102154,
+            -30.405591591021544
+          ],
+          [
+            -31.86089839026323,
+            -28.877035058421797
+          ],
+          [
+            -33.23944949459769,
+            -27.278911219036758
+          ],
+          [
+            -34.53792385366773,
+            -25.61507009317464
+          ],
+          [
+            -35.75319332900945,
+            -23.889520019842895
+          ],
+          [
+            -36.882330230011696,
+            -22.106418000308537
+          ],
+          [
+            -37.92261436697926,
+            -20.270059683517907
+          ],
+          [
+            -38.87153960430806,
+            -18.384869017502126
+          ],
+          [
+            -39.72681989798533,
+            -16.455387591698866
+          ],
+          [
+            -40.48639480286989,
+            -14.486263695865475
+          ],
+          [
+            -41.148434436484976,
+            -12.482241121941883
+          ],
+          [
+            -41.71134388736539,
+            -10.448147735840354
+          ],
+          [
+            -42.17376705733891,
+            -8.38888384669353
+          ],
+          [
+            -42.53458992848558,
+            -6.309410401580558
+          ],
+          [
+            -42.792943246904464,
+            -4.214737034171115
+          ],
+          [
+            -42.948204616822416,
+            -2.1099099960789727
+          ]
+        ],
+        "closed": true,
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 171,
+        "operation": "new",
+        "body_name": "Smoky D tank"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Tank cavity profile",
+        "plane": {
+          "origin": [
+            225,
+            35,
+            103
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            -40,
+            0
+          ],
+          [
+            -40,
+            42
+          ],
+          [
+            40,
+            42
+          ],
+          [
+            40,
+            0
+          ],
+          [
+            39.9518182482069,
+            -1.9627069730967206
+          ],
+          [
+            39.80738906688788,
+            -3.920685613182424
+          ],
+          [
+            39.56706039859124,
+            -5.8692189782144695
+          ],
+          [
+            39.23141121612922,
+            -7.8036128806451295
+          ],
+          [
+            38.801250127781756,
+            -9.719207196130554
+          ],
+          [
+            38.27761342928835,
+            -11.611387090178493
+          ],
+          [
+            37.66176260732083,
+            -13.475594135688802
+          ],
+          [
+            36.95518130045147,
+            -15.307337294603592
+          ],
+          [
+            36.159571724937734,
+            -17.102203737211283
+          ],
+          [
+            35.276850573934205,
+            -18.855869473039906
+          ],
+          [
+            34.30914440001089,
+            -20.564109767728866
+          ],
+          [
+            33.25878449210181,
+            -22.222809320784087
+          ],
+          [
+            32.1283012592258,
+            -23.827972179697333
+          ],
+          [
+            30.92041813450948,
+            -25.37573136654582
+          ],
+          [
+            29.63804501419837,
+            -26.862358193880734
+          ],
+          [
+            28.284271247461902,
+            -28.284271247461902
+          ],
+          [
+            26.862358193880734,
+            -29.638045014198365
+          ],
+          [
+            25.37573136654582,
+            -30.920418134509475
+          ],
+          [
+            23.82797217969734,
+            -32.12830125922579
+          ],
+          [
+            22.22280932078409,
+            -33.25878449210181
+          ],
+          [
+            20.564109767728866,
+            -34.30914440001089
+          ],
+          [
+            18.855869473039913,
+            -35.2768505739342
+          ],
+          [
+            17.102203737211287,
+            -36.159571724937734
+          ],
+          [
+            15.307337294603593,
+            -36.95518130045147
+          ],
+          [
+            13.475594135688802,
+            -37.66176260732083
+          ],
+          [
+            11.611387090178493,
+            -38.27761342928836
+          ],
+          [
+            9.71920719613056,
+            -38.801250127781756
+          ],
+          [
+            7.803612880645133,
+            -39.23141121612922
+          ],
+          [
+            5.8692189782144695,
+            -39.56706039859124
+          ],
+          [
+            3.920685613182431,
+            -39.80738906688787
+          ],
+          [
+            1.962706973096725,
+            -39.9518182482069
+          ],
+          [
+            2.4492935982947065e-15,
+            -40.0
+          ],
+          [
+            -1.9627069730967204,
+            -39.9518182482069
+          ],
+          [
+            -3.920685613182426,
+            -39.80738906688788
+          ],
+          [
+            -5.869218978214466,
+            -39.56706039859124
+          ],
+          [
+            -7.803612880645128,
+            -39.23141121612922
+          ],
+          [
+            -9.719207196130554,
+            -38.801250127781756
+          ],
+          [
+            -11.611387090178486,
+            -38.27761342928836
+          ],
+          [
+            -13.475594135688798,
+            -37.66176260732083
+          ],
+          [
+            -15.307337294603588,
+            -36.95518130045147
+          ],
+          [
+            -17.102203737211276,
+            -36.159571724937734
+          ],
+          [
+            -18.85586947303991,
+            -35.276850573934205
+          ],
+          [
+            -20.564109767728862,
+            -34.30914440001089
+          ],
+          [
+            -22.22280932078408,
+            -33.25878449210181
+          ],
+          [
+            -23.827972179697333,
+            -32.1283012592258
+          ],
+          [
+            -25.375731366545814,
+            -30.920418134509482
+          ],
+          [
+            -26.862358193880738,
+            -29.63804501419836
+          ],
+          [
+            -28.2842712474619,
+            -28.284271247461902
+          ],
+          [
+            -29.638045014198354,
+            -26.86235819388074
+          ],
+          [
+            -30.92041813450948,
+            -25.37573136654582
+          ],
+          [
+            -32.12830125922579,
+            -23.82797217969734
+          ],
+          [
+            -33.25878449210181,
+            -22.222809320784087
+          ],
+          [
+            -34.30914440001088,
+            -20.564109767728873
+          ],
+          [
+            -35.2768505739342,
+            -18.855869473039913
+          ],
+          [
+            -36.159571724937734,
+            -17.10220373721128
+          ],
+          [
+            -36.95518130045147,
+            -15.307337294603595
+          ],
+          [
+            -37.661762607320824,
+            -13.475594135688812
+          ],
+          [
+            -38.27761342928835,
+            -11.611387090178496
+          ],
+          [
+            -38.801250127781756,
+            -9.719207196130563
+          ],
+          [
+            -39.23141121612922,
+            -7.803612880645145
+          ],
+          [
+            -39.56706039859124,
+            -5.869218978214472
+          ],
+          [
+            -39.80738906688787,
+            -3.920685613182433
+          ],
+          [
+            -39.9518182482069,
+            -1.9627069730967186
+          ]
+        ],
+        "closed": true,
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 169,
+        "operation": "cut",
+        "targets": [
+          "Smoky D tank"
+        ],
+        "name": "Open tank cavity with four millimetre base"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Separate tank lid profile",
+        "plane": {
+          "origin": [
+            225,
+            35,
+            304
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            -45,
+            0
+          ],
+          [
+            -45,
+            47
+          ],
+          [
+            45,
+            47
+          ],
+          [
+            45,
+            0
+          ]
+        ],
+        "ids": [
+          "outerleft",
+          "outerback",
+          "outerright"
+        ],
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.arc.three_point",
+      "params": {
+        "start": [
+          45,
+          0
+        ],
+        "end": [
+          -45,
+          0
+        ],
+        "through": [
+          0,
+          -45
+        ],
+        "id": "outerfront"
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 5,
+        "operation": "new",
+        "body_name": "Separate tank lid"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Tank lid grip profile",
+        "plane": {
+          "origin": [
+            225,
+            41,
+            309
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -19.0,
+          -6.0
+        ],
+        "p1": [
+          19.0,
+          6.0
+        ],
+        "radius": 5
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 5,
+        "operation": "new",
+        "body_name": "Tank lid grip"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Clear ribbed bin profile",
+        "plane": {
+          "origin": [
+            -157,
+            -23,
+            58
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            -33.0,
+            -30
+          ],
+          [
+            -31.2,
+            -32
+          ],
+          [
+            -29.5,
+            -30
+          ],
+          [
+            -27.5,
+            -30
+          ],
+          [
+            -25.7,
+            -32
+          ],
+          [
+            -24.0,
+            -30
+          ],
+          [
+            -22.0,
+            -30
+          ],
+          [
+            -20.2,
+            -32
+          ],
+          [
+            -18.5,
+            -30
+          ],
+          [
+            -16.5,
+            -30
+          ],
+          [
+            -14.7,
+            -32
+          ],
+          [
+            -13.0,
+            -30
+          ],
+          [
+            -11.0,
+            -30
+          ],
+          [
+            -9.2,
+            -32
+          ],
+          [
+            -7.5,
+            -30
+          ],
+          [
+            -5.5,
+            -30
+          ],
+          [
+            -3.7,
+            -32
+          ],
+          [
+            -2.0,
+            -30
+          ],
+          [
+            0.0,
+            -30
+          ],
+          [
+            1.8,
+            -32
+          ],
+          [
+            3.5,
+            -30
+          ],
+          [
+            5.5,
+            -30
+          ],
+          [
+            7.3,
+            -32
+          ],
+          [
+            9.0,
+            -30
+          ],
+          [
+            11.0,
+            -30
+          ],
+          [
+            12.8,
+            -32
+          ],
+          [
+            14.5,
+            -30
+          ],
+          [
+            16.5,
+            -30
+          ],
+          [
+            18.3,
+            -32
+          ],
+          [
+            20.0,
+            -30
+          ],
+          [
+            22.0,
+            -30
+          ],
+          [
+            23.8,
+            -32
+          ],
+          [
+            25.5,
+            -30
+          ],
+          [
+            27.5,
+            -30
+          ],
+          [
+            29.3,
+            -32
+          ],
+          [
+            31.0,
+            -30
+          ],
+          [
+            33,
+            -30
+          ],
+          [
+            33,
+            30
+          ],
+          [
+            -33,
+            30
+          ]
+        ],
+        "closed": true,
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.rectangle.two_point",
+      "params": {
+        "p0": [
+          -30,
+          -27
+        ],
+        "p1": [
+          30,
+          27
+        ]
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 72,
+        "operation": "new",
+        "body_name": "Clear ribbed bin",
+        "profiles": [
+          {
+            "point": [
+              31,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Bin base tool",
+        "corner": [
+          -190,
+          -53,
+          57
+        ],
+        "length": 66,
+        "width": 60,
+        "height": 4,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.combine",
+      "params": {
+        "target": "Clear ribbed bin",
+        "tools": [
+          "Bin base tool"
+        ],
+        "operation": "join"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Drip tray profile",
+        "plane": {
+          "origin": [
+            0,
+            -143,
+            22
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            -57,
+            0
+          ],
+          [
+            -57,
+            43
+          ],
+          [
+            57,
+            43
+          ],
+          [
+            57,
+            0
+          ]
+        ],
+        "ids": [
+          "outerleft",
+          "outerback",
+          "outerright"
+        ],
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.arc.three_point",
+      "params": {
+        "start": [
+          57,
+          0
+        ],
+        "end": [
+          -57,
+          0
+        ],
+        "through": [
+          0,
+          -57
+        ],
+        "id": "outerfront"
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            -53,
+            0
+          ],
+          [
+            -53,
+            39
+          ],
+          [
+            53,
+            39
+          ],
+          [
+            53,
+            0
+          ]
+        ],
+        "ids": [
+          "innerleft",
+          "innerback",
+          "innerright"
+        ],
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.arc.three_point",
+      "params": {
+        "start": [
+          53,
+          0
+        ],
+        "end": [
+          -53,
+          0
+        ],
+        "through": [
+          0,
+          -53
+        ],
+        "id": "innerfront"
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 16,
+        "operation": "new",
+        "body_name": "Drip tray",
+        "profiles": [
+          {
+            "point": [
+              0,
+              41.0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Tray base tool profile",
+        "plane": {
+          "origin": [
+            0,
+            -143,
+            21
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            -57,
+            0
+          ],
+          [
+            -57,
+            43
+          ],
+          [
+            57,
+            43
+          ],
+          [
+            57,
+            0
+          ]
+        ],
+        "ids": [
+          "outerleft",
+          "outerback",
+          "outerright"
+        ],
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.arc.three_point",
+      "params": {
+        "start": [
+          57,
+          0
+        ],
+        "end": [
+          -57,
+          0
+        ],
+        "through": [
+          0,
+          -57
+        ],
+        "id": "outerfront"
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 4,
+        "operation": "new",
+        "body_name": "Tray base tool"
+      }
+    },
+    {
+      "command": "solid.combine",
+      "params": {
+        "target": "Drip tray",
+        "tools": [
+          "Tray base tool"
+        ],
+        "operation": "join"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Perforated stainless grate profile",
+        "plane": {
+          "origin": [
+            0,
+            -143,
+            65
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            -53,
+            0
+          ],
+          [
+            -53,
+            39
+          ],
+          [
+            53,
+            39
+          ],
+          [
+            53,
+            0
+          ]
+        ],
+        "ids": [
+          "outerleft",
+          "outerback",
+          "outerright"
+        ],
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.arc.three_point",
+      "params": {
+        "start": [
+          53,
+          0
+        ],
+        "end": [
+          -53,
+          0
+        ],
+        "through": [
+          0,
+          -53
+        ],
+        "id": "outerfront"
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -36,
+          -30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -24,
+          -30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -12,
+          -30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          0,
+          -30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          12,
+          -30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          24,
+          -30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          36,
+          -30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -36,
+          -18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -24,
+          -18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -12,
+          -18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          0,
+          -18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          12,
+          -18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          24,
+          -18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          36,
+          -18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -36,
+          -6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -24,
+          -6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -12,
+          -6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          0,
+          -6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          12,
+          -6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          24,
+          -6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          36,
+          -6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -36,
+          6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -24,
+          6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -12,
+          6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          0,
+          6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          12,
+          6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          24,
+          6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          36,
+          6
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -36,
+          18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -24,
+          18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -12,
+          18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          0,
+          18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          12,
+          18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          24,
+          18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          36,
+          18
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -36,
+          30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -24,
+          30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -12,
+          30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          0,
+          30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          12,
+          30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          24,
+          30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          36,
+          30
+        ],
+        "radius": 2.2
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 2,
+        "operation": "new",
+        "body_name": "Perforated stainless grate",
+        "profiles": [
+          {
+            "point": [
+              0,
+              38
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Rounded tray cap profile",
+        "plane": {
+          "origin": [
+            112,
+            -143,
+            40
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -19.0,
+          -27.0
+        ],
+        "p1": [
+          19.0,
+          27.0
+        ],
+        "radius": 15
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 16,
+        "operation": "new",
+        "body_name": "Rounded tray cap"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Louvred service panel profile",
+        "plane": {
+          "origin": [
+            -122,
+            143,
+            173
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -47,
+          -91
+        ],
+        "p1": [
+          47,
+          91
+        ],
+        "radius": 8
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -31,
+          -62
+        ],
+        "p1": [
+          31,
+          -58
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -31,
+          -47
+        ],
+        "p1": [
+          31,
+          -43
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -31,
+          -32
+        ],
+        "p1": [
+          31,
+          -28
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -31,
+          -17
+        ],
+        "p1": [
+          31,
+          -13
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -31,
+          -2
+        ],
+        "p1": [
+          31,
+          2
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -31,
+          13
+        ],
+        "p1": [
+          31,
+          17
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -31,
+          28
+        ],
+        "p1": [
+          31,
+          32
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -31,
+          43
+        ],
+        "p1": [
+          31,
+          47
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -31,
+          58
+        ],
+        "p1": [
+          31,
+          62
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -38,
+          -81
+        ],
+        "radius": 2.4
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          -38,
+          81
+        ],
+        "radius": 2.4
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          38,
+          -81
+        ],
+        "radius": 2.4
+      }
+    },
+    {
+      "command": "sketch.circle.center",
+      "params": {
+        "center": [
+          38,
+          81
+        ],
+        "radius": 2.4
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 3,
+        "operation": "new",
+        "body_name": "Louvred service panel",
+        "profiles": [
+          {
+            "point": [
+              43,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Zinc screw 1",
+        "base": [
+          -99,
+          -68,
+          87
+        ],
+        "radius": 2.1,
+        "height": 14,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          -99,
+          -71,
+          87
+        ],
+        "radius": 4.3,
+        "height": 4,
+        "axis": "Y",
+        "operation": "join",
+        "targets": [
+          "Zinc screw 1"
+        ],
+        "name": "Screw pan head"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "corner": [
+          -102.3,
+          -72,
+          86.3
+        ],
+        "length": 6.6,
+        "width": 2.4,
+        "height": 1.4,
+        "operation": "cut",
+        "targets": [
+          "Zinc screw 1"
+        ],
+        "name": "Driver slot"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Zinc screw 2",
+        "base": [
+          -99,
+          -68,
+          142
+        ],
+        "radius": 2.1,
+        "height": 14,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          -99,
+          -71,
+          142
+        ],
+        "radius": 4.3,
+        "height": 4,
+        "axis": "Y",
+        "operation": "join",
+        "targets": [
+          "Zinc screw 2"
+        ],
+        "name": "Screw pan head"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "corner": [
+          -102.3,
+          -72,
+          141.3
+        ],
+        "length": 6.6,
+        "width": 2.4,
+        "height": 1.4,
+        "operation": "cut",
+        "targets": [
+          "Zinc screw 2"
+        ],
+        "name": "Driver slot"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Zinc screw 3",
+        "base": [
+          -99,
+          -68,
+          197
+        ],
+        "radius": 2.1,
+        "height": 14,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          -99,
+          -71,
+          197
+        ],
+        "radius": 4.3,
+        "height": 4,
+        "axis": "Y",
+        "operation": "join",
+        "targets": [
+          "Zinc screw 3"
+        ],
+        "name": "Screw pan head"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "corner": [
+          -102.3,
+          -72,
+          196.3
+        ],
+        "length": 6.6,
+        "width": 2.4,
+        "height": 1.4,
+        "operation": "cut",
+        "targets": [
+          "Zinc screw 3"
+        ],
+        "name": "Driver slot"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Zinc screw 4",
+        "base": [
+          -99,
+          -68,
+          252
+        ],
+        "radius": 2.1,
+        "height": 14,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          -99,
+          -71,
+          252
+        ],
+        "radius": 4.3,
+        "height": 4,
+        "axis": "Y",
+        "operation": "join",
+        "targets": [
+          "Zinc screw 4"
+        ],
+        "name": "Screw pan head"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "corner": [
+          -102.3,
+          -72,
+          251.3
+        ],
+        "length": 6.6,
+        "width": 2.4,
+        "height": 1.4,
+        "operation": "cut",
+        "targets": [
+          "Zinc screw 4"
+        ],
+        "name": "Driver slot"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Zinc screw 5",
+        "base": [
+          99,
+          -68,
+          87
+        ],
+        "radius": 2.1,
+        "height": 14,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          99,
+          -71,
+          87
+        ],
+        "radius": 4.3,
+        "height": 4,
+        "axis": "Y",
+        "operation": "join",
+        "targets": [
+          "Zinc screw 5"
+        ],
+        "name": "Screw pan head"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "corner": [
+          95.7,
+          -72,
+          86.3
+        ],
+        "length": 6.6,
+        "width": 2.4,
+        "height": 1.4,
+        "operation": "cut",
+        "targets": [
+          "Zinc screw 5"
+        ],
+        "name": "Driver slot"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Zinc screw 6",
+        "base": [
+          99,
+          -68,
+          142
+        ],
+        "radius": 2.1,
+        "height": 14,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          99,
+          -71,
+          142
+        ],
+        "radius": 4.3,
+        "height": 4,
+        "axis": "Y",
+        "operation": "join",
+        "targets": [
+          "Zinc screw 6"
+        ],
+        "name": "Screw pan head"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "corner": [
+          95.7,
+          -72,
+          141.3
+        ],
+        "length": 6.6,
+        "width": 2.4,
+        "height": 1.4,
+        "operation": "cut",
+        "targets": [
+          "Zinc screw 6"
+        ],
+        "name": "Driver slot"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Zinc screw 7",
+        "base": [
+          99,
+          -68,
+          197
+        ],
+        "radius": 2.1,
+        "height": 14,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          99,
+          -71,
+          197
+        ],
+        "radius": 4.3,
+        "height": 4,
+        "axis": "Y",
+        "operation": "join",
+        "targets": [
+          "Zinc screw 7"
+        ],
+        "name": "Screw pan head"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "corner": [
+          95.7,
+          -72,
+          196.3
+        ],
+        "length": 6.6,
+        "width": 2.4,
+        "height": 1.4,
+        "operation": "cut",
+        "targets": [
+          "Zinc screw 7"
+        ],
+        "name": "Driver slot"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Zinc screw 8",
+        "base": [
+          99,
+          -68,
+          252
+        ],
+        "radius": 2.1,
+        "height": 14,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          99,
+          -71,
+          252
+        ],
+        "radius": 4.3,
+        "height": 4,
+        "axis": "Y",
+        "operation": "join",
+        "targets": [
+          "Zinc screw 8"
+        ],
+        "name": "Screw pan head"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "corner": [
+          95.7,
+          -72,
+          251.3
+        ],
+        "length": 6.6,
+        "width": 2.4,
+        "height": 1.4,
+        "operation": "cut",
+        "targets": [
+          "Zinc screw 8"
+        ],
+        "name": "Driver slot"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "S cable centerline profile",
+        "plane": {
+          "origin": [
+            70,
+            -75,
+            9
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.arc.three_point",
+      "params": {
+        "start": [
+          52,
+          94
+        ],
+        "through": [
+          92,
+          54
+        ],
+        "end": [
+          132,
+          94
+        ],
+        "id": "cable_a"
+      }
+    },
+    {
+      "command": "sketch.arc.three_point",
+      "params": {
+        "start": [
+          132,
+          94
+        ],
+        "through": [
+          172,
+          134
+        ],
+        "end": [
+          212,
+          94
+        ],
+        "id": "cable_b"
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            212,
+            94
+          ],
+          [
+            212,
+            66
+          ]
+        ],
+        "ids": [
+          "cable_end"
+        ],
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.pipe",
+      "params": {
+        "path_sketch": "S cable centerline profile",
+        "path": [
+          "cable_a",
+          "cable_b",
+          "cable_end"
+        ],
+        "diameter": 5,
+        "operation": "new",
+        "body_name": "Black S power cable"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Two pin plug profile",
+        "plane": {
+          "origin": [
+            282,
+            -30,
+            3
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -12.0,
+          -17.5
+        ],
+        "p1": [
+          12.0,
+          17.5
+        ],
+        "radius": 7
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 16,
+        "operation": "new",
+        "body_name": "Two pin plug"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plug pin 206",
+        "base": [
+          276,
+          -64,
+          11
+        ],
+        "radius": 2,
+        "height": 18,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plug pin 218",
+        "base": [
+          288,
+          -64,
+          11
+        ],
+        "radius": 2,
+        "height": 18,
+        "axis": "Y",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Housing plinth",
+          "Housing shell",
+          "Housing upper shoulder",
+          "Open brewing head",
+          "Brewing head roof",
+          "Drip tray",
+          "Rounded tray cap"
+        ],
+        "color": "#101318",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Separate tank lid",
+          "Tank lid grip",
+          "Louvred service panel"
+        ],
+        "color": "#171a1f",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.55,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Brewing collar",
+          "Bent chrome lever",
+          "Left lever ball",
+          "Right lever ball",
+          "Plug pin 206",
+          "Plug pin 218"
+        ],
+        "color": "#d5d9dd",
+        "pbr": {
+          "metallic": 1,
+          "roughness": 0.12,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Internal chassis",
+          "Shower screen",
+          "Perforated stainless grate"
+        ],
+        "color": "#aeb4bb",
+        "pbr": {
+          "metallic": 1,
+          "roughness": 0.25,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Zinc screw 1",
+          "Zinc screw 2",
+          "Zinc screw 3",
+          "Zinc screw 4",
+          "Zinc screw 5",
+          "Zinc screw 6",
+          "Zinc screw 7",
+          "Zinc screw 8"
+        ],
+        "color": "#b0b5bc",
+        "pbr": {
+          "metallic": 1,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Black S power cable",
+          "Two pin plug"
+        ],
+        "color": "#141414",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.8,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Studio floor"
+        ],
+        "color": "#e8e8e8",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.65,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Smoky D tank"
+        ],
+        "color": "#c2c6ca",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.05,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Clear ribbed bin"
+        ],
+        "color": "#e4eff1",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.05,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Open brewing head"
+        ],
+        "translate": [
+          0,
+          0,
+          28
+        ],
+        "copy": false,
+        "name": "Framing: Open brewing head"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Brewing collar"
+        ],
+        "translate": [
+          0,
+          0,
+          28
+        ],
+        "copy": false,
+        "name": "Framing: Brewing collar"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Shower screen"
+        ],
+        "translate": [
+          0,
+          0,
+          28
+        ],
+        "copy": false,
+        "name": "Framing: Shower screen"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Brewing head roof"
+        ],
+        "translate": [
+          0,
+          0,
+          40
+        ],
+        "copy": false,
+        "name": "Framing: Brewing head roof"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Bent chrome lever"
+        ],
+        "translate": [
+          0,
+          0,
+          40
+        ],
+        "copy": false,
+        "name": "Framing: Bent chrome lever"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Left lever ball"
+        ],
+        "translate": [
+          0,
+          0,
+          40
+        ],
+        "copy": false,
+        "name": "Framing: Left lever ball"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Right lever ball"
+        ],
+        "translate": [
+          0,
+          0,
+          40
+        ],
+        "copy": false,
+        "name": "Framing: Right lever ball"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Smoky D tank"
+        ],
+        "translate": [
+          100,
+          8,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Smoky D tank"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Separate tank lid"
+        ],
+        "translate": [
+          100,
+          8,
+          22
+        ],
+        "copy": false,
+        "name": "Framing: Separate tank lid"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Tank lid grip"
+        ],
+        "translate": [
+          100,
+          8,
+          22
+        ],
+        "copy": false,
+        "name": "Framing: Tank lid grip"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Clear ribbed bin"
+        ],
+        "translate": [
+          -70,
+          -15,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Clear ribbed bin"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Louvred service panel"
+        ],
+        "translate": [
+          -110,
+          15,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Louvred service panel"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Drip tray"
+        ],
+        "translate": [
+          0,
+          -34,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Drip tray"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Perforated stainless grate"
+        ],
+        "translate": [
+          0,
+          -34,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Perforated stainless grate"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Rounded tray cap"
+        ],
+        "translate": [
+          38,
+          -34,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Rounded tray cap"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Black S power cable"
+        ],
+        "translate": [
+          50,
+          8,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Black S power cable"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Two pin plug"
+        ],
+        "translate": [
+          50,
+          8,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Two pin plug"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plug pin 206"
+        ],
+        "translate": [
+          50,
+          8,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Plug pin 206"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plug pin 218"
+        ],
+        "translate": [
+          50,
+          8,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Plug pin 218"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Zinc screw 1"
+        ],
+        "translate": [
+          -28,
+          0,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Zinc screw 1"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Zinc screw 2"
+        ],
+        "translate": [
+          -28,
+          0,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Zinc screw 2"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Zinc screw 3"
+        ],
+        "translate": [
+          -28,
+          0,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Zinc screw 3"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Zinc screw 4"
+        ],
+        "translate": [
+          -28,
+          0,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Zinc screw 4"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Zinc screw 5"
+        ],
+        "translate": [
+          28,
+          0,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Zinc screw 5"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Zinc screw 6"
+        ],
+        "translate": [
+          28,
+          0,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Zinc screw 6"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Zinc screw 7"
+        ],
+        "translate": [
+          28,
+          0,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Zinc screw 7"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Zinc screw 8"
+        ],
+        "translate": [
+          28,
+          0,
+          0
+        ],
+        "copy": false,
+        "name": "Framing: Zinc screw 8"
+      }
+    }
+  ]
+}

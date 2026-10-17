@@ -9,6 +9,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+robust = "1.2"
 solidcraft-geom = { workspace = true }
 solidcraft-render = { workspace = true }
 wgpu = { workspace = true }
@@ -22,6 +23,7 @@ pollster = { workspace = true }
 wgpu = { workspace = true, features = ["metal", "vulkan", "dx12", "gles"] }
 
 [dev-dependencies]
+image = { workspace = true }
 solidcraft-kernel = { workspace = true }
 # Headless pictures of real designs (capture tests).
 solidcraft-engine = { workspace = true }

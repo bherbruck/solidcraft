@@ -32,6 +32,7 @@ pub fn extract(s: &Session) -> Result<ProductScene> {
                     color: look.color,
                     opacity: look.opacity.clamp(0.0, 1.0),
                     surface: look.opaque_surface().map_err(|e| EngineError::Other(e.to_string()))?,
+                    transmission: None,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -42,6 +43,7 @@ pub fn extract(s: &Session) -> Result<ProductScene> {
             color,
             opacity: s.doc.model_body_opacity(body).clamp(0.0, 1.0),
             surface,
+            transmission: None,
             faces,
         });
     }

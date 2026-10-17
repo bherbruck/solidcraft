@@ -1,0 +1,43 @@
+{
+  "stage1": {
+    "Studio floor": "floor",
+    "Coated curved shell": "coated_black",
+    "Floating coated lid": "coated_black",
+    "Chrome sphere": "chrome",
+    "Chrome floating puck": "chrome"
+  },
+  "coffee-exploded": {
+    "Studio floor": "floor",
+    "Housing plinth": "coated_black",
+    "Housing shell": "coated_black",
+    "Housing upper shoulder": "coated_black",
+    "Internal chassis": "stainless",
+    "Open brewing head": "coated_black",
+    "Brewing head roof": "coated_black",
+    "Brewing collar": "chrome",
+    "Shower screen": "stainless",
+    "Bent chrome lever": "chrome",
+    "Left lever ball": "chrome",
+    "Right lever ball": "chrome",
+    "Smoky D tank": "smoke",
+    "Separate tank lid": "matte_black",
+    "Tank lid grip": "matte_black",
+    "Clear ribbed bin": "clear",
+    "Drip tray": "coated_black",
+    "Perforated stainless grate": "stainless",
+    "Rounded tray cap": "coated_black",
+    "Louvred service panel": "matte_black",
+    "Zinc screw 1": "zinc",
+    "Zinc screw 2": "zinc",
+    "Zinc screw 3": "zinc",
+    "Zinc screw 4": "zinc",
+    "Zinc screw 5": "zinc",
+    "Zinc screw 6": "zinc",
+    "Zinc screw 7": "zinc",
+    "Zinc screw 8": "zinc",
+    "Black S power cable": "rubber",
+    "Two pin plug": "rubber",
+    "Plug pin 206": "chrome",
+    "Plug pin 218": "chrome"
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "bodies": {
+    "Room floor": "floor",
+    "Rear plaster wall": "wall",
+    "Left plaster wall": "wall",
+    "Walnut tabletop": "walnut",
+    "Table leg 1": "walnut",
+    "Table leg 2": "walnut",
+    "Table leg 3": "walnut",
+    "Table leg 4": "walnut",
+    "Tall thick tumbler": "glass",
+    "Short thick tumbler": "glass",
+    "Sofa plinth": "pillow_taupe",
+    "Sofa back": "linen",
+    "Left sofa arm": "linen",
+    "Right sofa arm": "linen",
+    "Seat cushion 1": "linen",
+    "Back cushion 1": "linen",
+    "Seat cushion 2": "linen",
+    "Back cushion 2": "linen",
+    "Seat cushion 3": "linen",
+    "Back cushion 3": "linen",
+    "Ochre throw cushion": "pillow_ochre",
+    "Taupe throw cushion": "pillow_taupe",
+    "Plant stand": "walnut",
+    "Ceramic plant pot": "ceramic",
+    "Pot soil": "soil",
+    "Plant stem 1": "stem",
+    "Plant leaf 1": "leaf",
+    "Plant stem 2": "stem",
+    "Plant leaf 2": "leaf",
+    "Plant stem 3": "stem",
+    "Plant leaf 3": "leaf",
+    "Plant stem 4": "stem",
+    "Plant leaf 4": "leaf",
+    "Plant stem 5": "stem",
+    "Plant leaf 5": "leaf",
+    "Plant stem 6": "stem",
+    "Plant leaf 6": "leaf",
+    "Plant stem 7": "stem",
+    "Plant leaf 7": "leaf",
+    "Plant stem 8": "stem",
+    "Plant leaf 8": "leaf",
+    "Plant stem 9": "stem",
+    "Plant leaf 9": "leaf",
+    "Plant stem 10": "stem",
+    "Plant leaf 10": "leaf",
+    "Plant stem 11": "stem",
+    "Plant leaf 11": "leaf",
+    "Plant stem 12": "stem",
+    "Plant leaf 12": "leaf",
+    "Window blind slat 1": "blind",
+    "Window blind slat 2": "blind",
+    "Window blind slat 3": "blind",
+    "Window blind slat 4": "blind",
+    "Window blind slat 5": "blind",
+    "Window blind slat 6": "blind",
+    "Window blind slat 7": "blind",
+    "Window blind slat 8": "blind",
+    "Window blind slat 9": "blind",
+    "Window blind slat 10": "blind",
+    "Window blind slat 11": "blind",
+    "Window blind slat 12": "blind",
+    "Window blind slat 13": "blind",
+    "Window blind slat 14": "blind",
+    "Window jamb -1048": "wall",
+    "Window jamb -180": "wall",
+    "Window rail 620": "wall",
+    "Window rail 1320": "wall",
+    "Blind cord -860": "linen",
+    "Blind cord -350": "linen"
+  },
+  "texture_coordinates": {
+    "Walnut tabletop": {
+      "projection": "world_xy",
+      "grain_direction": [
+        1,
+        0,
+        0
+      ],
+      "period_mm": [
+        900,
+        90
+      ],
+      "note": "Original procedural walnut grain; do not copy photographs. Coordinate is mm, rotate grain along table long X axis."
+    },
+    "linen": {
+      "projection": "triplanar_world",
+      "period_mm": [
+        3,
+        3,
+        3
+      ],
+      "note": "Fine low-contrast original woven noise, use broad albedo and subtle normal perturbation. No material runtime API assumed."
+    },
+    "glass": {
+      "projection": "none",
+      "note": "Smooth thick dielectric; geometry provides rims and bases. No normal-map waviness requested for these tumblers."
+    }
+  }
+}

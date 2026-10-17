@@ -1,0 +1,135 @@
+{
+  "progressive": true,
+  "samples": 512,
+  "max_depth": 16,
+  "seed": 1948,
+  "tone_map": "aces_fitted",
+  "settings": {
+    "width": 1920,
+    "height": 1080,
+    "camera": {
+      "target": [
+        -8,
+        -8,
+        537
+      ],
+      "yaw": -0.17453292519943295,
+      "pitch": 0.2617993877991494,
+      "roll": 0,
+      "distance": 670,
+      "fov": 0.6981317007977318
+    },
+    "background": [
+      218,
+      222,
+      226
+    ]
+  },
+  "lens": {
+    "aperture_radius_mm": 5.5,
+    "focus_distance_mm": 670
+  },
+  "lighting": {
+    "environment": [
+      0.22,
+      0.25,
+      0.3
+    ],
+    "area_lights": [
+      {
+        "center": [
+          -650,
+          1750,
+          1470
+        ],
+        "u": [
+          95,
+          0,
+          0
+        ],
+        "v": [
+          0,
+          0,
+          95
+        ],
+        "radiance": [
+          38,
+          30,
+          21
+        ]
+      },
+      {
+        "center": [
+          -550,
+          -300,
+          1350
+        ],
+        "u": [
+          450,
+          0,
+          0
+        ],
+        "v": [
+          0,
+          -300,
+          0
+        ],
+        "radiance": [
+          3.5,
+          3.5,
+          3.5
+        ]
+      },
+      {
+        "center": [
+          850,
+          300,
+          1100
+        ],
+        "u": [
+          0,
+          -240,
+          0
+        ],
+        "v": [
+          0,
+          0,
+          300
+        ],
+        "radiance": [
+          2.5,
+          2.7,
+          3.0
+        ]
+      }
+    ]
+  },
+  "raytrace": {
+    "dielectrics": [
+      {
+        "body_index": 8,
+        "body_name": "Tall thick tumbler",
+        "ior": 1.52,
+        "absorption_per_mm": [
+          0.0008,
+          0.00025,
+          0.00012
+        ],
+        "boundary": "closed_mesh",
+        "thickness_mm": 0
+      },
+      {
+        "body_index": 9,
+        "body_name": "Short thick tumbler",
+        "ior": 1.52,
+        "absorption_per_mm": [
+          0.0008,
+          0.00025,
+          0.00012
+        ],
+        "boundary": "closed_mesh",
+        "thickness_mm": 0
+      }
+    ]
+  }
+}

@@ -32,7 +32,15 @@ fn opaque_pbr_product_gpu_and_cpu_share_color_and_material_semantics() {
         let eye = camera.eye().to_f32();
         let mut task = ImageTask::new(
             scene,
-            ImageRequest { camera, width: SIZE, height: SIZE, background: [255; 3], transparent_background: false },
+            ImageRequest {
+                textures: None,
+                environment: None,
+                camera,
+                width: SIZE,
+                height: SIZE,
+                background: [255; 3],
+                transparent_background: false,
+            },
             CancelToken::default(),
         )
         .unwrap();
@@ -211,6 +219,55 @@ fn saved_camera_survives_frames_and_product_fit_ignores_selection() {
     assert_eq!(h.app.cam, design);
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn progressive_image_controls_route_to_the_registered_host() {
+    let host = solidcraft_gpu::select::Policy::from_env()
+        .and_then(|policy| solidcraft_gpu::select::pick(policy).ok_or_else(|| "no qualifying adapter".to_string()))
+        .and_then(|(adapter, _)| solidcraft_gpu::path::host_on_adapter(&adapter).map_err(|e| e.to_string()));
+    let host = match host {
+        Ok(host) => host,
+        Err(e) => {
+            assert!(std::env::var_os("SOLIDCRAFT_REQUIRE_GPU").is_none(), "required GPU unavailable: {e}");
+            eprintln!("skipping progressive UI device test: {e}");
+            return;
+        }
+    };
+    let mut h = Harness::new();
+    h.app.render_workspace.path_host = Some(host);
+    sync_backend(&mut h.app);
+    h.app.run("solid.box", json!({"length":10,"width":20,"height":5})).unwrap();
+    h.app.session.mark_saved();
+    h.call("ui.resize", json!({"width":1600,"height":1600}));
+    enter(&mut h.app, true).unwrap();
+    h.app.render_workspace.view.draft.width = 16;
+    h.app.render_workspace.view.draft.height = 16;
+    h.app.render_workspace.view.samples = 4;
+    h.frames(3);
+    let doc = h.app.session.doc.clone();
+    let undo = h.app.session.undo.len();
+    h.step(&json!({"widget":"Progressive rendering"})).unwrap();
+    assert!(h.app.render_workspace.view.progressive);
+    let start = h.app.tr("render.image_start").to_string();
+    h.step(&json!({"widget":start})).unwrap();
+    let job = h.app.render_workspace.view.job.unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while h.app.render_workspace.view.completed.is_none() {
+        assert!(std::time::Instant::now() < deadline, "progressive UI job did not complete");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        h.frames(1);
+    }
+    let status = h.app.session.execute("render.status", &json!({"job":job})).unwrap();
+    assert_eq!(status["frame"]["executor"], "gpu-path", "{status}");
+    assert_eq!(status["options"]["samples"], 4);
+    let export = h.app.tr("render.image_export").to_string();
+    h.step(&json!({"widget":export})).unwrap();
+    assert!(h.dir.join("render.png").is_file());
+    assert!(Arc::ptr_eq(&doc, &h.app.session.doc));
+    assert_eq!(h.app.session.undo.len(), undo);
+    assert!(!h.app.session.is_dirty());
+}
+
 #[test]
 fn clicked_render_workspace_saves_one_setup_and_restores_design_view() {
     for language in ["en", "de", "ko", "ru"] {
@@ -289,6 +346,28 @@ fn product_gpu_buffers_preserve_opacity_and_never_contain_overlays() {
     assert_eq!(invisible.meshes[0].opacity, 0.0);
     let (_, empty) = gpu_scene(&invisible).unwrap();
     assert!(empty.tris.is_empty() && empty.glass.is_empty());
+}
+
+#[test]
+fn transmission_uses_legacy_preview_buffers_and_invalidates_the_opaque_cache() {
+    let mut s = Session::default();
+    s.execute("solid.box", &json!({"length":10,"width":10,"height":10,"body_name":"Glass"})).unwrap();
+    let appearance = json!({"bodies":["Glass"],"color":"#336699",
+        "pbr":{"metallic":0,"roughness":0.1,"dielectric_ior":1.5}});
+    s.execute("appearance.assign", &appearance).unwrap();
+    let (opaque_key, opaque) = gpu_scene(&solidcraft_engine::product_scene::extract(&s).unwrap()).unwrap();
+    assert!(!opaque.pbr.is_empty());
+    let mut scene = solidcraft_engine::product_scene::extract(&s).unwrap();
+    scene.meshes[0].transmission =
+        Some(solidcraft_engine::render::transmission::Transmission::new(solidcraft_engine::geom::Vec3::ZERO, None).unwrap());
+    let (glass_key, glass) = gpu_scene(&scene).unwrap();
+    assert_ne!(opaque_key, glass_key);
+    assert!(glass.pbr.is_empty());
+    assert!(!glass.tris.is_empty());
+    scene.meshes[0].opacity = 0.4;
+    let (_, transparent) = gpu_scene(&scene).unwrap();
+    assert!(transparent.pbr.is_empty());
+    assert!(!transparent.glass.is_empty());
 }
 
 #[test]

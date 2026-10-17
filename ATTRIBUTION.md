@@ -14,8 +14,19 @@ Editable drawing code, native projects and shipped exports are collected under `
 
 | File | Author | Source | Licence |
 |---|---|---|---|
+| examples/studio/author_sweep.py | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/author_scene.py | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/materials.json | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-exploded-sweep.json | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-exploded-render.json | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-exploded.json | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/stage1-sweep.json | SolidCraft contributors | original tangent circular-arc CAD cyclorama; no external assets | MIT OR Apache-2.0 |
+| examples/studio/stage1.json | SolidCraft contributors | original editable CAD studio scene; no imported geometry or external image assets | MIT OR Apache-2.0 |
+| examples/studio/stage1-render.json | SolidCraft contributors | original studio camera and lighting parameters | MIT OR Apache-2.0 |
 | examples/render-studio.json | SolidCraft contributors | original procedural box/cylinder enclosure script for the integrated Render workspace | MIT OR Apache-2.0 |
 | examples/render-opaque-studio.json | SolidCraft contributors | original procedural sphere study varying opaque metal fraction and roughness independently; no external assets or engineering data | MIT OR Apache-2.0 |
+| examples/render-path-studio.json | SolidCraft contributors | original procedural opaque enclosure, teal insert and metal fasteners for progressive rendering; no imported models | MIT OR Apache-2.0 |
+| crates/gpu/src/path/path.wgsl | SolidCraft contributors | original software BVH traversal and path integration using the existing SolidCraft surface/studio equations; no external shader source | MIT OR Apache-2.0 |
 | crates/gpu/src/pbr.rs | SolidCraft contributors | original WGSL translation of SolidCraft's opaque surface and fixed studio reference, embedded as Rust source; no external shader code | MIT OR Apache-2.0 |
 | assets/icons/app/macos/source/SolidCraft.icon/icon.json | SolidCraft contributors | approved Icon Composer composition and appearance settings for the original SolidCraft artwork | MIT OR Apache-2.0 |
 | assets/icons/app/macos/source/SolidCraft.icon/Assets/02-grid.svg | SolidCraft contributors | original perspective grid with elliptical radial alpha, exported from VectorCraft | MIT OR Apache-2.0 |
@@ -459,6 +470,12 @@ copied into SolidCraft.
 
 | Directory | Source | Licence | Changes |
 |---|---|---|---|
+| examples/studio/author_sweep.py | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/author_scene.py | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/materials.json | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-exploded-sweep.json | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-exploded-render.json | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-exploded.json | SolidCraft contributors | original editable CAD scene and authoring metadata; no external assets | MIT OR Apache-2.0 |
 | vendor/truck-meshalgo | truck-meshalgo 0.4.0, https://github.com/ricosjp/truck (RICOS Co. Ltd.) | Apache-2.0 | meshing: bounded parameter searches, collapsed-boundary projection, subdivision and provisional fixed-grid previews (vendor/README.md) |
 | vendor/truck-stepio | truck-stepio 0.3.0, https://github.com/ricosjp/truck (RICOS Co. Ltd.) | Apache-2.0 | STEP writer: intersection-curve surfaces written at unique ids (vendor/README.md) |
 | vendor/truck-shapeops | truck-shapeops 0.4.0, https://github.com/ricosjp/truck (RICOS Co. Ltd.) | Apache-2.0 | robust meshing and nearest-parameter fallback in booleans; degenerate intersection-curve rejection; face and edge history of booleans; trace macro; corner choice at vertices several intersection curves end on (vendor/README.md) |
@@ -477,3 +494,75 @@ A frame whose meshes the GPU refuses to stage (device lost or out of memory) is
 skipped with a warning instead of panicking (#1469).
 Paint callbacks are prepared only after a drawable is acquired, so a skipped
 surface frame cannot strand cached meshes without their GPU initialization.
+
+## Runtime studio lighting mathematics
+
+`crates/gpu/src/path/path.wgsl` implements the power-heuristic estimator from the
+mathematical description in [PBRT fourth edition, section 13.4](https://pbr-book.org/4ed/Light_Transport_I_Surface_Reflection/A_Better_Path_Tracer).
+No PBRT code or assets were copied. `crates/render/src/job/lighting.rs` evaluates
+[Krzysztof Narkowicz's published 2016 ACES rational fit](https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/)
+using its published coefficients (author licenses the fit under CC0/MIT).
+These original implementations are under SolidCraft's MIT OR Apache-2.0 licence.
+
+## Original coffee framing variant
+
+| File | Author | Provenance | Licence |
+|---|---|---|---|
+| examples/studio/author_coffee_framing.py | SolidCraft contributors | original editable composition, camera and documentation; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-framing.json | SolidCraft contributors | original editable composition, camera and documentation; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-framing-sweep.json | SolidCraft contributors | original editable composition, camera and documentation; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-framing-render.json | SolidCraft contributors | original editable composition, camera and documentation; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-framing.md | SolidCraft contributors | original editable composition, camera and documentation; no external assets | MIT OR Apache-2.0 |
+
+## Original cylindrical coffee housing variant
+
+| File | Author | Provenance | Licence |
+|---|---|---|---|
+| examples/studio/author_coffee_cylinder.py | SolidCraft contributors | original parametric cylindrical CAD construction and editable command recipes; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-cylinder.json | SolidCraft contributors | original cylindrical housing on the original exploded coffee composition; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-cylinder-sweep.json | SolidCraft contributors | original cylindrical housing and continuous CAD cyclorama; no external assets | MIT OR Apache-2.0 |
+| examples/studio/coffee-cylinder-render.json | SolidCraft contributors | original camera, studio lighting and optical settings retained from the framing variant | MIT OR Apache-2.0 |
+| examples/studio/coffee-cylinder.md | SolidCraft contributors | original dimensional recipe, provenance and validation limitations | MIT OR Apache-2.0 |
+
+## Runtime environment sampling
+
+`crates/render/src/lighting/environment.rs` and the environment/sun portions of
+`crates/gpu/src/path/path.wgsl` are original SolidCraft implementations of
+solid-angle importance sampling and MIS, informed by the mathematical description
+in [PBRT fourth edition, sections 12.5](https://pbr-book.org/4ed/Light_Sources/Infinite_Area_Lights)
+and [13.4](https://pbr-book.org/4ed/Light_Transport_I_Surface_Reflection/A_Better_Path_Tracer).
+The procedural gradient and inline RGBE test fixtures are original mathematical
+colours, not downloaded imagery. No third-party environment images or shader code
+are included. Licence: MIT OR Apache-2.0.
+
+## Original tumbler showcase assets
+
+The CAD room, tumblers, window opening, wood/weave patterns and RGBE sky below
+are original SolidCraft contributor work. No third-party scene, photograph, HDRI,
+texture, or AI-generated artwork was used. Python authoring sources are included.
+All listed files use the repository MIT OR Apache-2.0 licence.
+
+| File | Source / author | Use | License |
+| --- | --- | --- | --- |
+| examples/studio/author_showcase.py | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/author_tumblers.py | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/textures/ATTRIBUTION.md | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/textures/author_textures.py | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/textures/environment-manifest.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/textures/manifest.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers-hdr-textures-blocked-render.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers-hdr-textures-render.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers-materials.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers-render.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers-sun-render.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers-sun-textures-blocked-render.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers-sun-textures-render.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers-sun.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers-textures-blocked-render.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers-textures-render.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+| examples/studio/tumblers.json | Original SolidCraft contributors | Editable scene / runtime resource / reproducible authoring metadata | MIT OR Apache-2.0 |
+
+The original studio generators produce local ignored PNG maps and an RGBE gradient.
+Generated image bytes are not source assets; their authorship, licences and expected
+hashes are documented under `examples/studio/textures`. Rendered evidence belongs
+on the results branch. No photographs, scans or external image assets are included.

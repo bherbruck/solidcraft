@@ -11,6 +11,7 @@ pub struct FaceAppearance {
     pub color: [u8; 3],
     pub opacity: f64,
     pub surface: Option<crate::surface::OpaqueSurface>,
+    pub transmission: Option<crate::transmission::Transmission>,
 }
 
 #[derive(Clone, Debug)]
@@ -22,6 +23,7 @@ pub struct ProductMesh {
     pub color: [u8; 3],
     pub opacity: f64,
     pub surface: Option<crate::surface::OpaqueSurface>,
+    pub transmission: Option<crate::transmission::Transmission>,
     pub faces: Vec<FaceAppearance>,
 }
 
@@ -32,6 +34,9 @@ pub struct ProductScene {
 }
 
 impl ProductScene {
+    pub fn has_transmission(&self) -> bool {
+        self.meshes.iter().any(|m| m.transmission.is_some() || m.faces.iter().any(|f| f.transmission.is_some()))
+    }
     pub fn required_features(&self) -> Vec<crate::RenderFeature> {
         if self.meshes.iter().any(|m| m.surface.is_some() || m.faces.iter().any(|f| f.surface.is_some())) {
             vec![crate::RenderFeature::Pbr]

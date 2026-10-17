@@ -23,6 +23,91 @@ fn finish(host: &CpuHost) {
     panic!("cooperative job did not finish");
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn additional_executor_routes_by_capability_and_survives_document_adoption() {
+    use solidcraft_render::job::{Admission, CancelToken, ImageExecutor, ImageHost, ImageRequest, ImageTask, ImageWork, JobOptions};
+    struct Progressive;
+    impl ImageExecutor for Progressive {
+        fn descriptor(&self) -> solidcraft_render::job::Result<solidcraft_render::ExecutorDescriptor> {
+            let mut descriptor = CpuHost::cooperative().descriptor()?;
+            descriptor.id = solidcraft_render::ExecutorId::new("test-progressive").unwrap();
+            descriptor.profiles[0].features.push(solidcraft_render::RenderFeature::Progressive);
+            descriptor.profiles[0].features.push(solidcraft_render::RenderFeature::Hdri);
+            Ok(descriptor)
+        }
+        fn admit(
+            &self,
+            scene: &solidcraft_render::ProductScene,
+            request: &ImageRequest,
+            options: JobOptions,
+        ) -> solidcraft_render::job::Result<Admission> {
+            options.validate()?;
+            solidcraft_render::job::admit_geometry(scene, request, 262_144)
+        }
+        fn begin(
+            &self,
+            scene: solidcraft_render::ProductScene,
+            request: ImageRequest,
+            _: JobOptions,
+            cancel: CancelToken,
+        ) -> solidcraft_render::job::Result<Box<dyn ImageWork>> {
+            Ok(Box::new(ImageTask::new(scene, request, cancel)?))
+        }
+    }
+    let (mut session, cpu) = session();
+    let additional = ImageHost::with_executor(Arc::new(Progressive)).unwrap();
+    session.register_render_job_host(additional.clone()).unwrap();
+    assert!(
+        session.register_render_job_host(ImageHost::with_executor(Arc::new(Progressive)).unwrap()).is_err(),
+        "duplicate executor IDs must be rejected"
+    );
+    let cpu_id = start(&mut session);
+    let request = json!({"settings":{"width":16,"height":16},"progressive":true,"samples":3});
+    let preflight = session.execute("render.preflight", &request).unwrap();
+    assert_eq!(preflight["resolved"]["executor"], "test-progressive");
+    assert_eq!(additional.admitted_bytes(), 0);
+    let mut studio = request.clone();
+    studio["lighting"] = json!({"environment":[1,1,1],"area_lights":[{"center":[0,0,10],"u":[2,0,0],"v":[0,-2,0],"radiance":[4,4,4]}]});
+    studio["tone_map"] = json!("aces_fitted");
+    let document = session.doc.clone();
+    let studio_reply = session.execute("render.preflight", &studio).unwrap();
+    assert_eq!(studio_reply["options"]["lighting"]["environment"], json!([1.0, 1.0, 1.0]));
+    assert_eq!(studio_reply["options"]["tone_map"], "aces_fitted");
+    assert!(Arc::ptr_eq(&document, &session.doc));
+    studio["environment"] = json!({"kind":"sky","intensity":0.5,"rotation_rad":0.3});
+    let env_reply = session.execute("render.preflight", &studio).unwrap();
+    assert_eq!(env_reply["environment"]["kind"], "original_gradient_sky");
+    assert_eq!(env_reply["environment"]["width"], 512);
+    assert_eq!(env_reply["environment"]["source_sha256"].as_str().unwrap().len(), 64);
+    assert!(env_reply["request"].get("environment").is_none());
+    assert!(Arc::ptr_eq(&document, &session.doc));
+    studio["progressive"] = json!(false);
+    assert!(session.execute("render.preflight", &studio).unwrap_err().to_string().contains("require progressive"));
+    studio["progressive"] = json!(true);
+    studio["lighting"]["area_lights"][0]["u"] = json!([0, 0, 0]);
+    assert!(session.execute("render.preflight", &studio).is_err());
+    let started = session.execute("render.start", &request).unwrap();
+    let id: JobId = serde_json::from_value(started["job"].clone()).unwrap();
+    let status = session.render_job_handle(id).unwrap().wait_timeout(std::time::Duration::from_secs(10)).unwrap();
+    assert_eq!(status.resolved.executor.as_str(), "test-progressive");
+    assert_eq!(status.options.samples, 3);
+    assert_eq!(status.progress.phase, solidcraft_render::job::Phase::Completed);
+    finish(&cpu);
+    assert_eq!(session.execute("render.status", &json!({"job":cpu_id})).unwrap()["frame"]["executor"], "cpu-product");
+    assert!(session.scratch().execute("render.status", &json!({"job":id})).is_err());
+    session.execute("file.new", &json!({})).unwrap();
+    assert_eq!(session.execute("render.preflight", &request).unwrap()["resolved"]["executor"], "test-progressive");
+    assert!(session.execute("render.status", &json!({"job":id})).is_err());
+    for bad in [json!({"samples":0}), json!({"max_depth":17}), json!({"seed":-1}), json!({"samples":4097})] {
+        let mut params = request.clone();
+        for (key, value) in bad.as_object().unwrap() {
+            params[key] = value.clone();
+        }
+        assert!(session.execute("render.start", &params).is_err());
+    }
+}
+
 #[test]
 fn runtime_commands_preserve_document_history_and_evaluation() {
     let (mut s, host) = session();
@@ -216,4 +301,14 @@ fn native_start_and_cancel_measure_cached_capture_without_timing_assertions() {
         status.progress.phase
     );
     assert!(status.progress.phase.terminal());
+}
+
+#[test]
+fn runtime_texture_controls_require_progressive_and_leave_document_unchanged() {
+    let (mut s, _) = session();
+    let doc = s.doc.clone();
+    let input = json!({"raytrace":{"textures":[{"body_index":0,"body_name":"No body","frame":{"origin":[0,0,0],"u":[1,0,0],"v":[0,1,0]},"normal_opengl":"not-opened.png"}]}});
+    let error = s.execute("render.preflight", &input).unwrap_err().to_string();
+    assert!(error.contains("require progressive"), "{error}");
+    assert!(Arc::ptr_eq(&doc, &s.doc));
 }

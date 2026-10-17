@@ -1,0 +1,49 @@
+{
+  "author": "SolidCraft contributors; original analytic patterns authored for this task",
+  "license": "MIT OR Apache-2.0",
+  "no_external_images": true,
+  "dimensions": [
+    256,
+    256
+  ],
+  "stats": {
+    "walnut": {
+      "mean_linear_multiplier": 0.8376124999999859,
+      "min_linear_multiplier": 0.7020116892647678,
+      "max_linear_multiplier": 0.9749948024038769,
+      "period_mm": [
+        900,
+        90
+      ]
+    },
+    "linen": {
+      "mean_linear_multiplier": 0.8600000000000197,
+      "min_linear_multiplier": 0.7703731836829046,
+      "max_linear_multiplier": 0.9745064344839002,
+      "period_mm": [
+        24,
+        24
+      ]
+    }
+  },
+  "bindings": 13,
+  "linear_pixel_bytes_across_bindings": 27262976,
+  "files": {
+    "linen-base-srgb.png": {
+      "sha256": "32674d3bbff1878f9c039b394a2dd99ed03feb176b4be9fabf851da2d67069ff",
+      "bytes": 2365
+    },
+    "linen-normal-opengl.png": {
+      "sha256": "4e23488f4972337583ccabdd82fc91ca012c368bccda3ba49681a295b73d8c43",
+      "bytes": 5229
+    },
+    "walnut-base-srgb.png": {
+      "sha256": "1abad123658349dc923a632b0df911c0d647c224af5bfa71082b9d7a25c474df",
+      "bytes": 24912
+    },
+    "walnut-normal-opengl.png": {
+      "sha256": "dc84a597b10296ce4bbd2c3ceace4eae8b47272550eca00ed886076bf2893884",
+      "bytes": 20904
+    }
+  }
+}

@@ -1,5 +1,7 @@
 # Phased render and material integration
 
+Native progressive opaque PNG rendering is described in [Progressive product images](render-path.md). It registers alongside the CPU executor.
+
 Tracked in #842, with parent render design #620 and physical/visual material roadmap
 #922. The combined integration keeps contribution ancestry; it is an alternative
 review path, not evidence that the individual PRs have merged. Each result in GitHub

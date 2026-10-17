@@ -1,5 +1,6 @@
 //! Device-independent, bounded linear HDR input preparation.
 
+pub mod environment;
 mod hdr;
 mod task;
 pub use hdr::{HdrInfo, HdrSource, MAX_HDR_BYTES, MAX_HDR_HEIGHT, MAX_HDR_PIXELS, MAX_HDR_WIDTH};

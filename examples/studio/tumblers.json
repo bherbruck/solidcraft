@@ -1,0 +1,2935 @@
+{
+  "commands": [
+    {
+      "command": "file.new",
+      "params": {
+        "name": "Original two tumblers in a warm sitting room"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Room floor",
+        "corner": [
+          -2400,
+          -1800,
+          -30
+        ],
+        "length": 4800,
+        "width": 4300,
+        "height": 30,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Rear plaster wall",
+        "corner": [
+          -2400,
+          2000,
+          0
+        ],
+        "length": 4800,
+        "width": 30,
+        "height": 2300,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Left plaster wall",
+        "corner": [
+          -2400,
+          -1800,
+          0
+        ],
+        "length": 30,
+        "width": 3800,
+        "height": 2300,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Walnut tabletop profile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            445
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -600.0,
+          -350.0
+        ],
+        "p1": [
+          600.0,
+          350.0
+        ],
+        "radius": 55
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 35,
+        "operation": "new",
+        "body_name": "Walnut tabletop"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Table leg 1 profile",
+        "plane": {
+          "origin": [
+            -470,
+            -230,
+            0
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -27.5,
+          -27.5
+        ],
+        "p1": [
+          27.5,
+          27.5
+        ],
+        "radius": 12
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 445,
+        "operation": "new",
+        "body_name": "Table leg 1"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Table leg 2 profile",
+        "plane": {
+          "origin": [
+            470,
+            -230,
+            0
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -27.5,
+          -27.5
+        ],
+        "p1": [
+          27.5,
+          27.5
+        ],
+        "radius": 12
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 445,
+        "operation": "new",
+        "body_name": "Table leg 2"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Table leg 3 profile",
+        "plane": {
+          "origin": [
+            -470,
+            230,
+            0
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -27.5,
+          -27.5
+        ],
+        "p1": [
+          27.5,
+          27.5
+        ],
+        "radius": 12
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 445,
+        "operation": "new",
+        "body_name": "Table leg 3"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Table leg 4 profile",
+        "plane": {
+          "origin": [
+            470,
+            230,
+            0
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -27.5,
+          -27.5
+        ],
+        "p1": [
+          27.5,
+          27.5
+        ],
+        "radius": 12
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 445,
+        "operation": "new",
+        "body_name": "Table leg 4"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Tall thick tumbler profile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            36,
+            0
+          ],
+          [
+            42,
+            112
+          ],
+          [
+            37.5,
+            112
+          ],
+          [
+            31.5,
+            9
+          ],
+          [
+            0,
+            9
+          ]
+        ],
+        "closed": true,
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.revolve",
+      "params": {
+        "axis": "y",
+        "angle": "360 deg",
+        "operation": "new",
+        "body_name": "Tall thick tumbler"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Tall thick tumbler"
+        ],
+        "translate": [
+          -102,
+          -88,
+          480
+        ]
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Short thick tumbler profile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.line",
+      "params": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            37,
+            0
+          ],
+          [
+            43,
+            94
+          ],
+          [
+            38,
+            94
+          ],
+          [
+            32,
+            10
+          ],
+          [
+            0,
+            10
+          ]
+        ],
+        "closed": true,
+        "infer": false
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.revolve",
+      "params": {
+        "axis": "y",
+        "angle": "360 deg",
+        "operation": "new",
+        "body_name": "Short thick tumbler"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Short thick tumbler"
+        ],
+        "translate": [
+          88,
+          35,
+          480
+        ]
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Sofa plinth profile",
+        "plane": {
+          "origin": [
+            0,
+            1075,
+            95
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -840.0,
+          -335.0
+        ],
+        "p1": [
+          840.0,
+          335.0
+        ],
+        "radius": 65
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 140,
+        "operation": "new",
+        "body_name": "Sofa plinth"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Sofa back profile",
+        "plane": {
+          "origin": [
+            0,
+            1350,
+            235
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -840.0,
+          -80.0
+        ],
+        "p1": [
+          840.0,
+          80.0
+        ],
+        "radius": 65
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 510,
+        "operation": "new",
+        "body_name": "Sofa back"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Left sofa arm profile",
+        "plane": {
+          "origin": [
+            -760,
+            1050,
+            235
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -80.0,
+          -325.0
+        ],
+        "p1": [
+          80.0,
+          325.0
+        ],
+        "radius": 60
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 345,
+        "operation": "new",
+        "body_name": "Left sofa arm"
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Right sofa arm profile",
+        "plane": {
+          "origin": [
+            760,
+            1050,
+            235
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -80.0,
+          -325.0
+        ],
+        "p1": [
+          80.0,
+          325.0
+        ],
+        "radius": 60
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 345,
+        "operation": "new",
+        "body_name": "Right sofa arm"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Seat cushion 1",
+        "corner": [
+          -227.5,
+          -270.0,
+          -75.0
+        ],
+        "length": 455,
+        "width": 540,
+        "height": 150,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.fillet",
+      "params": {
+        "body": "Seat cushion 1",
+        "edges": [
+          [
+            0,
+            -270.0,
+            -75.0
+          ],
+          [
+            0,
+            -270.0,
+            75.0
+          ],
+          [
+            0,
+            270.0,
+            -75.0
+          ],
+          [
+            0,
+            270.0,
+            75.0
+          ],
+          [
+            -227.5,
+            0,
+            -75.0
+          ],
+          [
+            -227.5,
+            0,
+            75.0
+          ],
+          [
+            227.5,
+            0,
+            -75.0
+          ],
+          [
+            227.5,
+            0,
+            75.0
+          ],
+          [
+            -227.5,
+            -270.0,
+            0
+          ],
+          [
+            -227.5,
+            270.0,
+            0
+          ],
+          [
+            227.5,
+            -270.0,
+            0
+          ],
+          [
+            227.5,
+            270.0,
+            0
+          ]
+        ],
+        "radius": 55
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Seat cushion 1"
+        ],
+        "translate": [
+          -460,
+          1020,
+          285
+        ]
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Back cushion 1",
+        "corner": [
+          -225.0,
+          -90.0,
+          -202.5
+        ],
+        "length": 450,
+        "width": 180,
+        "height": 405,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.fillet",
+      "params": {
+        "body": "Back cushion 1",
+        "edges": [
+          [
+            0,
+            -90.0,
+            -202.5
+          ],
+          [
+            0,
+            -90.0,
+            202.5
+          ],
+          [
+            0,
+            90.0,
+            -202.5
+          ],
+          [
+            0,
+            90.0,
+            202.5
+          ],
+          [
+            -225.0,
+            0,
+            -202.5
+          ],
+          [
+            -225.0,
+            0,
+            202.5
+          ],
+          [
+            225.0,
+            0,
+            -202.5
+          ],
+          [
+            225.0,
+            0,
+            202.5
+          ],
+          [
+            -225.0,
+            -90.0,
+            0
+          ],
+          [
+            -225.0,
+            90.0,
+            0
+          ],
+          [
+            225.0,
+            -90.0,
+            0
+          ],
+          [
+            225.0,
+            90.0,
+            0
+          ]
+        ],
+        "radius": 65
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Back cushion 1"
+        ],
+        "translate": [
+          -460,
+          1230,
+          545
+        ]
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Seat cushion 2",
+        "corner": [
+          -227.5,
+          -270.0,
+          -75.0
+        ],
+        "length": 455,
+        "width": 540,
+        "height": 150,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.fillet",
+      "params": {
+        "body": "Seat cushion 2",
+        "edges": [
+          [
+            0,
+            -270.0,
+            -75.0
+          ],
+          [
+            0,
+            -270.0,
+            75.0
+          ],
+          [
+            0,
+            270.0,
+            -75.0
+          ],
+          [
+            0,
+            270.0,
+            75.0
+          ],
+          [
+            -227.5,
+            0,
+            -75.0
+          ],
+          [
+            -227.5,
+            0,
+            75.0
+          ],
+          [
+            227.5,
+            0,
+            -75.0
+          ],
+          [
+            227.5,
+            0,
+            75.0
+          ],
+          [
+            -227.5,
+            -270.0,
+            0
+          ],
+          [
+            -227.5,
+            270.0,
+            0
+          ],
+          [
+            227.5,
+            -270.0,
+            0
+          ],
+          [
+            227.5,
+            270.0,
+            0
+          ]
+        ],
+        "radius": 55
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Seat cushion 2"
+        ],
+        "translate": [
+          0,
+          1020,
+          285
+        ]
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Back cushion 2",
+        "corner": [
+          -225.0,
+          -90.0,
+          -202.5
+        ],
+        "length": 450,
+        "width": 180,
+        "height": 405,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.fillet",
+      "params": {
+        "body": "Back cushion 2",
+        "edges": [
+          [
+            0,
+            -90.0,
+            -202.5
+          ],
+          [
+            0,
+            -90.0,
+            202.5
+          ],
+          [
+            0,
+            90.0,
+            -202.5
+          ],
+          [
+            0,
+            90.0,
+            202.5
+          ],
+          [
+            -225.0,
+            0,
+            -202.5
+          ],
+          [
+            -225.0,
+            0,
+            202.5
+          ],
+          [
+            225.0,
+            0,
+            -202.5
+          ],
+          [
+            225.0,
+            0,
+            202.5
+          ],
+          [
+            -225.0,
+            -90.0,
+            0
+          ],
+          [
+            -225.0,
+            90.0,
+            0
+          ],
+          [
+            225.0,
+            -90.0,
+            0
+          ],
+          [
+            225.0,
+            90.0,
+            0
+          ]
+        ],
+        "radius": 65
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Back cushion 2"
+        ],
+        "translate": [
+          0,
+          1230,
+          545
+        ]
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Seat cushion 3",
+        "corner": [
+          -227.5,
+          -270.0,
+          -75.0
+        ],
+        "length": 455,
+        "width": 540,
+        "height": 150,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.fillet",
+      "params": {
+        "body": "Seat cushion 3",
+        "edges": [
+          [
+            0,
+            -270.0,
+            -75.0
+          ],
+          [
+            0,
+            -270.0,
+            75.0
+          ],
+          [
+            0,
+            270.0,
+            -75.0
+          ],
+          [
+            0,
+            270.0,
+            75.0
+          ],
+          [
+            -227.5,
+            0,
+            -75.0
+          ],
+          [
+            -227.5,
+            0,
+            75.0
+          ],
+          [
+            227.5,
+            0,
+            -75.0
+          ],
+          [
+            227.5,
+            0,
+            75.0
+          ],
+          [
+            -227.5,
+            -270.0,
+            0
+          ],
+          [
+            -227.5,
+            270.0,
+            0
+          ],
+          [
+            227.5,
+            -270.0,
+            0
+          ],
+          [
+            227.5,
+            270.0,
+            0
+          ]
+        ],
+        "radius": 55
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Seat cushion 3"
+        ],
+        "translate": [
+          460,
+          1020,
+          285
+        ]
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Back cushion 3",
+        "corner": [
+          -225.0,
+          -90.0,
+          -202.5
+        ],
+        "length": 450,
+        "width": 180,
+        "height": 405,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.fillet",
+      "params": {
+        "body": "Back cushion 3",
+        "edges": [
+          [
+            0,
+            -90.0,
+            -202.5
+          ],
+          [
+            0,
+            -90.0,
+            202.5
+          ],
+          [
+            0,
+            90.0,
+            -202.5
+          ],
+          [
+            0,
+            90.0,
+            202.5
+          ],
+          [
+            -225.0,
+            0,
+            -202.5
+          ],
+          [
+            -225.0,
+            0,
+            202.5
+          ],
+          [
+            225.0,
+            0,
+            -202.5
+          ],
+          [
+            225.0,
+            0,
+            202.5
+          ],
+          [
+            -225.0,
+            -90.0,
+            0
+          ],
+          [
+            -225.0,
+            90.0,
+            0
+          ],
+          [
+            225.0,
+            -90.0,
+            0
+          ],
+          [
+            225.0,
+            90.0,
+            0
+          ]
+        ],
+        "radius": 65
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Back cushion 3"
+        ],
+        "translate": [
+          460,
+          1230,
+          545
+        ]
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Ochre throw cushion",
+        "corner": [
+          -157.5,
+          -65.0,
+          -165.0
+        ],
+        "length": 315,
+        "width": 130,
+        "height": 330,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.fillet",
+      "params": {
+        "body": "Ochre throw cushion",
+        "edges": [
+          [
+            0,
+            -65.0,
+            -165.0
+          ],
+          [
+            0,
+            -65.0,
+            165.0
+          ],
+          [
+            0,
+            65.0,
+            -165.0
+          ],
+          [
+            0,
+            65.0,
+            165.0
+          ],
+          [
+            -157.5,
+            0,
+            -165.0
+          ],
+          [
+            -157.5,
+            0,
+            165.0
+          ],
+          [
+            157.5,
+            0,
+            -165.0
+          ],
+          [
+            157.5,
+            0,
+            165.0
+          ],
+          [
+            -157.5,
+            -65.0,
+            0
+          ],
+          [
+            -157.5,
+            65.0,
+            0
+          ],
+          [
+            157.5,
+            -65.0,
+            0
+          ],
+          [
+            157.5,
+            65.0,
+            0
+          ]
+        ],
+        "radius": 55
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Ochre throw cushion"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "-18 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Ochre throw cushion"
+        ],
+        "translate": [
+          -520,
+          1090,
+          560
+        ]
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Taupe throw cushion",
+        "corner": [
+          -145.0,
+          -65.0,
+          -155.0
+        ],
+        "length": 290,
+        "width": 130,
+        "height": 310,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.fillet",
+      "params": {
+        "body": "Taupe throw cushion",
+        "edges": [
+          [
+            0,
+            -65.0,
+            -155.0
+          ],
+          [
+            0,
+            -65.0,
+            155.0
+          ],
+          [
+            0,
+            65.0,
+            -155.0
+          ],
+          [
+            0,
+            65.0,
+            155.0
+          ],
+          [
+            -145.0,
+            0,
+            -155.0
+          ],
+          [
+            -145.0,
+            0,
+            155.0
+          ],
+          [
+            145.0,
+            0,
+            -155.0
+          ],
+          [
+            145.0,
+            0,
+            155.0
+          ],
+          [
+            -145.0,
+            -65.0,
+            0
+          ],
+          [
+            -145.0,
+            65.0,
+            0
+          ],
+          [
+            145.0,
+            -65.0,
+            0
+          ],
+          [
+            145.0,
+            65.0,
+            0
+          ]
+        ],
+        "radius": 55
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Taupe throw cushion"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "16 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Taupe throw cushion"
+        ],
+        "translate": [
+          530,
+          1115,
+          545
+        ]
+      }
+    },
+    {
+      "command": "sketch.create",
+      "params": {
+        "name": "Plant stand profile",
+        "plane": {
+          "origin": [
+            620,
+            575,
+            0
+          ],
+          "x_dir": [
+            1,
+            0,
+            0
+          ],
+          "y_dir": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "command": "sketch.rectangle.rounded",
+      "params": {
+        "p0": [
+          -100.0,
+          -100.0
+        ],
+        "p1": [
+          100.0,
+          100.0
+        ],
+        "radius": 30
+      }
+    },
+    {
+      "command": "sketch.finish",
+      "params": {}
+    },
+    {
+      "command": "solid.extrude",
+      "params": {
+        "distance": 430,
+        "operation": "new",
+        "body_name": "Plant stand"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Ceramic plant pot",
+        "base": [
+          620,
+          575,
+          430
+        ],
+        "radius": 82,
+        "height": 146,
+        "axis": "Z",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "base": [
+          620,
+          575,
+          442
+        ],
+        "radius": 73,
+        "height": 136,
+        "operation": "cut",
+        "targets": [
+          "Ceramic plant pot"
+        ],
+        "name": "Open ceramic pot"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Pot soil",
+        "base": [
+          620,
+          575,
+          550
+        ],
+        "radius": 71,
+        "height": 8,
+        "axis": "Z",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 1",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 200.6888138387389,
+        "axis": [
+          100.0,
+          0.0,
+          174
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 1",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 1"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 1"
+        ],
+        "translate": [
+          720.0,
+          575.0,
+          730
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 2",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 266.5933232472261,
+        "axis": [
+          -91.42238976445537,
+          83.77318574434184,
+          236
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 2",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 2"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 2"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "137.5 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 2"
+        ],
+        "translate": [
+          528.5776102355446,
+          658.7731857443418,
+          792
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 3",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 332.7281172368816,
+        "axis": [
+          12.899049926653333,
+          -147.43681531757835,
+          298
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 3",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 3"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 3"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "275.0 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 3"
+        ],
+        "translate": [
+          632.8990499266533,
+          427.56318468242165,
+          854
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 4",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 373.6308338453881,
+        "axis": [
+          60.87614290087208,
+          79.33533402912349,
+          360
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 4",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 4"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 4"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "412.5 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 4"
+        ],
+        "translate": [
+          680.8761429008721,
+          654.3353340291235,
+          916
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 5",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 213.66328650472454,
+        "axis": [
+          -122.11616137351382,
+          -21.532374030699316,
+          174
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 5",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 5"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 5"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "550.0 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 5"
+        ],
+        "translate": [
+          497.8838386264862,
+          553.4676259693007,
+          730
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 6",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 278.5677655436824,
+        "axis": [
+          124.821933980307,
+          -79.52034203533003,
+          236
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 6",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 6"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 6"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "687.5 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 6"
+        ],
+        "translate": [
+          744.821933980307,
+          495.47965796466997,
+          792
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 7",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 314.33103569326397,
+        "axis": [
+          -25.881904510251957,
+          96.59258262890683,
+          298
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 7",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 7"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 7"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "825.0 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 7"
+        ],
+        "translate": [
+          594.118095489748,
+          671.5925826289068,
+          854
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 8",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 380.7571404451924,
+        "axis": [
+          -57.256828041144104,
+          -109.98934331409953,
+          360
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 8",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 8"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 8"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "962.5 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 8"
+        ],
+        "translate": [
+          562.7431719588559,
+          465.01065668590047,
+          916
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 9",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 228.42942017174585,
+        "axis": [
+          139.07450787631456,
+          50.61898121219883,
+          174
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 9",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 9"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 9"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "1100.0 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 9"
+        ],
+        "translate": [
+          759.0745078763146,
+          625.6189812121988,
+          730
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 10",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 256.3123094976127,
+        "axis": [
+          -92.38795325112869,
+          38.26834323650894,
+          236
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 10",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 10"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 10"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "1237.5 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 10"
+        ],
+        "translate": [
+          527.6120467488713,
+          613.2683432365089,
+          792
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 11",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 322.7692674341843,
+        "axis": [
+          52.404664455846614,
+          -112.38216559254465,
+          298
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 11",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 11"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 11"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "1375.0 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 11"
+        ],
+        "translate": [
+          672.4046644558466,
+          462.61783440745535,
+          854
+        ]
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Plant stem 12",
+        "base": [
+          620,
+          575,
+          556
+        ],
+        "radius": 2.5,
+        "height": 389.2351474366106,
+        "axis": [
+          44.5044583266324,
+          141.15010871073764,
+          360
+        ],
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.sphere",
+      "params": {
+        "body_name": "Plant leaf 12",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 1,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.scale",
+      "params": {
+        "bodies": [
+          "Plant leaf 12"
+        ],
+        "factors": [
+          62,
+          23,
+          4
+        ]
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 12"
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "angle": "1512.5 deg"
+      }
+    },
+    {
+      "command": "solid.move",
+      "params": {
+        "bodies": [
+          "Plant leaf 12"
+        ],
+        "translate": [
+          664.5044583266324,
+          716.1501087107376,
+          916
+        ]
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 1",
+        "corner": [
+          -1030,
+          1440,
+          660
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 2",
+        "corner": [
+          -1030,
+          1440,
+          705
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 3",
+        "corner": [
+          -1030,
+          1440,
+          750
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 4",
+        "corner": [
+          -1030,
+          1440,
+          795
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 5",
+        "corner": [
+          -1030,
+          1440,
+          840
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 6",
+        "corner": [
+          -1030,
+          1440,
+          885
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 7",
+        "corner": [
+          -1030,
+          1440,
+          930
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 8",
+        "corner": [
+          -1030,
+          1440,
+          975
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 9",
+        "corner": [
+          -1030,
+          1440,
+          1020
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 10",
+        "corner": [
+          -1030,
+          1440,
+          1065
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 11",
+        "corner": [
+          -1030,
+          1440,
+          1110
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 12",
+        "corner": [
+          -1030,
+          1440,
+          1155
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 13",
+        "corner": [
+          -1030,
+          1440,
+          1200
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window blind slat 14",
+        "corner": [
+          -1030,
+          1440,
+          1245
+        ],
+        "length": 850,
+        "width": 52,
+        "height": 12,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window jamb -1048",
+        "corner": [
+          -1048,
+          1434,
+          620
+        ],
+        "length": 18,
+        "width": 70,
+        "height": 710,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window jamb -180",
+        "corner": [
+          -180,
+          1434,
+          620
+        ],
+        "length": 18,
+        "width": 70,
+        "height": 710,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window rail 620",
+        "corner": [
+          -1030,
+          1434,
+          620
+        ],
+        "length": 850,
+        "width": 70,
+        "height": 18,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.box",
+      "params": {
+        "body_name": "Window rail 1320",
+        "corner": [
+          -1030,
+          1434,
+          1320
+        ],
+        "length": 850,
+        "width": 70,
+        "height": 18,
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Blind cord -860",
+        "base": [
+          -860,
+          1425,
+          635
+        ],
+        "radius": 1.5,
+        "height": 690,
+        "axis": "Z",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "solid.cylinder",
+      "params": {
+        "body_name": "Blind cord -350",
+        "base": [
+          -350,
+          1425,
+          635
+        ],
+        "radius": 1.5,
+        "height": 690,
+        "axis": "Z",
+        "operation": "new"
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Room floor"
+        ],
+        "color": "#e8e8e8",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.65,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Walnut tabletop",
+          "Table leg 1",
+          "Table leg 2",
+          "Table leg 3",
+          "Table leg 4",
+          "Plant stand"
+        ],
+        "color": "#4c2818",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.42,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Sofa back",
+          "Left sofa arm",
+          "Right sofa arm",
+          "Seat cushion 1",
+          "Back cushion 1",
+          "Seat cushion 2",
+          "Back cushion 2",
+          "Seat cushion 3",
+          "Back cushion 3",
+          "Blind cord -860",
+          "Blind cord -350"
+        ],
+        "color": "#ada69b",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.88,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Ochre throw cushion"
+        ],
+        "color": "#a66c32",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.9,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Sofa plinth",
+          "Taupe throw cushion"
+        ],
+        "color": "#71685e",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.9,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Plant leaf 1",
+          "Plant leaf 2",
+          "Plant leaf 3",
+          "Plant leaf 4",
+          "Plant leaf 5",
+          "Plant leaf 6",
+          "Plant leaf 7",
+          "Plant leaf 8",
+          "Plant leaf 9",
+          "Plant leaf 10",
+          "Plant leaf 11",
+          "Plant leaf 12"
+        ],
+        "color": "#315a2b",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.6,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Plant stem 1",
+          "Plant stem 2",
+          "Plant stem 3",
+          "Plant stem 4",
+          "Plant stem 5",
+          "Plant stem 6",
+          "Plant stem 7",
+          "Plant stem 8",
+          "Plant stem 9",
+          "Plant stem 10",
+          "Plant stem 11",
+          "Plant stem 12"
+        ],
+        "color": "#425c2b",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.75,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Pot soil"
+        ],
+        "color": "#23190f",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 1,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Ceramic plant pot"
+        ],
+        "color": "#b4b3a5",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Rear plaster wall",
+          "Left plaster wall",
+          "Window jamb -1048",
+          "Window jamb -180",
+          "Window rail 620",
+          "Window rail 1320"
+        ],
+        "color": "#ded9d1",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.85,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Window blind slat 1",
+          "Window blind slat 2",
+          "Window blind slat 3",
+          "Window blind slat 4",
+          "Window blind slat 5",
+          "Window blind slat 6",
+          "Window blind slat 7",
+          "Window blind slat 8",
+          "Window blind slat 9",
+          "Window blind slat 10",
+          "Window blind slat 11",
+          "Window blind slat 12",
+          "Window blind slat 13",
+          "Window blind slat 14"
+        ],
+        "color": "#bdac91",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.7,
+          "dielectric_ior": 1.5
+        }
+      }
+    },
+    {
+      "command": "appearance.assign",
+      "params": {
+        "bodies": [
+          "Tall thick tumbler",
+          "Short thick tumbler"
+        ],
+        "color": "#ffffff",
+        "pbr": {
+          "metallic": 0,
+          "roughness": 0.045,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  ]
+}
