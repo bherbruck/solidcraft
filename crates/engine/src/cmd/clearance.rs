@@ -298,7 +298,14 @@ fn measure_pair(
                             ));
                             return out;
                         }
-                        Ok(m) => out.overlap = Some((m.volume, m.area, m.bbox, m.centroid)),
+                        Ok(m) => {
+                            let (wa, wb) = (ca.as_ref().unwrap_or(&ba.body), cb.as_ref().unwrap_or(&bb.body));
+                            if let Some(reason) = union_disagrees(wa, wb, m.volume, region.center()) {
+                                out.unchecked = Some(reason);
+                                return out;
+                            }
+                            out.overlap = Some((m.volume, m.area, m.bbox, m.centroid));
+                        }
                         Err(e) => {
                             out.unchecked = Some(e.to_string());
                             return out;
@@ -373,6 +380,36 @@ fn measure_near_origin(body: &solidcraft_kernel::Body, at: solidcraft_geom::Vec3
     m.centroid += at;
     m.bbox = Aabb3 { min: m.bbox.min + at, max: m.bbox.max + at };
     Ok(m)
+}
+
+/// Does the shared volume of `a` and `b` disagree with the one their union implies,
+/// vol(a) + vol(b) − vol(a ∪ b)? The intersection can come out well formed and still wrong (a
+/// mirrored pair read three times its volume). `None` when they agree, or when the union gives no
+/// answer to compare with.
+fn union_disagrees(a: &solidcraft_kernel::Body, b: &solidcraft_kernel::Body, shared: f64, at: solidcraft_geom::Vec3) -> Option<String> {
+    let (union, report) = solidcraft_kernel::capture_boolean_diagnostics(|| solidcraft_kernel::boolean(a, b, solidcraft_kernel::BoolOp::Union));
+    let union = union.ok().flatten().filter(|_| report.unverified().is_none())?;
+    let volume = |x: &solidcraft_kernel::Body| measure_near_origin(x, at).ok().map(|m| m.volume).filter(|v| v.is_finite());
+    contradicted(shared, volume(a)?, volume(b)?, volume(&union)?)
+}
+
+/// Relative error of a measured volume. [`solidcraft_kernel::measure`] keeps a face's fine
+/// tessellation when it is within 1 % of one with a 5 times coarser chord; the volume a chord
+/// misses grows in step with it, so the kept one can be off by up to 1 % / 4.
+const VOLUME_NOISE: f64 = 0.0025;
+
+/// [`union_disagrees`] on measured volumes: `shared` against vol(a) + vol(b) − vol(a ∪ b).
+/// That difference of large numbers carries the measuring error of all three, so a small overlap
+/// on large bodies can come out near zero or below it: then the union cannot tell, and a shared
+/// part small next to both bodies stands. A shared part the union clearly contradicts (412 mm³
+/// where the bodies of a few thousand and their union imply 141) does not.
+fn contradicted(shared: f64, va: f64, vb: f64, vu: f64) -> Option<String> {
+    let implied = va + vb - vu;
+    let noise = VOLUME_NOISE * (va + vb + vu) + 1e-6;
+    let allowed = 0.01 * shared.max(implied.abs()) + noise;
+    let unresolved = implied <= noise && shared <= 0.1 * va.min(vb);
+    ((implied - shared).abs() > allowed && !unresolved)
+        .then(|| format!("the shared part measures {shared:.4} mm³ but the bodies and their union imply {implied:.4} mm³, so neither is reported"))
 }
 
 /// Is a measured shared part well formed? A part whose shell came out inside out or open can
