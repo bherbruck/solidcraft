@@ -66,7 +66,39 @@ fn nurbs((pu, pv): (usize, usize), kv: &(mt::KnotVec, mt::KnotVec), rows: Vec<Ve
         return None;
     }
     let knots = [knots(&kv.0)?, knots(&kv.1)?];
-    (knots[0].len() == nu + pu + 1 && knots[1].len() == nv + pv + 1).then_some(EvalSurface::Nurbs { degree: [pu, pv], knots, count: [nu, nv], ctrl })
+    if !(knots[0].len() == nu + pu + 1 && knots[1].len() == nv + pv + 1) {
+        return None;
+    }
+    let closed = [closed_along(0, &ctrl, [nu, nv], [pu, pv], &knots), closed_along(1, &ctrl, [nu, nv], [pu, pv], &knots)];
+    Some(EvalSurface::Nurbs { degree: [pu, pv], knots, count: [nu, nv], ctrl, closed })
+}
+
+/// Does the surface join itself along direction `d` (a tube's way round)? Its knots there must
+/// be clamped, so the ends of the range are the first and last rows of control points, and
+/// those two rows must be the same points: the join is then the parameter line `d = end`, and
+/// the direction is periodic.
+fn closed_along(d: usize, ctrl: &[[f64; 4]], count: [usize; 2], degree: [usize; 2], knots: &[Vec<f64>; 2]) -> bool {
+    let (n, p) = (count[d], degree[d]);
+    if n < 2 {
+        return false;
+    }
+    let Some(k) = knots.get(d) else { return false };
+    let Some((&a, &b)) = k.first().zip(k.last()) else { return false };
+    // Clamped: degree + 1 knots equal at each end, and a range to speak of.
+    if !(b > a && k.iter().take(p + 1).all(|x| *x == a) && k.iter().rev().take(p + 1).all(|x| *x == b)) {
+        return false;
+    }
+    // Control point `(i, j)` with `i` along u, as a point.
+    let at =
+        |i: usize, j: usize| ctrl.get(j * count[0] + i).and_then(|h| (h[3].abs() > 1e-300).then(|| Vec3::new(h[0] / h[3], h[1] / h[3], h[2] / h[3])));
+    let along_d = |x: usize, t: usize| if d == 0 { at(x, t) } else { at(t, x) };
+    let (mut extent, mut gap) = (0.0f64, 0.0f64);
+    for t in 0..count[1 - d] {
+        let (Some(first), Some(last)) = (along_d(0, t), along_d(n - 1, t)) else { return false };
+        extent = extent.max(first.len()).max(last.len());
+        gap = gap.max(first.dist(last));
+    }
+    gap <= 1e-9 * extent.max(1.0)
 }
 
 /// A profile curve in the evaluator's form (a line extends for ever, as truck's does).

@@ -296,3 +296,89 @@ fn trace_seeds_grade_from_one_end_to_the_other() {
     assert_eq!(even.len(), 3);
     assert!(graded([0.0, 0.0], [0.5, 0.0], 1.0, 1.0, 10.0, [1.0, 1.0], &|_, _| true).is_empty());
 }
+
+/// A surface that joins itself along a direction is periodic there: its parameters repeat, so
+/// the evaluator takes a parameter outside the range back into it. A boundary that runs across
+/// the join is unwrapped past the range's end and must still land on the surface.
+#[test]
+fn a_closed_spline_surface_is_periodic_and_evaluates_outside_its_range() {
+    use solidcraft_geom::tess::EvalSurface;
+    // A five-sided tube: the control net's last column repeats its first.
+    let corner = |k: usize| {
+        let a = std::f64::consts::TAU * (k % 5) as f64 / 5.0;
+        (10.0 * a.cos(), 10.0 * a.sin())
+    };
+    let mut ctrl = Vec::new();
+    for j in 0..2 {
+        for k in 0..=5 {
+            let (x, y) = corner(k);
+            ctrl.push([x, y, f64::from(j) * 8.0, 1.0]);
+        }
+    }
+    let s = EvalSurface::Nurbs {
+        degree: [1, 1],
+        knots: [vec![0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 5.0], vec![0.0, 0.0, 1.0, 1.0]],
+        count: [6, 2],
+        ctrl,
+        closed: [true, false],
+    };
+    let dom = uv::domain(&s);
+    assert_eq!(dom.period, [Some(5.0), None]);
+    assert_eq!(dom.range, [Some((0.0, 5.0)), Some((0.0, 1.0))]);
+    // A parameter a whole range below the start is the same point as one inside it.
+    for (a, b) in [(-0.5, 4.5), (-2.0, 3.0), (5.5, 0.5), (7.0, 2.0)] {
+        let (Some(out), Some(inside)) = (s.derivs(a, 0.25), s.derivs(b, 0.25)) else { panic!("evaluates") };
+        assert!(out.0.dist(inside.0) < 1e-12, "u = {a} and u = {b}: {:?} vs {:?}", out.0, inside.0);
+    }
+    // The same net left open is not periodic, and keeps truck's end-span extension outside it.
+    let EvalSurface::Nurbs { degree, knots, count, ctrl, .. } = s else { panic!("nurbs") };
+    let open = EvalSurface::Nurbs { degree, knots, count, ctrl, closed: [false, false] };
+    assert_eq!(uv::domain(&open).period, [None, None]);
+    let (Some(out), Some(inside)) = (open.derivs(-0.5, 0.25), open.derivs(4.5, 0.25)) else { panic!("evaluates") };
+    assert!(out.0.dist(inside.0) > 1.0, "an open surface does not wrap");
+}
+
+/// Each loop of a face is projected on its own, so on a periodic surface a hole can come out a
+/// whole turn away from the boundary that holds it. Every loop is brought into the outer
+/// boundary's period, where the hole cuts the face again.
+#[test]
+fn holes_are_brought_into_the_outer_boundarys_period() {
+    let tau = std::f64::consts::TAU;
+    let at = |u: f64, v: f64| seam::Loop { uv: vec![[u, v], [u + 0.2, v], [u + 0.2, v + 0.2], [u, v + 0.2]], pts: vec![Vec3::ZERO; 4] };
+    let dom = uv::Domain { range: [Some((0.0, 1.0)), Some((0.0, tau))], period: [None, Some(tau)] };
+    let mut loops = vec![at(0.0, -tau), at(0.4, 1.5), at(0.6, 1.5 - tau)];
+    align_periods(&mut loops, &dom);
+    // The outer loop stays where it is; both holes land beside it, a whole turn moved or not.
+    assert_eq!(loops[0].uv[0], [0.0, -tau]);
+    assert!((loops[1].uv[0][1] - (1.5 - tau)).abs() < 1e-12, "{:?}", loops[1].uv[0]);
+    assert!((loops[2].uv[0][1] - (1.5 - tau)).abs() < 1e-12, "{:?}", loops[2].uv[0]);
+    // Nothing moves along a direction that does not repeat.
+    assert_eq!(loops[1].uv[0][0], 0.4);
+}
+
+/// A boundary that steps out to a node and straight back encloses no area: the pair is dropped,
+/// so what is left no longer runs along itself. The two sides need only agree within the given
+/// distance — a STEP writer may draw them as two curves a hair apart.
+#[test]
+fn zero_width_slits_are_dropped_from_a_boundary() {
+    let p = |x: f64| Vec3::new(x, 0.0, 0.0);
+    // A square with a slit poked into it from the corner (2, 1): out to (2, 2) and back.
+    let slit = vec![
+        p(0.0),
+        p(1.0),
+        Vec3::new(2.0, 1.0, 0.0),
+        Vec3::new(2.0, 2.0, 0.0),
+        Vec3::new(2.0 + 1e-9, 1.0, 0.0),
+        p(3.0),
+        Vec3::new(3.0, 3.0, 0.0),
+        Vec3::new(0.0, 3.0, 0.0),
+    ];
+    let (out, known) = drop_slits(&[slit], &[Vec::new()], 1e-6);
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0], vec![p(0.0), p(1.0), Vec3::new(2.0, 1.0, 0.0), p(3.0), Vec3::new(3.0, 3.0, 0.0), Vec3::new(0.0, 3.0, 0.0)]);
+    assert_eq!(known[0].len(), out[0].len());
+    // Too far apart to be one slit: the boundary is left as it is.
+    let wide = vec![p(0.0), p(1.0), Vec3::new(2.0, 1.0, 0.0), Vec3::new(2.0, 2.0, 0.0), Vec3::new(2.5, 1.0, 0.0), p(3.0)];
+    let kept = drop_slits(std::slice::from_ref(&wide), &[Vec::new()], 1e-6).0;
+    assert_eq!(kept, vec![wide]);
+}

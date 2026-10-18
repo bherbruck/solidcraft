@@ -27,7 +27,8 @@ struct Surface {
     // Revolved: parameters exchanged; mirror transform (normal reversed).
     swap: u32,
     mirror: u32,
-    _pad: u32,
+    // NURBS: bit 0 the surface joins itself along u, bit 1 along v (the direction is periodic).
+    closed: u32,
 };
 
 struct Vertex {
@@ -159,8 +160,20 @@ fn rational_der(a: vec4<f32>, da: vec4<f32>) -> vec3<f32> {
     return (da.xyz - rational_point(a) * da.w) / a.w;
 }
 
-fn nurbs(s: Surface, u: f32, v: f32) -> Derivs {
+// A parameter outside the knot range of a direction the surface joins itself along, moved by
+// whole ranges back into it (the CPU evaluator's `EvalSurface::derivs` does the same).
+fn wrap_closed(knots: u32, p: u32, n: u32, t: f32, closed: bool) -> f32 {
+    if (!closed) { return t; }
+    let a = data[knots + p];
+    let b = data[knots + n];
+    if (!(b > a) || (t >= a && t <= b)) { return t; }
+    return a + (t - a) - floor((t - a) / (b - a)) * (b - a);
+}
+
+fn nurbs(s: Surface, u_in: f32, v_in: f32) -> Derivs {
     var r: Derivs;
+    let u = wrap_closed(s.knots_u, s.pu, s.nu, u_in, (s.closed & 1u) != 0u);
+    let v = wrap_closed(s.knots_v, s.pv, s.nv, v_in, (s.closed & 2u) != 0u);
     let su = span_of(s.knots_u, s.pu, s.nu, u);
     let sv = span_of(s.knots_v, s.pv, s.nv, v);
     let bu0 = basis_funs(s.knots_u, su, s.pu, u);

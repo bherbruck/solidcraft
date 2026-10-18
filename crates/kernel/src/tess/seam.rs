@@ -351,6 +351,15 @@ fn seam_nodes(s: &EvalSurface, swap: bool, x: f64, y0: f64, y1: f64, rules: &Rul
     Some(inner.iter().map(|&y| (y, s.eval(uv(y)[0], uv(y)[1]).0)).collect())
 }
 
+/// Whether a face of `solid` lies on a B-spline surface that joins itself (a lofted tube).
+/// Truck meshes a face in its surface's parameters and treats only a revolved surface's
+/// rotation as periodic, so a face that runs across such a join comes out folded over itself or
+/// with a hole in it. The reference mesh of such a body is made from the display plan,
+/// which knows the join is periodic.
+pub(crate) fn closes_on_itself(solid: &crate::body::Solid) -> bool {
+    solid.face_iter().any(|f| matches!(super::surface::eval_surface(&f.surface()), Some(EvalSurface::Nurbs { closed, .. }) if closed[0] || closed[1]))
+}
+
 /// Whether a face of `solid` lies on a surface of revolution and has a boundary loop turning
 /// more than once around its axis (a helical trim). Truck's mesher cannot mesh such a face (its
 /// triangles cut across the solid), so the reference mesh is made from the display plan instead.

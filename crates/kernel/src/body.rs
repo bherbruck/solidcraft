@@ -1047,15 +1047,19 @@ impl Body {
         if let Some(m) = &self.mesh {
             return Ok(m.to_mesh());
         }
-        // A face trimmed by a helix (a modelled thread from another CAD system) turns more than
-        // once around its cylinder; truck meshes it with triangles across the solid (#1289).
-        // Such a body is meshed from its display plan, which cuts the face along a seam.
-        if guard("tessellate", || Ok(crate::tess::seam::turns_more_than_once(&self.solid))).unwrap_or(false) {
+        // Two kinds of face truck cannot mesh in its surface's parameters: one trimmed by a
+        // helix, which turns more than once around its cylinder and comes out with triangles
+        // across the solid (#1289), and one that runs across the join of a B-spline surface that
+        // closes on itself, which comes out folded over itself or with a hole in it.
+        // Such a body is meshed from its display plan, which cuts and unwraps those faces.
+        let planned =
+            guard("tessellate", || Ok(crate::tess::seam::turns_more_than_once(&self.solid) || crate::tess::seam::closes_on_itself(&self.solid)));
+        if planned.unwrap_or(false) {
             let turn = (angle.is_finite() && angle > 0.0)
                 .then(|| crate::tess::size::Turn { angle: angle.max(MIN_DISPLAY_ANGLE), floor: tol * DISPLAY_ANGLE_FLOOR });
             match guard("tessellate", || crate::tess::plan(&self.solid, tol, turn)) {
                 Ok((plan, _)) => return Ok(plan.evaluate()),
-                Err(e) => log::debug!("helical faces: no display plan ({e}); meshing the reference way"),
+                Err(e) => log::debug!("no display plan ({e}); meshing the reference way"),
             }
         }
         let deflection = if angle.is_finite() && angle > 0.0 {
@@ -1249,25 +1253,46 @@ impl Body {
         Ok(crossed)
     }
 
-    /// Faces with no triangles in a coarse tessellation (the mesher failed or gave up).
+    /// Faces with no triangles of their own, and so not shown: none in a coarse tessellation,
+    /// and none in the display plan either (the plan is what the viewport draws, and it meshes
+    /// faces the reference mesher gives up on). Only faces the coarse tessellation misses are
+    /// looked for in the plan, so a sound body costs no planning.
     pub fn unmeshed_faces(&self) -> usize {
         if self.is_mesh() {
             return 0;
         }
         let tol = (self.size() * 1e-2).max(1e-3);
-        if let Some((cached_tol, missing)) = self.coarse_missing
-            && cached_tol == tol
-        {
-            return missing;
+        let missing = match self.coarse_missing {
+            Some((cached_tol, missing)) if cached_tol == tol => missing,
+            _ => {
+                let Ok(m) = self.tessellate(tol) else { return self.face_count() };
+                let mut has = vec![false; self.face_count()];
+                for f in &m.tri_face {
+                    if let Some(h) = has.get_mut(*f as usize) {
+                        *h = true;
+                    }
+                }
+                has.iter().filter(|h| !**h).count()
+            }
+        };
+        if missing == 0 {
+            return 0;
         }
-        let Ok(m) = self.tessellate(tol) else { return self.face_count() };
+        self.unmeshed_in_plan(tol).unwrap_or(missing)
+    }
+
+    /// Faces the display plan leaves without triangles; `None` when the body has no plan.
+    fn unmeshed_in_plan(&self, tol: f64) -> Option<usize> {
+        let plan = self.display_plan(tol).ok()?;
         let mut has = vec![false; self.face_count()];
-        for f in &m.tri_face {
-            if let Some(h) = has.get_mut(*f as usize) {
+        for f in &plan.faces {
+            if !f.triangles.is_empty()
+                && let Some(h) = has.get_mut(f.face as usize)
+            {
                 *h = true;
             }
         }
-        has.iter().filter(|h| !**h).count()
+        Some(has.iter().filter(|h| !**h).count())
     }
 
     /// Display mesh: like [`Body::tessellate`], with seam edges flagged. Meshed from the

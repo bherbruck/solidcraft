@@ -887,6 +887,79 @@ fn split_band_edges_are_seams() {
     assert!(m.seams.iter().filter(|s| **s).count() >= 2, "{:?}", m.seams);
 }
 
+/// A band face is split although its ring edges run a little off its surface. A file writes
+/// edges and surfaces to its own uncertainty, so the two disagree by a few micrometres; the
+/// split line lies on the surface and can only reach the surface points below the rings.
+#[test]
+fn band_faces_split_when_ring_edges_run_off_their_surface() {
+    // A five-sided tube on a B-spline surface closed around (radius 10, height 8), bounded by
+    // ring edges 4 µm outside it, with a seam edge up one corner used both ways.
+    const R: f64 = 10.0;
+    const H: f64 = 8.0;
+    const OFF: f64 = 0.004;
+    let corner = |k: usize, r: f64| {
+        let a = std::f64::consts::TAU * (k % 5) as f64 / 5.0;
+        (r * a.cos(), r * a.sin())
+    };
+    let mut t = String::from(HEAD);
+    // Control net: the corners around (the first repeated to close it) × the two ends.
+    let mut rows = Vec::new();
+    for k in 0..=5 {
+        let (x, y) = corner(k, R);
+        let id = 100 + 2 * k as u64;
+        t += &format!("#{id}=CARTESIAN_POINT('',({x:.12},{y:.12},0.));\n#{}=CARTESIAN_POINT('',({x:.12},{y:.12},{H:.1}));\n", id + 1);
+        rows.push(format!("(#{id},#{})", id + 1));
+    }
+    t += &format!(
+        "#200=B_SPLINE_SURFACE_WITH_KNOTS('',1,1,({}),.UNSPECIFIED.,.T.,.F.,.F.,(2,1,1,1,1,2),(2,2),(0.,1.,2.,3.,4.,5.),(0.,1.),.UNSPECIFIED.);\n",
+        rows.join(",")
+    );
+    // The rings, 4 µm outside the surface: each is one closed polyline edge.
+    for k in 0..5u64 {
+        let (x, y) = corner(k as usize, R + OFF);
+        t += &format!("#{}=CARTESIAN_POINT('',({x:.12},{y:.12},0.));\n#{}=CARTESIAN_POINT('',({x:.12},{y:.12},{H:.1}));\n", 300 + k, 310 + k);
+    }
+    t += "#320=VERTEX_POINT('',#300);\n#321=VERTEX_POINT('',#310);\n";
+    t += "#330=POLYLINE('',(#300,#301,#302,#303,#304,#300));\n#331=POLYLINE('',(#310,#311,#312,#313,#314,#310));\n";
+    t += "#340=DIRECTION('',(0.,0.,1.));\n#341=VECTOR('',#340,1.);\n#342=LINE('',#300,#341);\n";
+    t += "#350=EDGE_CURVE('',#320,#320,#330,.T.);\n#351=EDGE_CURVE('',#321,#321,#331,.T.);\n#352=EDGE_CURVE('',#320,#321,#342,.T.);\n";
+    // The band's loop: around the bottom ring, up the seam, back around the top, down the seam.
+    t += "#360=ORIENTED_EDGE('',*,*,#350,.T.);\n#361=ORIENTED_EDGE('',*,*,#352,.T.);\n#362=ORIENTED_EDGE('',*,*,#351,.F.);\n#363=ORIENTED_EDGE('',*,*,#352,.F.);\n";
+    t += "#364=EDGE_LOOP('',(#360,#361,#362,#363));\n#365=FACE_OUTER_BOUND('',#364,.T.);\n#366=ADVANCED_FACE('',(#365),#200,.T.);\n";
+    // The two ends, on the planes the rings lie in.
+    t += "#370=CARTESIAN_POINT('',(0.,0.,0.));\n#371=DIRECTION('',(1.,0.,0.));\n#372=AXIS2_PLACEMENT_3D('',#370,#340,#371);\n#373=PLANE('',#372);\n";
+    t += "#374=ORIENTED_EDGE('',*,*,#350,.F.);\n#375=EDGE_LOOP('',(#374));\n#376=FACE_OUTER_BOUND('',#375,.T.);\n#377=ADVANCED_FACE('',(#376),#373,.F.);\n";
+    t += &format!("#380=CARTESIAN_POINT('',(0.,0.,{H:.1}));\n#381=AXIS2_PLACEMENT_3D('',#380,#340,#371);\n#382=PLANE('',#381);\n");
+    t += "#383=ORIENTED_EDGE('',*,*,#351,.T.);\n#384=EDGE_LOOP('',(#383));\n#385=FACE_OUTER_BOUND('',#384,.T.);\n#386=ADVANCED_FACE('',(#385),#382,.T.);\n";
+    t += "#390=CLOSED_SHELL('',(#366,#377,#386));\n#391=MANIFOLD_SOLID_BREP('Tube',#390);\n#392=SHAPE_REPRESENTATION('',(#391),#20);\n";
+    // The file's uncertainty is 1 µm, so the ring edges are off the surface well inside it.
+    t += "#20=(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#21))GLOBAL_UNIT_ASSIGNED_CONTEXT((#22,#23))REPRESENTATION_CONTEXT('',''));\n";
+    t += "#21=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-3),#22,'','');\n";
+    t += "#22=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));\n#23=(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.));\n";
+    t += TAIL;
+    let imp = step_import(&t).unwrap();
+    assert!(!imp.warnings.iter().any(|w| w.contains("kept whole")), "{:?}", imp.warnings);
+    let ib = &imp.bodies[0];
+    assert_eq!(ib.file_faces, 3);
+    assert_eq!(ib.body.face_count(), 4, "the band face is split in two: {:?}", imp.warnings);
+    assert_eq!(ib.body.unmeshed_faces(), 0, "{:?}", imp.warnings);
+    // Every face is meshed, and the four together cover the tube once: five sides of
+    // 2·R·sin(36°) by the height, plus the two five-sided ends.
+    let m = ib.body.display_mesh(0.05).unwrap();
+    let mut area = vec![0.0f64; ib.body.face_count()];
+    for (t, f) in m.triangles.iter().zip(&m.tri_face) {
+        let (a, b, c) = (m.positions[t[0] as usize], m.positions[t[1] as usize], m.positions[t[2] as usize]);
+        if let Some(sum) = area.get_mut(*f as usize) {
+            *sum += 0.5 * (b - a).cross(c - a).len();
+        }
+    }
+    let side = 2.0 * R * (std::f64::consts::TAU / 10.0).sin();
+    let want = 5.0 * side * H + 5.0 * side * R * (std::f64::consts::TAU / 10.0).cos();
+    assert!(rel(area.iter().sum::<f64>(), want) < 5e-3, "{area:?} sums to {} not {want}", area.iter().sum::<f64>());
+    // Neither half of the split is a sliver: the split line runs from ring to ring.
+    assert!(area.iter().all(|a| *a > 0.2 * side * H), "a face of the split tube is nearly empty: {area:?}");
+}
+
 /// Revolved faces of a mirrored tool keep their orientation through STEP (the writer used to
 /// drop an inverted or mirrored revolution's sense).
 #[test]
@@ -1326,6 +1399,189 @@ fn large_imports_are_freed_with_their_last_user() {
     let weak = Arc::downgrade(&first);
     drop((first, again));
     assert!(weak.upgrade().is_none(), "the cache must not keep a large import alive after its design is gone");
+}
+
+/// A face that runs all the way around a closed (but not periodic) B-spline surface and carries
+/// a zero-width slit of its own: a pair of curves a hundredth of a micrometre apart between the
+/// same two vertices, which the loop walks up and straight back down. STEP writers leave such a
+/// slit where two surfaces were trimmed apart. It stands away from the surface's join, so the
+/// band splitter leaves the face whole and the mesher has to draw it; the boundary then runs
+/// along itself in (u, v). That used to fail the planner, and with it the whole body's plan, so
+/// the body fell back to the reference mesher, which drew bands folded over themselves and left
+/// holes in others.
+#[test]
+fn band_face_with_a_zero_width_slit_is_still_meshed() {
+    const R: f64 = 10.0;
+    const H: f64 = 8.0;
+    /// How far the slit's two sides stand apart (a hundredth of a micrometre).
+    const LENS: f64 = 1.0e-5;
+    let corner = |k: usize, r: f64| {
+        let a = std::f64::consts::TAU * (k % 5) as f64 / 5.0;
+        (r * a.cos(), r * a.sin())
+    };
+    let mut t = String::from(HEAD);
+    // Control net: the five corners around (the first repeated to close it) × the two ends.
+    let mut rows = Vec::new();
+    for k in 0..=5 {
+        let (x, y) = corner(k, R);
+        let id = 100 + 2 * k as u64;
+        t += &format!("#{id}=CARTESIAN_POINT('',({x:.12},{y:.12},0.));\n#{}=CARTESIAN_POINT('',({x:.12},{y:.12},{H:.1}));\n", id + 1);
+        rows.push(format!("(#{id},#{})", id + 1));
+    }
+    t += &format!(
+        "#200=B_SPLINE_SURFACE_WITH_KNOTS('',1,1,({}),.UNSPECIFIED.,.T.,.F.,.F.,(2,1,1,1,1,2),(2,2),(0.,1.,2.,3.,4.,5.),(0.,1.),.UNSPECIFIED.);\n",
+        rows.join(",")
+    );
+    // The seam runs up corner 0; the slit stands at corner 2, where each ring is cut in two.
+    let (mx, my) = corner(2, R + LENS);
+    t += &format!("#210=CARTESIAN_POINT('',({mx:.12},{my:.12},{:.1}));\n", H * 0.5);
+    t += "#300=VERTEX_POINT('',#100);\n#301=VERTEX_POINT('',#101);\n#302=VERTEX_POINT('',#104);\n#303=VERTEX_POINT('',#105);\n";
+    t += "#310=DIRECTION('',(0.,0.,1.));\n#311=VECTOR('',#310,1.);\n#312=LINE('',#100,#311);\n";
+    // The slit's two sides: straight up corner 2, and back down a hair outside it.
+    t += "#313=POLYLINE('',(#104,#105));\n#314=POLYLINE('',(#105,#210,#104));\n";
+    t += "#320=POLYLINE('',(#100,#102,#104));\n#321=POLYLINE('',(#104,#106,#108,#100));\n";
+    t += "#322=POLYLINE('',(#101,#103,#105));\n#323=POLYLINE('',(#105,#107,#109,#101));\n";
+    t += "#330=EDGE_CURVE('',#300,#301,#312,.T.);\n";
+    t += "#331=EDGE_CURVE('',#302,#303,#313,.T.);\n#332=EDGE_CURVE('',#303,#302,#314,.T.);\n";
+    t += "#333=EDGE_CURVE('',#300,#302,#320,.T.);\n#334=EDGE_CURVE('',#302,#300,#321,.T.);\n";
+    t += "#335=EDGE_CURVE('',#301,#303,#322,.T.);\n#336=EDGE_CURVE('',#303,#301,#323,.T.);\n";
+    // The band: round the bottom to the slit, up one side of it and down the other, on round the
+    // bottom, up the seam, back along the top to the slit, down it and up again, on to the seam.
+    t += "#340=ORIENTED_EDGE('',*,*,#333,.T.);\n#341=ORIENTED_EDGE('',*,*,#331,.T.);\n#342=ORIENTED_EDGE('',*,*,#332,.T.);\n";
+    t += "#343=ORIENTED_EDGE('',*,*,#334,.T.);\n#344=ORIENTED_EDGE('',*,*,#330,.T.);\n#345=ORIENTED_EDGE('',*,*,#336,.F.);\n";
+    t += "#346=ORIENTED_EDGE('',*,*,#331,.F.);\n#347=ORIENTED_EDGE('',*,*,#332,.F.);\n#348=ORIENTED_EDGE('',*,*,#335,.F.);\n";
+    t += "#349=ORIENTED_EDGE('',*,*,#330,.F.);\n";
+    t += "#350=EDGE_LOOP('',(#340,#341,#342,#343,#344,#345,#346,#347,#348,#349));\n#351=FACE_OUTER_BOUND('',#350,.T.);\n";
+    t += "#352=ADVANCED_FACE('',(#351),#200,.T.);\n";
+    // The two ends, on the planes the rings lie in.
+    t += "#360=CARTESIAN_POINT('',(0.,0.,0.));\n#361=DIRECTION('',(1.,0.,0.));\n#362=AXIS2_PLACEMENT_3D('',#360,#310,#361);\n#363=PLANE('',#362);\n";
+    t += "#364=ORIENTED_EDGE('',*,*,#334,.F.);\n#365=ORIENTED_EDGE('',*,*,#333,.F.);\n#366=EDGE_LOOP('',(#364,#365));\n";
+    t += "#367=FACE_OUTER_BOUND('',#366,.T.);\n#368=ADVANCED_FACE('',(#367),#363,.F.);\n";
+    t += &format!("#370=CARTESIAN_POINT('',(0.,0.,{H:.1}));\n#371=AXIS2_PLACEMENT_3D('',#370,#310,#361);\n#372=PLANE('',#371);\n");
+    t += "#373=ORIENTED_EDGE('',*,*,#335,.T.);\n#374=ORIENTED_EDGE('',*,*,#336,.T.);\n#375=EDGE_LOOP('',(#373,#374));\n";
+    t += "#376=FACE_OUTER_BOUND('',#375,.T.);\n#377=ADVANCED_FACE('',(#376),#372,.T.);\n";
+    t += "#390=CLOSED_SHELL('',(#352,#368,#377));\n#391=MANIFOLD_SOLID_BREP('Slit tube',#390);\n#392=SHAPE_REPRESENTATION('',(#391),#20);\n";
+    t += "#20=(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#21))GLOBAL_UNIT_ASSIGNED_CONTEXT((#22,#23))REPRESENTATION_CONTEXT('',''));\n";
+    t += "#21=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-3),#22,'','');\n";
+    t += "#22=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));\n#23=(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.));\n";
+    t += TAIL;
+    let imp = step_import(&t).unwrap();
+    assert!(imp.warnings.is_empty(), "{:?}", imp.warnings);
+    let ib = &imp.bodies[0];
+    assert_eq!(ib.file_faces, 3);
+    assert_eq!(ib.body.unmeshed_faces(), 0);
+    // Every face is planned: one face the planner gives up on costs the whole body its plan.
+    let tol = 0.05;
+    assert!(ib.body.display_plan(tol).is_ok(), "{:?}", ib.body.display_plan(tol).err());
+    // The mesh covers the tube once: five sides of 2·R·sin(36°) by the height, plus the ends.
+    let m = ib.body.display_mesh(tol).unwrap();
+    let mut area = vec![0.0f64; ib.body.face_count()];
+    for (t, f) in m.triangles.iter().zip(&m.tri_face) {
+        let (a, b, c) = (m.positions[t[0] as usize], m.positions[t[1] as usize], m.positions[t[2] as usize]);
+        if let Some(sum) = area.get_mut(*f as usize) {
+            *sum += 0.5 * (b - a).cross(c - a).len();
+        }
+    }
+    let side = 2.0 * R * (std::f64::consts::TAU / 10.0).sin();
+    let want = 5.0 * side * H + 5.0 * side * R * (std::f64::consts::TAU / 10.0).cos();
+    assert!(rel(area.iter().sum::<f64>(), want) < 5e-3, "{area:?} sums to {} not {want}", area.iter().sum::<f64>());
+    // The band itself is drawn once over: not folded over itself, and with no gap left in it.
+    let band: f64 = (0..ib.body.face_count()).filter(|i| ib.face_origin.get(*i) == Some(&352)).map(|i| area[i]).sum();
+    assert!(rel(band, 5.0 * side * H) < 5e-3, "the band covers {band} not {}", 5.0 * side * H);
+}
+
+/// A face so thin that its whole boundary is two chords: a lens between a straight edge and an
+/// arc that bows away from it by a ten-thousandth of a millimetre. The edge sampler rightly
+/// leaves each side as one segment, so the boundary comes to two nodes — too few to hold a
+/// triangle. The planner used to give up on such a face, and one face it gives up on costs the
+/// whole body its plan, so every other face fell back to the reference mesher. STEP writers
+/// leave these slivers where two surfaces were trimmed apart.
+#[test]
+fn a_sliver_face_too_thin_to_triangulate_does_not_cost_the_body_its_plan() {
+    /// The lens is shorter than one facet of the body it sits on: its whole boundary is then
+    /// two chords, however finely the rest of the body is meshed.
+    const L: f64 = 0.05;
+    const H: f64 = 60.0;
+    /// How far the arc bows away from the straight side, at its middle (above the file's own
+    /// uncertainty, so the two sides are not the same curve).
+    const BOW: f64 = 5.0e-3;
+    let mut t = String::from(HEAD);
+    // The lens lies in the xy plane: straight along y = 0, the arc bowing to y = BOW.
+    t += &format!("#100=CARTESIAN_POINT('',(0.,0.,0.));\n#101=CARTESIAN_POINT('',(0.,0.,{H:.1}));\n");
+    t += &format!("#102=CARTESIAN_POINT('',({L:.6},0.,0.));\n#103=CARTESIAN_POINT('',({L:.6},0.,{H:.1}));\n");
+    // A degree-2 spline through the ends with this middle control point bows by BOW (half of it).
+    t += &format!(
+        "#104=CARTESIAN_POINT('',({:.6},{:.9},0.));\n#105=CARTESIAN_POINT('',({:.6},{:.9},{H:.1}));\n",
+        L * 0.5,
+        2.0 * BOW,
+        L * 0.5,
+        2.0 * BOW
+    );
+    t += "#110=VERTEX_POINT('',#100);\n#111=VERTEX_POINT('',#101);\n#112=VERTEX_POINT('',#102);\n#113=VERTEX_POINT('',#103);\n";
+    t += "#114=DIRECTION('',(1.,0.,0.));\n#115=DIRECTION('',(0.,0.,1.));\n#116=DIRECTION('',(0.,1.,0.));\n";
+    t += "#120=VECTOR('',#114,1.);\n#121=LINE('',#100,#120);\n#122=LINE('',#101,#120);\n";
+    t += "#123=VECTOR('',#115,1.);\n#124=LINE('',#100,#123);\n#125=LINE('',#102,#123);\n";
+    t += "#126=B_SPLINE_CURVE_WITH_KNOTS('',2,(#100,#104,#102),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);\n";
+    t += "#127=B_SPLINE_CURVE_WITH_KNOTS('',2,(#101,#105,#103),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);\n";
+    t += "#130=EDGE_CURVE('',#110,#112,#121,.T.);\n#131=EDGE_CURVE('',#111,#113,#122,.T.);\n";
+    t += "#132=EDGE_CURVE('',#110,#112,#126,.T.);\n#133=EDGE_CURVE('',#111,#113,#127,.T.);\n";
+    t += "#134=EDGE_CURVE('',#110,#111,#124,.T.);\n#135=EDGE_CURVE('',#112,#113,#125,.T.);\n";
+    // The four surfaces: the two lens ends, the flat side and the bowed side.
+    t += "#140=AXIS2_PLACEMENT_3D('',#100,#115,#114);\n#141=PLANE('',#140);\n";
+    t += &format!("#142=CARTESIAN_POINT('',(0.,0.,{H:.1}));\n#143=AXIS2_PLACEMENT_3D('',#142,#115,#114);\n#144=PLANE('',#143);\n");
+    t += "#145=AXIS2_PLACEMENT_3D('',#100,#116,#114);\n#146=PLANE('',#145);\n";
+    t += "#147=B_SPLINE_SURFACE_WITH_KNOTS('',2,1,((#100,#101),(#104,#105),(#102,#103)),.UNSPECIFIED.,.F.,.F.,.F.,(3,3),(2,2),(0.,1.),(0.,1.),.UNSPECIFIED.);\n";
+    // The lens ends: two edges each, and so two nodes. Every edge of the shell is walked once
+    // each way, and each face's ring turns anticlockwise seen from outside the solid.
+    t += "#150=ORIENTED_EDGE('',*,*,#132,.T.);\n#151=ORIENTED_EDGE('',*,*,#130,.F.);\n#152=EDGE_LOOP('',(#150,#151));\n";
+    t += "#153=FACE_OUTER_BOUND('',#152,.T.);\n#154=ADVANCED_FACE('',(#153),#141,.F.);\n";
+    t += "#155=ORIENTED_EDGE('',*,*,#131,.T.);\n#156=ORIENTED_EDGE('',*,*,#133,.F.);\n#157=EDGE_LOOP('',(#155,#156));\n";
+    t += "#158=FACE_OUTER_BOUND('',#157,.T.);\n#159=ADVANCED_FACE('',(#158),#144,.T.);\n";
+    // The flat side and the bowed side, each a four-edge ring.
+    t += "#160=ORIENTED_EDGE('',*,*,#130,.T.);\n#161=ORIENTED_EDGE('',*,*,#135,.T.);\n#162=ORIENTED_EDGE('',*,*,#131,.F.);\n#163=ORIENTED_EDGE('',*,*,#134,.F.);\n";
+    t += "#164=EDGE_LOOP('',(#160,#161,#162,#163));\n#165=FACE_OUTER_BOUND('',#164,.T.);\n#166=ADVANCED_FACE('',(#165),#146,.F.);\n";
+    t += "#170=ORIENTED_EDGE('',*,*,#134,.T.);\n#171=ORIENTED_EDGE('',*,*,#133,.T.);\n#172=ORIENTED_EDGE('',*,*,#135,.F.);\n#173=ORIENTED_EDGE('',*,*,#132,.F.);\n";
+    t += "#174=EDGE_LOOP('',(#170,#171,#172,#173));\n#175=FACE_OUTER_BOUND('',#174,.T.);\n#176=ADVANCED_FACE('',(#175),#147,.F.);\n";
+    t += "#180=CLOSED_SHELL('',(#154,#159,#166,#176));\n#181=MANIFOLD_SOLID_BREP('Sliver lens',#180);\n#182=SHAPE_REPRESENTATION('',(#181),#20);\n";
+    t += "#20=(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#21))GLOBAL_UNIT_ASSIGNED_CONTEXT((#22,#23))REPRESENTATION_CONTEXT('',''));\n";
+    t += "#21=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-3),#22,'','');\n";
+    t += "#22=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));\n#23=(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.));\n";
+    t += TAIL;
+    let imp = step_import(&t).unwrap();
+    assert!(imp.warnings.is_empty(), "{:?}", imp.warnings);
+    let ib = &imp.bodies[0];
+    assert_eq!(ib.file_faces, 4);
+    // Nothing is left unshown, and the body keeps its plan although one face cannot hold a
+    // triangle until its boundary is sampled again.
+    assert_eq!(ib.body.unmeshed_faces(), 0);
+    let tol = 0.05;
+    let plan = ib.body.display_plan(tol).expect("a sliver face must not cost the body its plan");
+    for f in &plan.faces {
+        assert!(!f.triangles.is_empty(), "face {} has no triangles", f.face);
+    }
+    // The sides carry the area: L by H flat, a shade more over the bow. The lens ends are
+    // slivers, so what matters is that they are drawn at all, not how wide they come out.
+    let m = ib.body.display_mesh(tol).unwrap();
+    let mut area = vec![0.0f64; ib.body.face_count()];
+    for (tri, f) in m.triangles.iter().zip(&m.tri_face) {
+        if let Some([p, q, r]) = m.tri(tri)
+            && let Some(sum) = area.get_mut(*f as usize)
+        {
+            *sum += 0.5 * (q - p).cross(r - p).len();
+        }
+    }
+    let mut sides: Vec<f64> = area.iter().copied().filter(|a| *a > 0.1).collect();
+    sides.sort_by(|a, b| a.total_cmp(b));
+    assert_eq!(sides.len(), 2, "two sides carry the area: {area:?}");
+    // The flat side is exactly L by H; the bowed one is longer by the bow, within a tenth.
+    assert!(rel(sides[0], L * H) < 1e-6, "the flat side covers {} not {}", sides[0], L * H);
+    assert!((1.0..1.1).contains(&(sides[1] / (L * H))), "the bowed side covers {}", sides[1]);
+    // Both lens ends are drawn, each a sliver no wider than its own bow.
+    let ends: Vec<f64> = area.iter().copied().filter(|a| *a <= 0.1).collect();
+    assert_eq!(ends.len(), 2, "two lens ends: {area:?}");
+    for e in ends {
+        assert!(e > 0.0 && e < L * BOW, "a lens end covers {e}, not a sliver under {}", L * BOW);
+    }
 }
 
 /// A three-quarter turn of a rectangle about Z: planar end caps, revolved cylinders and annuli.

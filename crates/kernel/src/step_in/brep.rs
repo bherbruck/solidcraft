@@ -417,7 +417,7 @@ impl Builder {
             origin = vec![file_face; patches.len()];
             out = patches;
         }
-        let out = super::split::split_bands(out, &mut origin, failed);
+        let out = super::split::split_bands(out, &mut origin, failed, cx.tol);
         Ok((out.into(), closed, read, origin))
     }
 }

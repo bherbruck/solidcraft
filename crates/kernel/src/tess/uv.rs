@@ -19,9 +19,12 @@ pub(crate) fn domain(s: &EvalSurface) -> Domain {
     let tau = std::f64::consts::TAU;
     match s {
         EvalSurface::Plane { .. } => Domain { range: [None, None], period: [None, None] },
-        EvalSurface::Nurbs { degree, knots, count, .. } => {
-            let r = |d: usize| Some((*knots[d].get(degree[d])?, *knots[d].get(count[d])?));
-            Domain { range: [r(0), r(1)], period: [None, None] }
+        EvalSurface::Nurbs { degree, knots, count, closed, .. } => {
+            let r = |d: usize| Some((*knots.get(d)?.get(*degree.get(d)?)?, *knots.get(d)?.get(*count.get(d)?)?));
+            // A direction the surface joins itself along is periodic: a boundary that runs
+            // across the join is unwrapped past the range's end, and the evaluator wraps it back.
+            let p = |d: usize| closed.get(d).copied().unwrap_or(false).then(|| r(d).map(|(a, b)| b - a)).flatten().filter(|x| *x > 0.0);
+            Domain { range: [r(0), r(1)], period: [p(0), p(1)] }
         }
         EvalSurface::Revolved { profile, swap, .. } => {
             let r = (|| Some((*profile.knots.get(profile.degree)?, *profile.knots.get(profile.ctrl.len())?)))();

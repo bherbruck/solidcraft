@@ -1133,7 +1133,8 @@ fn continued(surface: &mt::Surface, eval: &EvalSurface, need: &[(f64, f64); 2]) 
     match surface {
         mt::Surface::Plane(_) => Ok(Continued { surface: surface.clone(), map: identity }),
         mt::Surface::BSplineSurface(_) | mt::Surface::NurbsSurface(_) => {
-            let (Some(EvalSurface::Nurbs { degree, knots, count, ctrl }), rational) = (Some(eval), matches!(surface, mt::Surface::NurbsSurface(_)))
+            let (Some(EvalSurface::Nurbs { degree, knots, count, ctrl, .. }), rational) =
+                (Some(eval), matches!(surface, mt::Surface::NurbsSurface(_)))
             else {
                 return Err(unsupported());
             };

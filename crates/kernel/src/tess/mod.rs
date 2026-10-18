@@ -94,6 +94,7 @@ pub(crate) fn plan(solid: &Solid, tol: f64, turn: Option<size::Turn>) -> Result<
         nodes.insert(e.id(), n?);
     }
     relax_crowded_faces(&faces, &jobs, &rules, &mut nodes);
+    divide_collapsed_faces(&faces, &jobs, &rules, &mut nodes);
     let oriented = |e: &mt::Edge| -> Option<Vec<Vec3>> {
         let mut pts = nodes.get(&e.id())?.points.clone();
         if !e.orientation() {
@@ -133,7 +134,21 @@ pub(crate) fn plan(solid: &Solid, tol: f64, turn: Option<size::Turn>) -> Result<
             }
         }
         let mut stats = PlanStats::default();
-        let fp = plan_face(fi, &eval, &loops3, &known, &rules, size, &mut stats)?;
+        let replan = |stats: &mut PlanStats| match plan_face(fi, &eval, &loops3, &known, &rules, size, stats) {
+            Ok(fp) => Ok(fp),
+            // A boundary that doubles straight back on itself (a zero-width slit in the face,
+            // which some STEP writers leave where two surfaces were trimmed apart) encloses no
+            // area but crosses itself in (u, v). Dropping the slits leaves the same face.
+            Err(first) => {
+                let (slit3, slitq) = drop_slits(&loops3, &known, rules.tol * 1e-2);
+                if slit3 == loops3 {
+                    return Err(first);
+                }
+                *stats = PlanStats::default();
+                plan_face(fi, &eval, &slit3, &slitq, &rules, size, stats).map_err(|_| first)
+            }
+        };
+        let fp = replan(&mut stats)?;
         let fp = FacePlan {
             flip: !face.orientation(),
             triangles: if face.orientation() { fp.triangles } else { fp.triangles.into_iter().map(|[a, b, c]| [a, c, b]).collect() },
@@ -222,6 +237,110 @@ fn relax_crowded_faces(faces: &[&mt::Face], jobs: &[(&mt::Edge, f64)], rules: &s
     }
 }
 
+/// Every loop with its zero-width slits removed: wherever the boundary steps out to a node and
+/// straight back to where it came from, the pair is dropped. A slit encloses no area, so the
+/// face is the same without it, and without it the boundary no longer runs along itself. The
+/// two sides need only agree within `eps` (a hundredth of the chord tolerance): a STEP writer
+/// may draw them as two curves a few nanometres apart, which no mesh could tell apart anyway.
+fn drop_slits(loops3: &[Vec<Vec3>], known: &[Vec<Option<[f64; 2]>>], eps: f64) -> (Vec<Vec<Vec3>>, Vec<Vec<Option<[f64; 2]>>>) {
+    /// Slits dropped from one loop before giving up (the search is a scan per slit).
+    const MAX_SLITS: usize = 4096;
+    let mut out3: Vec<Vec<Vec3>> = Vec::with_capacity(loops3.len());
+    let mut outq: Vec<Vec<Option<[f64; 2]>>> = Vec::with_capacity(loops3.len());
+    for (li, pts) in loops3.iter().enumerate() {
+        let mut pts = pts.clone();
+        let mut qs = known.get(li).cloned().unwrap_or_else(|| vec![None; pts.len()]);
+        qs.resize(pts.len(), None);
+        for _ in 0..MAX_SLITS {
+            let n = pts.len();
+            if n < 3 {
+                break;
+            }
+            let same = |a: usize, b: usize| pts.get(a).zip(pts.get(b)).is_some_and(|(p, q)| p.dist(*q) <= eps);
+            let tip = (0..n).find(|&k| same((k + n - 1) % n, (k + 1) % n));
+            let Some(k) = tip else { break };
+            // Drop the tip and the node that repeats the one before it.
+            let mut drop = [k, (k + 1) % n];
+            drop.sort_unstable();
+            for &i in drop.iter().rev() {
+                if i < pts.len() {
+                    pts.remove(i);
+                }
+                if i < qs.len() {
+                    qs.remove(i);
+                }
+            }
+        }
+        if pts.len() >= 2 {
+            out3.push(pts);
+            outq.push(qs);
+        }
+    }
+    (out3, outq)
+}
+
+/// Bring every loop of a face into the same period as its outer boundary. A loop is projected
+/// on its own, and a periodic surface repeats, so a hole can come out a whole turn away from the
+/// boundary it lies in — where it no longer cuts the face, and the face is drawn over its hole.
+fn align_periods(loops: &mut [seam::Loop], dom: &uv::Domain) {
+    for d in 0..2 {
+        let Some(per) = dom.period.get(d).copied().flatten().filter(|p| *p > 0.0) else { continue };
+        let middle = |l: &seam::Loop| {
+            let (lo, hi) = l.uv.iter().filter_map(|q| q.get(d)).fold((f64::MAX, f64::MIN), |(a, b), x| (a.min(*x), b.max(*x)));
+            0.5 * (lo + hi)
+        };
+        let Some(outer) = loops.first().map(middle) else { continue };
+        if !outer.is_finite() {
+            continue;
+        }
+        for l in loops.iter_mut().skip(1) {
+            let shift = ((outer - middle(l)) / per).round() * per;
+            if shift != 0.0 && shift.is_finite() {
+                for q in l.uv.iter_mut() {
+                    if let Some(x) = q.get_mut(d) {
+                        *x += shift;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Nodes a face's boundary needs before it can hold a triangle.
+const MIN_BOUNDARY_NODES: usize = 3;
+
+/// A face whose whole boundary comes to fewer than three nodes has no triangle to stand on: it is
+/// a sliver no wider than the tolerance (a chord with the shallow arc beside it, which the edge
+/// sampler rightly leaves as one segment each). Its edges are sampled again, halved until the
+/// boundary has nodes enough, so the sliver is drawn instead of failing the whole body's plan.
+/// The nodes stay shared, so the faces beside it follow the same points.
+fn divide_collapsed_faces(faces: &[&mt::Face], jobs: &[(&mt::Edge, f64)], rules: &size::Rules, nodes: &mut HashMap<mt::EdgeID, edges::Nodes>) {
+    /// Halvings before giving up (a boundary of two edges reaches four nodes in one).
+    const MAX_HALVINGS: usize = 8;
+    let h_of: HashMap<mt::EdgeID, (&mt::Edge, f64)> = jobs.iter().map(|(e, h)| (e.id(), (*e, *h))).collect();
+    for f in faces {
+        let ids: Vec<mt::EdgeID> = f.absolute_boundaries().iter().flat_map(|w| w.edge_iter().map(|e| e.id())).collect();
+        let count = |nodes: &HashMap<mt::EdgeID, edges::Nodes>| {
+            ids.iter().map(|id| nodes.get(id).map_or(0, |n| n.points.len().saturating_sub(1))).sum::<usize>()
+        };
+        if count(nodes) >= MIN_BOUNDARY_NODES {
+            continue;
+        }
+        for _ in 0..MAX_HALVINGS {
+            for id in &ids {
+                let Some((e, h)) = h_of.get(id) else { continue };
+                let longest =
+                    nodes.get(id).map_or(0.0, |n| n.points.windows(2).filter_map(|w| Some(w.first()?.dist(*w.get(1)?))).fold(0.0, f64::max));
+                let finer = if longest > 0.0 { (longest * 0.5).min(*h) } else { *h };
+                nodes.insert(*id, edges::sample_edge(e, rules, finer));
+            }
+            if count(nodes) >= MIN_BOUNDARY_NODES {
+                break;
+            }
+        }
+    }
+}
+
 /// One face: boundary loops in 3D (shared edge nodes) to parameters and triangles.
 /// `size`: the face's target side length (mm) and the surface's mean speed along u and v.
 fn plan_face(
@@ -261,6 +380,7 @@ fn plan_face(
         }
         projected.push(seam::Loop { uv: luv, pts: pts.clone() });
     }
+    align_periods(&mut projected, &dom);
     // A loop that winds around a periodic direction does not close in (u, v): the face is cut
     // along a parameter line into one period (a seamless cylinder face, a helical trim).
     let wound: Vec<usize> = (0..2).filter(|&d| dom.period[d].is_some_and(|per| seam::winds(&projected, d, per))).collect();
@@ -309,7 +429,7 @@ fn plan_face(
         }
         ranges.push(start..uvs.len());
     }
-    if uvs.len() < 3 {
+    if uvs.len() < MIN_BOUNDARY_NODES {
         return Err(fail("degenerate boundary"));
     }
     let mut bbox = [(f64::MAX, f64::MIN); 2];

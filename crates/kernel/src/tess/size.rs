@@ -197,6 +197,7 @@ mod tests {
             knots: [vec![0.0, 0.0, 1.0, 1.0], vec![0.0, 0.0, 1.0, 1.0]],
             count: [2, 2],
             ctrl: vec![[0.0, 0.0, 0.0, 1.0], [4.0, 0.0, 0.0, 1.0], [0.0, 3.0, 0.0, 1.0], [4.0, 3.0, z, 1.0]],
+            closed: [false, false],
         };
         assert!(planar(&patch(0.0)));
         assert!(!planar(&patch(0.5)));
