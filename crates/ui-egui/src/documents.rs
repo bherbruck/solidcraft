@@ -96,6 +96,7 @@ fn swap_in(app: &mut SolveApp, slot: DocSlot) -> DocSlot {
     app.tool = None;
     app.params = None;
     app.design_properties = None;
+    app.bom = None;
     app.cancel_view_animation();
     app.viewport.orbit_snap = None;
     app.viewport.orbit_free = None;

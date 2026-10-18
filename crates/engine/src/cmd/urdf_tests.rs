@@ -557,7 +557,12 @@ fn urdf_warns_when_placements_are_cut_off() {
     let s = Session::default();
     let mut doc = (*s.doc).clone();
     for k in 1..=66u64 {
-        doc.components.push(solidcraft_doc::Component { id: 1000 + k, name: format!("C{k}"), parent: if k == 1 { 0 } else { 999 + k } });
+        doc.components.push(solidcraft_doc::Component {
+            id: 1000 + k,
+            name: format!("C{k}"),
+            parent: if k == 1 { 0 } else { 999 + k },
+            ..Default::default()
+        });
         doc.occurrences.push(solidcraft_doc::Occurrence {
             id: 2000 + k,
             component: 1000 + k,
@@ -569,8 +574,8 @@ fn urdf_warns_when_placements_are_cut_off() {
     }
     // A component placed twice with a part nested in it, next to the deep chain: its copy is
     // still there, since only the branch past the limit stops.
-    doc.components.push(solidcraft_doc::Component { id: 3001, name: "Leg".into(), parent: 0 });
-    doc.components.push(solidcraft_doc::Component { id: 3002, name: "Foot".into(), parent: 3001 });
+    doc.components.push(solidcraft_doc::Component { id: 3001, name: "Leg".into(), parent: 0, ..Default::default() });
+    doc.components.push(solidcraft_doc::Component { id: 3002, name: "Foot".into(), parent: 3001, ..Default::default() });
     // Listed first, so the walk (a stack) goes down the chain before reaching them.
     for (id, component, parent, name) in [(4003, 3002, 3001, "Foot:1"), (4002, 3001, 0, "Leg:2"), (4001, 3001, 0, "Leg:1")] {
         let o = solidcraft_doc::Occurrence { id, component, parent, name: name.into(), transform: solidcraft_doc::IDENTITY, grounded: false };

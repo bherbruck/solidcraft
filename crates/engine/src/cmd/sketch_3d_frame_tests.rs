@@ -215,7 +215,7 @@ fn wire_frame_wide_owner_graph_has_bounded_indexed_traversal() {
     // A legal wide assembly used to force one whole occurrence scan for each leaf.
     let doc = s.doc_mut();
     for i in 0..9998u64 {
-        doc.components.push(solidcraft_doc::Component { id: 10_000 + i, name: format!("Sibling{i}"), parent: 0 });
+        doc.components.push(solidcraft_doc::Component { id: 10_000 + i, name: format!("Sibling{i}"), parent: 0, ..Default::default() });
         doc.occurrences.push(solidcraft_doc::Occurrence {
             id: 100_000 + i,
             component: 10_000 + i,

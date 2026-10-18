@@ -253,6 +253,11 @@ pub(super) fn paste(
         };
         let name = unique(&c.name, &mut used);
         let new = scratch.doc_mut().add_component(Some(&name), mapped_parent)?;
+        // A copy keeps the definition's part properties.
+        if let Some(added) = scratch.doc_mut().components.iter_mut().find(|x| x.id == new) {
+            added.metadata = c.metadata.clone();
+            added.properties = c.properties.clone();
+        }
         components.insert(*old, new);
         if *old != component {
             scratch.doc_mut().occurrences.retain(|o| o.component != new);

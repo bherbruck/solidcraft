@@ -589,9 +589,12 @@ impl Session {
         }
     }
 
-    /// Only persistent render intent changed. Never evaluate or clear a stale model here.
+    /// Only persistent render intent, or only part properties, changed. Never evaluate or clear
+    /// a stale model here.
     fn render_only_change(&self, before: &Snapshot) -> bool {
-        self.active_sketch == before.active_sketch && self.pending_moves == before.pending_moves && self.doc.differs_only_in_render(&before.doc)
+        self.active_sketch == before.active_sketch
+            && self.pending_moves == before.pending_moves
+            && (self.doc.differs_only_in_render(&before.doc) || self.doc.differs_only_in_part_properties(&before.doc))
     }
 
     fn refresh_render(&mut self, previous: &Arc<Document>) {

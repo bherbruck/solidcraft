@@ -1782,13 +1782,21 @@ pub struct SketchPoints {
 
 /// A component: a node of the design tree that owns sketches, features and bodies. The root
 /// (id 0) is the design itself and is not stored.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Component {
     pub id: u64,
     pub name: String,
     /// Parent component (0 = the root).
     #[serde(default)]
     pub parent: u64,
+    /// The definition's part properties (part number, description, revision…) and other tools'
+    /// data, under the same rules as the design's own `metadata`. Every occurrence shares them;
+    /// the bill of materials reads them.
+    #[serde(default, skip_serializing_if = "crate::Metadata::is_empty")]
+    pub metadata: crate::Metadata,
+    /// Free text properties of the definition (material grade, finish, supplier…), by name.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub properties: std::collections::BTreeMap<String, String>,
 }
 
 /// One loft section: profiles of a sketch.
@@ -2545,6 +2553,23 @@ impl Document {
         *self == normalized
     }
 
+    /// Only components' part properties (metadata and free properties) changed: nothing to
+    /// evaluate. The same whole-Document proof as [`Document::differs_only_in_render`].
+    pub fn differs_only_in_part_properties(&self, previous: &Document) -> bool {
+        if self.components.len() != previous.components.len()
+            || self.components.iter().zip(&previous.components).any(|(a, b)| a.id != b.id)
+            || self.components == previous.components
+        {
+            return false;
+        }
+        let mut normalized = previous.clone();
+        for (n, c) in normalized.components.iter_mut().zip(&self.components) {
+            n.metadata = c.metadata.clone();
+            n.properties = c.properties.clone();
+        }
+        *self == normalized
+    }
+
     /// The colour a body is shown and exported in (sRGB as 0–1 fractions): its appearance,
     /// else its component's, else its material's look, else the colour it was imported with.
     /// (Faces may have their own: `face_looks`.)
@@ -2643,6 +2668,23 @@ impl Document {
         if body.transferred || body.source_name.is_some() { body.component } else { self.legacy_body_component(&body.name, body.feature) }
     }
 
+    /// The components that own a body in `state` ([`Document::model_body_component`] of each),
+    /// in one pass: the timeline is looked up once, not once per body.
+    pub fn body_owners(&self, state: &crate::ModelState) -> std::collections::HashSet<u64> {
+        let features: std::collections::HashMap<u64, u64> = self.features.iter().rev().map(|f| (f.id, f.component)).collect();
+        state
+            .bodies
+            .iter()
+            .map(|b| {
+                if b.transferred || b.source_name.is_some() {
+                    b.component
+                } else {
+                    self.body_components.get(&b.name).copied().unwrap_or_else(|| features.get(&b.feature).copied().unwrap_or(0))
+                }
+            })
+            .collect()
+    }
+
     /// Recorded transfers already converted geometry into the new local frame.
     pub fn model_body_offset(&self, body: &crate::ModelBody) -> Option<&crate::Mat> {
         if body.transferred { None } else { self.body_offsets.get(&body.name) }
@@ -2668,7 +2710,7 @@ impl Document {
                 format!("Component{k}")
             }
         };
-        self.components.push(Component { id, name, parent });
+        self.components.push(Component { id, name, parent, ..Default::default() });
         self.add_occurrence(id, parent, crate::IDENTITY)?;
         Ok(id)
     }

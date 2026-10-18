@@ -316,6 +316,45 @@ fn part_name(family: &str, size: &str, sh: &Shape) -> String {
     }
 }
 
+/// A standard part's part number and description: its standard and size (`ISO 4762 M6x20`), or
+/// a bearing's designation, and the family's name with the size.
+fn identity(family: &str, size: &str, sh: &Shape) -> (String, String) {
+    let size = match sh {
+        Shape::Screw { len, .. } | Shape::Rod { len, .. } => format!("{size}x{len}"),
+        _ => size.to_string(),
+    };
+    let standard = match family {
+        "socket_head_cap_screw" => "ISO 4762",
+        "hex_bolt" => "ISO 4017",
+        "hex_nut" => "ISO 4032",
+        "washer" => "ISO 7089",
+        "set_screw" => "ISO 4026",
+        "dowel_pin" => "ISO 8734",
+        _ => "",
+    };
+    let name = FAMILIES.iter().find(|f| f.0 == family).map_or("Part", |f| f.1);
+    let part_number = if standard.is_empty() { size.clone() } else { format!("{standard} {size}") };
+    (part_number, format!("{name} {size}"))
+}
+
+/// Give a standard part its part number and description; a field someone changed since the last
+/// size (`was`) is theirs and stays.
+fn set_identity(s: &mut Session, comp: u64, now: (String, String), was: Option<(String, String)>) {
+    use solidcraft_doc::metadata::{DESCRIPTION, PART_NUMBER};
+    let Some(c) = s.doc.components.iter().find(|c| c.id == comp) else { return };
+    let mut m = c.metadata.clone();
+    for (k, new, old) in [(PART_NUMBER, now.0, was.as_ref().map(|w| w.0.as_str())), (DESCRIPTION, now.1, was.as_ref().map(|w| w.1.as_str()))] {
+        if m.text(k).is_none_or(|cur| Some(cur) == old) {
+            let _ = m.set(k, Value::String(new));
+        }
+    }
+    if m != c.metadata
+        && let Some(c) = s.doc_mut().components.iter_mut().find(|c| c.id == comp)
+    {
+        c.metadata = m;
+    }
+}
+
 fn label(family: &str) -> &'static str {
     match family {
         "socket_head_cap_screw" => "SHCS",
@@ -356,6 +395,7 @@ fn insert(s: &mut Session, p: &Value) -> Result<Value> {
     let (comp, occ) = (c["component"].as_u64().unwrap_or(0), c["occurrence"].as_u64().unwrap_or(0));
     build(s, &sh)?;
     s.doc_mut().parts.insert(comp, solidcraft_doc::StandardPart { family: family.clone(), size: size.clone(), length: shape_len(&sh) });
+    set_identity(s, comp, identity(&family, &size, &sh), None);
     run(s, "component.activate", json!({"component": active}))?;
     let mut out = json!({"component": comp, "occurrence": occ, "name": name});
     if let (Some(a), Some(h)) = (at, host) {
@@ -435,6 +475,8 @@ fn resize(s: &mut Session, p: &Value) -> Result<Value> {
     run(s, "component.activate", json!({"component": comp}))?;
     build(s, &sh)?;
     let name = part_name(&part.family, &size, &sh);
+    let was = shape(&part.family, &part.size, part.length).ok().map(|old| identity(&part.family, &part.size, &old));
+    set_identity(s, comp, identity(&part.family, &size, &sh), was);
     s.doc_mut().parts.insert(comp, solidcraft_doc::StandardPart { family: part.family.clone(), size: size.clone(), length: shape_len(&sh) });
     if let Some(c) = s.doc_mut().components.iter_mut().find(|c| c.id == comp) {
         c.name = name.clone();
