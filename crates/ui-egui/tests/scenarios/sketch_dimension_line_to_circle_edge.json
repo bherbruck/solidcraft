@@ -1,0 +1,19 @@
+[
+  {"call": "engine.execute", "params": {"command": "sketch.create", "params": {"plane": "XY"}}},
+  {"call": "engine.execute", "params": {"command": "sketch.line", "params": {"points": [[0, 0], [40, 0]]}}},
+  {"call": "engine.execute", "params": {"command": "sketch.constraint.fix", "params": {"entities": ["l1"]}}},
+  {"call": "engine.execute", "params": {"command": "sketch.circle.center", "params": {"center": [20, 15], "radius": 5}}},
+  {"call": "engine.execute", "params": {"command": "sketch.dimension", "params": {"entities": ["c1"], "type": "diameter", "value": 10, "text_at": [30, 22]}}},
+  {"call": "ui.view", "params": {"view": "top"}},
+  {"call": "ui.view", "params": {"view": "fit"}},
+  {"start": "sketch.dimension"},
+  {"click": {"sketch": [8, 0]}},
+  {"click": {"sketch": [20, 10]}},
+  {"text": "7"},
+  {"key": "Enter"},
+  {"key": "Escape"},
+  {"expect": {"errors": 0}},
+  {"expect": {"param": {"d2": 7}}},
+  {"expect": {"query": {"command": "sketch.inspect", "path": ["curves", 1, "center_at", 1], "value": 12}}},
+  {"expect": {"query": {"command": "sketch.inspect", "path": ["curves", 1, "center_at", 0], "value": 20}}}
+]

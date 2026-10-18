@@ -92,6 +92,17 @@ pub fn dim_frame(sk: &Sketch, k: &ConstraintKind) -> Option<DimFrame> {
             let p0 = if matches!(k, LinearDiameter { .. }) { foot * 2.0 - q } else { foot };
             DimFrame::Linear { p0, p1: q, dir: unit(q - foot, d.perp()) }
         }
+        LineCircleDistance { l, c, .. } => {
+            // From the line to the circle's edge point nearest it (beyond it when the line cuts
+            // the circle), along the line's normal.
+            let (a, b) = line_ends(sk, l)?;
+            let (centre, r) = (sk.center(c)?, sk.radius(c)?);
+            let d = unit(b - a, Vec2::X);
+            let normal = unit(centre - (a + d * (centre - a).dot(d)), d.perp());
+            let p1 = centre - normal * r;
+            let p0 = a + d * (p1 - a).dot(d);
+            DimFrame::Linear { p0, p1, dir: unit(p1 - p0, normal) }
+        }
         Radius { c, .. } | Diameter { c, .. } => {
             let radius = match sk.curves.get(c)?.kind {
                 CurveKind::Ellipse { r, .. } => r,
@@ -187,6 +198,7 @@ pub fn dim_reach(sk: &Sketch, k: &ConstraintKind) -> [Option<(Vec2, Vec2)>; 2] {
     let (p, l, to_line) = match *k {
         PointLineDistance { p, l, .. } => (p, l, true),
         LinearDiameter { p, l, .. } => (p, l, false),
+        LineCircleDistance { l, .. } => return [line_ends(sk, l), None],
         _ => return [None, None],
     };
     let Some((a, b)) = line_ends(sk, l) else { return [None, None] };

@@ -46,7 +46,10 @@ These are the shapes of the commands a part build needs, so an agent rarely has 
 {"command":"sketch.dimension","params":{"entities":["origin","c1.center"],"type":"horizontal","value":"w/2 - wall - 6"}}
 {"command":"sketch.dimension","params":{"entities":["c1"],"type":"diameter","value":"6"}}
 {"command":"sketch.dimension","params":{"entities":["l1"],"value":"w"}}
+{"command":"sketch.dimension","params":{"entities":["l1","c1"],"value":"2"}}
 ```
+
+A line with a circle or arc measures from the line to its edge (0 is tangent); give the centre point (`c1.center`) for the distance to the centre.
 
 Distances are unsigned. Draw the geometry on the correct side first, and the dimension keeps it there.
 

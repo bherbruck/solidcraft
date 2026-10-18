@@ -325,6 +325,14 @@ impl State<'_> {
         let sweep = ((self.p(b) - self.p(cp)).angle() - (self.p(a) - self.p(cp)).angle()).rem_euclid(std::f64::consts::TAU);
         if curve.reversed { -sweep } else { sweep }
     }
+    /// What a line-to-circle distance measures: the gap from line `l` to the edge of circle or
+    /// arc `c`, or (`inside`) how far the edge reaches past the line.
+    fn line_circle_gap(&self, l: usize, c: usize, inside: bool) -> f64 {
+        let (a, b) = self.line(l);
+        let (cc, r) = self.round(c);
+        let d = line_dist(cc, a, b).abs();
+        if inside { r - d } else { d - r }
+    }
     fn slot_length(&self, a: usize, b: usize) -> f64 {
         let (ca, ra) = self.round(a);
         let (cb, rb) = self.round(b);
@@ -525,6 +533,7 @@ fn residuals(s: &State, k: &ConstraintKind, out: &mut Vec<f64>) {
             let (a, b) = s.line(l);
             out.push(line_dist(s.p(p), a, b).abs() - value);
         }
+        LineCircleDistance { l, c, value, inside } => out.push(s.line_circle_gap(l, c, inside) - value),
         Length { l, value } => {
             let (a, b) = s.line(l);
             out.push(a.dist(b) - value);
@@ -587,6 +596,7 @@ fn measure(s: &State, k: &ConstraintKind) -> Option<f64> {
             let (a, b) = s.line(l);
             line_dist(s.p(p), a, b).abs()
         }
+        LineCircleDistance { l, c, inside, .. } => s.line_circle_gap(l, c, inside),
         Length { l, .. } => {
             let (a, b) = s.line(l);
             a.dist(b)
@@ -792,6 +802,7 @@ fn block_refs(sk: &Sketch, b: &Block) -> Vec<Ref> {
             | DistanceY { p, q, .. } => vec![P(p), P(q)],
             PointOnCurve { p, c } => vec![P(p), C(c)],
             Midpoint { p, l } | PointLineDistance { p, l, .. } | LinearDiameter { p, l, .. } => vec![P(p), L(l)],
+            LineCircleDistance { l, c, .. } => vec![L(l), R(c)],
             Horizontal { l } | Vertical { l } | Length { l, .. } | LineAngle { l, .. } => vec![L(l)],
             // Another kind reads a constant value, whatever its points: as good as any.
             ArcSweep { c, .. } | Radius { c, .. } | Diameter { c, .. } | ArcLength { c, .. } => vec![C(c)],
@@ -1516,7 +1527,8 @@ enum Orient {
     SideX(usize, usize, f64),
     /// The same along y (`DistanceY`).
     SideY(usize, usize, f64),
-    /// Which side of line `l` the point `p` is on (`PointLineDistance`, `LinearDiameter`).
+    /// Which side of line `l` the point `p` is on (`PointLineDistance`, `LinearDiameter`, a
+    /// circle's centre for `LineCircleDistance`).
     OfLine(usize, usize, f64),
 }
 
@@ -1685,6 +1697,12 @@ fn orients(s: &State, sub: &[(Block, Vec<usize>)]) -> Vec<(Orient, Vec<usize>)> 
             ConstraintKind::DistanceY { p, q, value } if free(p) || free(q) => out.push((Orient::SideY(p, q, value), vec![*ci])),
             ConstraintKind::PointLineDistance { p, l, value } => out.push((Orient::OfLine(p, l, value), vec![*ci])),
             ConstraintKind::LinearDiameter { p, l, value } => out.push((Orient::OfLine(p, l, value / 2.0), vec![*ci])),
+            // The circle stays on its side of the line: the distance is unsigned.
+            ConstraintKind::LineCircleDistance { l, c, value, .. } => {
+                if let Some(CurveKind::Circle { c: centre, .. } | CurveKind::Arc { c: centre, .. }) = s.sk.curves.get(c).map(|x| &x.kind) {
+                    out.push((Orient::OfLine(*centre, l, value + s.round(c).1), vec![*ci]));
+                }
+            }
             _ => {}
         }
     }

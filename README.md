@@ -136,7 +136,7 @@ rebuild with no errors, replayed here at 2× speed.
   and the rank of its Jacobian gives the remaining degrees of freedom. Constraints: coincident,
   point on curve, horizontal/vertical, parallel, perpendicular, tangent, curvature (G2), equal,
   concentric, collinear, midpoint, symmetry, fix; linear, aligned, horizontal, vertical,
-  point-to-line, radius, diameter, angle, arc sweep, arc length and slot length dimensions driven
+  point-to-line, line-to-circle, radius, diameter, angle, arc sweep, arc length and slot length dimensions driven
   by parameters. Over-constraining edits are rejected; fully constrained geometry turns black.
   Dragging solves the sketch every frame and rebuilds the model once, when the drag ends.
   Select a line or its two endpoints, type its dimension and press Enter to commit one undo
