@@ -294,11 +294,22 @@ fn saved_name(name: &str, old_path: Option<&str>, path: &str) -> Option<String> 
 /// Rename the design, and the undo and redo states that still carry the old name, so undo
 /// does not bring the default name back and leave the design looking changed.
 fn rename_design(s: &mut Session, from: &str, to: &str) {
+    // A prepared world is keyed by the document's Arc. Changing only its name
+    // must not make an opted-in save lose warm geometry and display caches.
+    // Retag only a cache that already matches: cold or stale placements stay so.
+    let model = s.model.state();
+    let keep_world = s.world_cache.lock().ok().is_some_and(|cache| cache.as_ref().is_some_and(|cache| cache.matches(s, &model)));
     s.doc_mut().name = to.to_string();
     for snap in s.undo.iter_mut().chain(s.redo.iter_mut()) {
         if snap.doc.name == from {
             std::sync::Arc::make_mut(&mut snap.doc).name = to.to_string();
         }
+    }
+    if keep_world
+        && let Ok(mut cache) = s.world_cache.lock()
+        && let Some(cache) = cache.as_mut()
+    {
+        cache.doc = std::sync::Arc::clone(&s.doc);
     }
 }
 
