@@ -734,18 +734,47 @@ pub fn zoom_sign(app: &SolveApp) -> f64 {
 }
 
 /// The model point under a screen position. Over empty space: the centre of the visible bodies
-/// and sketches (what Fit frames), or the view's centre when nothing is visible.
+/// and sketches (what Fit frames) while it is on screen; zoomed in so far that it isn't, the
+/// model point at the view's centre, so what you look at stays in view (#2138); and the view's
+/// centre when neither is there.
 pub(crate) fn pivot_under(app: &SolveApp, proj: &crate::viewport::Proj, at: Pos2) -> Vec3 {
-    use crate::viewport::Hit;
-    for h in crate::viewport::pick(app, proj, at) {
-        match h {
-            Hit::Face { point, .. } | Hit::Vertex { point, .. } => return point,
-            Hit::Edge { mid, .. } => return mid,
-            _ => {}
-        }
+    let under = |at: Pos2| {
+        use crate::viewport::Hit;
+        crate::viewport::pick(app, proj, at).into_iter().find_map(|h| match h {
+            Hit::Face { point, .. } | Hit::Vertex { point, .. } => Some(point),
+            // The point of the edge under the cursor: a long edge's midpoint can be far off screen.
+            Hit::Edge { body, index, mid } => Some(edge_point_near(app, proj, &body, index, at).unwrap_or(mid)),
+            _ => None,
+        })
+    };
+    if let Some(p) = under(at) {
+        return p;
     }
     let b = crate::viewport::view_bounds(app);
-    if b.is_empty() { app.cam.target } else { b.center() }
+    if !b.is_empty() && proj.to_screen(b.center()).is_some_and(|s| proj.rect.contains(s)) {
+        return b.center();
+    }
+    under(proj.rect.center()).unwrap_or(app.cam.target)
+}
+
+/// The point of a body's edge nearest `at` on screen (each segment of its polyline measured on
+/// screen, the nearest point taken along the segment in the model).
+fn edge_point_near(app: &SolveApp, proj: &crate::viewport::Proj, body: &str, index: usize, at: Pos2) -> Option<Vec3> {
+    let st = app.session.world_state();
+    let mesh = st.body(body)?.mesh();
+    let edge = mesh.edges.get(index)?;
+    let mut best: Option<(f32, Vec3)> = None;
+    for w in edge.windows(2) {
+        let (Some(a), Some(b)) = (w.first().copied(), w.get(1).copied()) else { continue };
+        let (Some(sa), Some(sb)) = (proj.to_screen(a), proj.to_screen(b)) else { continue };
+        let d = sb - sa;
+        let t = if d.length_sq() > 1e-6 { ((at - sa).dot(d) / d.length_sq()).clamp(0.0, 1.0) } else { 0.0 };
+        let dist = (sa + d * t).distance(at);
+        if best.is_none_or(|(bd, _)| dist < bd) {
+            best = Some((dist, a + (b - a) * f64::from(t)));
+        }
+    }
+    best.map(|(_, p)| p)
 }
 
 /// Units per millimetre and the unit's name.
@@ -2128,6 +2157,35 @@ mod tests {
         app.cam.target = solidcraft_engine::geom::Vec3::new(5.0, -3.0, 2.0);
         orbit(&mut app, rect, 40.0, 25.0, Some(corner));
         assert_eq!(app.viewport.orbit_pivot, Some(solidcraft_engine::geom::Vec3::new(5.0, -3.0, 2.0)));
+    }
+
+    /// #2138: zoomed in on one end of a long part, the visible geometry's centre is off screen. A
+    /// drag from empty space must not turn around it, or the end you are looking at swings out of
+    /// view; it turns around the model point at the view's centre instead.
+    #[test]
+    fn orbiting_from_empty_space_keeps_a_zoomed_in_view_on_screen() {
+        use solidcraft_engine::geom::Vec3;
+        let mut app = SolveApp::new(solidcraft_engine::Session::default(), Default::default());
+        app.run("solid.box", json!({"length": 400, "width": 10, "height": 10})).unwrap();
+        app.preferences.orbit_around = OrbitAround::Cursor;
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
+        app.fit_view();
+        // Look closely at the end near the origin.
+        let end = Vec3::new(5.0, 5.0, 5.0);
+        app.cam.target = end;
+        app.cam.distance = 60.0;
+        let proj = crate::viewport::projection(&app, rect);
+        let centre = crate::viewport::view_bounds(&app).center();
+        assert!(proj.to_screen(centre).is_none_or(|s| !rect.contains(s)), "the part's centre is off screen");
+        let corner = egui::pos2(10.0, 10.0);
+        use crate::viewport::Hit;
+        assert!(!crate::viewport::pick(&app, &proj, corner).iter().any(|h| matches!(h, Hit::Face { .. } | Hit::Edge { .. } | Hit::Vertex { .. })));
+        for _ in 0..4 {
+            orbit(&mut app, rect, 60.0, 20.0, Some(corner));
+        }
+        assert_ne!(app.viewport.orbit_pivot, Some(centre));
+        let s = crate::viewport::projection(&app, rect).to_screen(end);
+        assert!(s.is_some_and(|s| rect.contains(s)), "the end stays in view: {s:?}");
     }
 
     /// The Y up preference turns the view: the camera's up axis follows it, startup included.
