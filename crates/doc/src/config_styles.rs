@@ -253,9 +253,20 @@ impl Document {
             return self.certified_pieces(body, indices, target.origin_feature);
         }
         if let Some(super::FaceCertificate::ExtrudeSide { sketch, curve }) = &target.certificate {
-            let indices: Vec<_> = body.body.face_sources().into_iter().flatten().enumerate().filter_map(|(index, source)| {
-                matches!(source, Some(solidcraft_kernel::FaceSource::CertifiedExtrudeSide { producer, sketch: current_sketch, curve: current_curve, .. }) if *producer == target.origin_feature && current_sketch == sketch && current_curve == curve).then_some(index)
-            }).collect();
+            let side = |index: usize, exact: bool| matches!(body.body.face_sources().and_then(|sources| sources.get(index)), Some(Some(solidcraft_kernel::FaceSource::CertifiedExtrudeSide { producer, sketch: current_sketch, curve: current_curve, .. })) if *producer == target.origin_feature && current_sketch == sketch && (!exact || current_curve == curve));
+            let count = body.body.face_sources().map_or(0, |sources| sources.len());
+            let mut indices: Vec<_> = (0..count).filter(|index| side(*index, true)).collect();
+            // A side drawn in collinear pieces is one face over all of them (#1788): a certificate
+            // made when the pieces were faces of their own finds it by the piece's name, which
+            // the joined face answers to.
+            if indices.is_empty() {
+                let names = crate::naming::names(body);
+                indices = (0..count)
+                    .filter(|index| {
+                        side(*index, false) && crate::history_names::matches(&names, *index, &target.name) == Some(crate::history_names::Match::Alias)
+                    })
+                    .collect();
+            }
             if indices.is_empty() {
                 return Err(DocError::Unknown("constructed side certificate no longer exists".into()));
             }

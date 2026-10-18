@@ -190,6 +190,19 @@ pub(crate) fn frame_ok(plane: &Plane) -> bool {
 
 /// Extrude each region from `start` to `end` along the plane normal (offsets in mm, `end > start`).
 pub fn extrude(plane: &Plane, regions: &[Region2], start: f64, end: f64) -> Result<Vec<Body>> {
+    extrude_with(plane, regions, start, end, false)
+}
+
+/// [`extrude`] with each run of profile lines that continue one another in a straight line (a side
+/// drawn in two pieces, a mirrored half meeting its mirror image) swept into one side face over
+/// all its pieces, rather than coplanar faces with an edge between them (#1788). The side's
+/// history lists every piece under it. For the Extrude feature; other builders (sheet metal's
+/// flat pattern, tools) keep a face per segment.
+pub fn extrude_whole_sides(plane: &Plane, regions: &[Region2], start: f64, end: f64) -> Result<Vec<Body>> {
+    extrude_with(plane, regions, start, end, true)
+}
+
+fn extrude_with(plane: &Plane, regions: &[Region2], start: f64, end: f64, whole_sides: bool) -> Result<Vec<Body>> {
     if !frame_ok(plane) {
         return Err(KernelError::Invalid("extrude frame is not finite and orthonormal".into()));
     }
@@ -206,7 +219,19 @@ pub fn extrude(plane: &Plane, regions: &[Region2], start: f64, end: f64) -> Resu
     for r in regions {
         region_ok(r)?;
         let base = plane.offset(lo);
-        let profile = region_wires(&base, &oriented(r)?)?;
+        let pieces = oriented(r)?;
+        let numbered = if whole_sides { pieces.map_loops(|l| l.merged_lines(continues_straight)) } else { pieces.clone() };
+        // A joined side's source is its first piece, a segment of the profile as drawn (the side
+        // lies along it): the sketch curve it is certified and named by, as when it stood alone.
+        let first_piece = |side: &ProfileEdge| {
+            pieces
+                .loops()
+                .flat_map(|l| l.lp.segs.iter())
+                .copied()
+                .find(|piece| side.numbers.len() > 1 && piece.start() == side.segment.start())
+                .unwrap_or(side.segment)
+        };
+        let profile = region_wires(&base, &numbered)?;
         let wires = wires_of(&profile);
         let f = guard("extrude profile", || builder::try_attach_plane(&wires).map_err(|e| KernelError::Invalid(format!("profile: {e}"))))?;
         let solid: Solid = guard("extrude", || Ok(builder::tsweep(&f, v3(n * (hi - lo)))))?;
@@ -263,7 +288,7 @@ pub fn extrude(plane: &Plane, regions: &[Region2], start: f64, end: f64) -> Resu
                         _ => None,
                     };
                     (
-                        Some(crate::FaceSource::ExtrudeSide { segment: side.segment, plane: basis, coalesced: false }),
+                        Some(crate::FaceSource::ExtrudeSide { segment: first_piece(side), plane: basis, coalesced: false }),
                         Some(record::profile(&side.numbers)),
                     )
                 } else if Some(*id) == end {
@@ -283,6 +308,14 @@ pub fn extrude(plane: &Plane, regions: &[Region2], start: f64, end: f64) -> Resu
         out.push(record::attach(body, &[], history, Default::default())?);
     }
     Ok(out)
+}
+
+/// `t` carries on from `s` in the same straight line: the turn at their meeting point is within
+/// rounding of none, measured against both lengths.
+fn continues_straight(s: &Seg2, t: &Seg2) -> bool {
+    let (u, v) = (s.end() - s.start(), t.end() - t.start());
+    let (lu, lv) = (u.len(), v.len());
+    lu > 0.0 && lv > 0.0 && s.end().dist(t.start()) <= 1e-9 * (lu + lv) && u.dot(v) > 0.0 && u.cross(v).abs() <= 1e-9 * lu * lv
 }
 
 /// Choose the per-profile axis sign whose positive rotation follows the sketch normal.

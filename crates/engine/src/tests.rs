@@ -3691,3 +3691,54 @@ fn pattern_copies_added_after_a_rename_keep_their_numbers() {
     run(&mut s, "timeline.edit", json!({"feature": "Pat", "set": {"pattern": {"count1": "2"}}}));
     assert_eq!(names(&s), ["X", "Second"]);
 }
+
+/// A sketch side drawn as two collinear lines extrudes into one flat face, not two with an edge
+/// between them (#1788); the face is named from the first line and answers to the second.
+#[test]
+fn a_side_drawn_in_two_collinear_pieces_extrudes_into_one_face() {
+    let mut s = Session::default();
+    run(&mut s, "sketch.create", json!({"plane": "XY"}));
+    let r = run(&mut s, "sketch.line", json!({"points": [[0, 0], [10, 0], [20, 0], [20, 10], [0, 10], [0, 0]]}));
+    let pieces: Vec<String> = r["created"]["curves"].as_array().into_iter().flatten().take(2).filter_map(|c| c.as_str().map(String::from)).collect();
+    run(&mut s, "sketch.finish", json!({}));
+    run(&mut s, "solid.extrude", json!({"distance": 5}));
+    let faces = |s: &mut Session| run(s, "model.faces", json!({"body": "Body1"}))["faces"].as_array().cloned().unwrap_or_default();
+    let f = faces(&mut s);
+    assert_eq!(f.len(), 6, "a box has six faces: {f:?}");
+    assert_eq!(run(&mut s, "inspect.measure", json!({}))["bodies"][0]["kernel"]["faces"], 6);
+    let names: Vec<&str> = f.iter().filter_map(|x| x["name"].as_str()).collect();
+    assert!(names.contains(&format!("F2:side:{}", pieces[0]).as_str()), "{names:?}");
+    // The second piece's name answers for the same face, so a reference made when the side was
+    // two faces (an edge of the second piece) still finds its edge.
+    let st = s.model.state();
+    let body = st.body("Body1").unwrap();
+    let edge = format!("F2:side:{}|F2:top", pieces[1]);
+    let (at, _) = solidcraft_doc::naming::find_edge(body, &edge, geom::Vec3::new(15.0, 0.0, 5.0)).unwrap();
+    assert!(at.y.abs() < 1e-9 && (at.z - 5.0).abs() < 1e-9, "{edge} at {at:?}");
+    // A sketch attaches to the joined side as to any side.
+    assert_eq!(run(&mut s, "sketch.create", json!({"plane": {"face": [15, 0, 2.5]}}))["attachment"], "exact_face");
+    run(&mut s, "sketch.finish", json!({}));
+}
+
+/// A sketch made on the second piece's face while the side was two faces (as in a design saved
+/// before #1788) stays attached once the side is straight and extrudes into one face.
+#[test]
+fn a_sketch_on_one_piece_stays_attached_when_the_side_joins() {
+    let mut s = Session::default();
+    run(&mut s, "sketch.create", json!({"plane": "XY"}));
+    let r = run(&mut s, "sketch.line", json!({"points": [[0, 0], [10, -2], [20, 0], [20, 10], [0, 10], [0, 0]]}));
+    let first = r["created"]["curves"][0].as_str().unwrap_or_default().to_string();
+    run(&mut s, "sketch.finish", json!({}));
+    run(&mut s, "solid.extrude", json!({"distance": 5}));
+    let faces = |s: &mut Session| run(s, "model.faces", json!({"body": "Body1"}))["faces"].as_array().map(Vec::len).unwrap_or(0);
+    assert_eq!(faces(&mut s), 7);
+    assert_eq!(run(&mut s, "sketch.create", json!({"plane": {"face": [15, -1, 2.5]}}))["attachment"], "exact_face");
+    run(&mut s, "sketch.circle.center", json!({"center": [5, 2.5], "radius": 1}));
+    run(&mut s, "sketch.finish", json!({}));
+    run(&mut s, "sketch.edit", json!({"sketch": "Sketch1"}));
+    run(&mut s, "sketch.move_point", json!({"point": format!("{first}.end"), "to": [10, 0]}));
+    run(&mut s, "sketch.finish", json!({}));
+    assert_eq!(faces(&mut s), 6, "the side is straight now: one face");
+    let sketch = run(&mut s, "timeline.inspect", json!({"feature": "Sketch2"}));
+    assert!(sketch["error"].is_null() && sketch["warning"].is_null(), "{sketch}");
+}
