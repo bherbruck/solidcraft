@@ -294,9 +294,9 @@ fn generic_box_cylinder_intersect() {
     check(identity(&a, &b));
 }
 
-/// A sphere and a box on the grid: the union has a face that does not mesh.
+/// A sphere and a box on the grid: the sphere touches the box's bottom edge, so the union has a
+/// face pinched to a point there, which did not mesh (#1648).
 #[test]
-#[ignore = "kernel bug, #1648"]
 fn grid_sphere_box_union_is_sound() {
     let a = Prim::Sph { at: [2.5, 15.0, 27.5], r: 12.5 };
     let b = Prim::Box { at: [0.0, 0.0, 17.5], size: [5.0, 7.5, 5.0] };

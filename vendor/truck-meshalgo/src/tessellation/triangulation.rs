@@ -877,8 +877,9 @@ impl PolyBoundary {
             .unwrap_or(false)
     }
 
-    /// Inserts points and adds constraint into triangulation.
-    fn insert_to(&self, triangulation: &mut Cdt) {
+    /// Inserts points and adds constraint into triangulation. SolidCraft: whether every segment
+    /// went in.
+    fn insert_to(&self, triangulation: &mut Cdt) -> bool {
         let poly2tri: Vec<_> = self
             .0
             .iter()
@@ -890,6 +891,7 @@ impl PolyBoundary {
             .collect();
         let mut prev: Option<usize> = None;
         let mut counter = 0;
+        let mut complete = true;
         self.0
             .iter()
             .map(Vec::len)
@@ -911,11 +913,61 @@ impl PolyBoundary {
                     if triangulation.can_add_constraint(vi, vj) {
                         triangulation.add_constraint(vi, vj);
                     } else {
+                        complete = false;
                         prev = Some(i);
                     }
                 }
             });
+        complete
     }
+}
+
+/// SolidCraft: most boundary points [`pinched`] compares with every segment, and most points it
+/// puts into segments.
+const MAX_PINCH_POINTS: usize = 8192;
+
+/// SolidCraft: `loops` with every point that lies within `TOLERANCE` of a segment, away from its
+/// ends, put into that segment (in order along it): where a loop touches itself or another,
+/// both pass through the same point. `None` when no point does, or the loops have more than
+/// [`MAX_PINCH_POINTS`] points, or more than that would be put in.
+fn pinched(loops: &[Vec<Point2>]) -> Option<Vec<Vec<Point2>>> {
+    if loops.iter().map(Vec::len).sum::<usize>() > MAX_PINCH_POINTS {
+        return None;
+    }
+    let mut extra: Vec<Vec<Vec<(f64, Point2)>>> = loops.iter().map(|l| vec![Vec::new(); l.len()]).collect();
+    let mut found = 0;
+    for (l, extra) in loops.iter().zip(&mut extra) {
+        let n = l.len();
+        for (i, extra) in extra.iter_mut().enumerate() {
+            let (q0, q1) = (l[i], l[(i + 1) % n]);
+            let d = q1 - q0;
+            let len2 = d.magnitude2();
+            if len2 <= TOLERANCE2 {
+                continue;
+            }
+            for &p in loops.iter().flatten() {
+                if p.distance2(q0) <= TOLERANCE2 || p.distance2(q1) <= TOLERANCE2 {
+                    continue;
+                }
+                let t = (p - q0).dot(d) / len2;
+                if t > 0.0 && t < 1.0 && p.distance2(q0 + d * t) <= TOLERANCE2 {
+                    if found == MAX_PINCH_POINTS {
+                        return None;
+                    }
+                    extra.push((t, p));
+                    found += 1;
+                }
+            }
+            extra.sort_by(|a, b| a.0.total_cmp(&b.0));
+        }
+    }
+    (found > 0).then(|| {
+        loops
+            .iter()
+            .zip(extra)
+            .map(|(l, extra)| l.iter().zip(extra).flat_map(|(p, e)| std::iter::once(*p).chain(e.into_iter().map(|(_, q)| q))).collect())
+            .collect()
+    })
 }
 
 fn spade_round(x: f64) -> f64 {
@@ -959,7 +1011,17 @@ pub(super) fn preview_face<S: RobustMeshableSurface>(surface: &S, loops: &[Vec<P
 // SolidCraft: the normal entry point supplies None, preserving adaptive meshing.
 fn trimming_with_steps<S: PreMeshableSurface>(surface: &S, polyboundary: &PolyBoundary, tol: Deflection, cap: usize, steps: Option<usize>) -> PolygonMesh {
     let mut triangulation = Cdt::new();
-    polyboundary.insert_to(&mut triangulation);
+    // SolidCraft: a loop that touches itself or another loop within `TOLERANCE` (a face pinched
+    // to a point where a body touches its edge, #1648) can cross there by less than that. A
+    // segment that would cross one already added is left out, the fallback in `insert_to` then
+    // joins the next point across the face, and the face came out with no triangles. Its
+    // segments are then taken through the points they pass, and it is triangulated again.
+    if !polyboundary.insert_to(&mut triangulation) {
+        if let Some(loops) = pinched(&polyboundary.0) {
+            triangulation = Cdt::new();
+            PolyBoundary(loops, Vec::new(), Vec::new()).insert_to(&mut triangulation);
+        }
+    }
     insert_surface(&mut triangulation, surface, polyboundary, tol, cap, steps);
     let mut mesh = triangulation_into_polymesh(
         triangulation.vertices(),

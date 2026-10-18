@@ -176,6 +176,14 @@ Changes:
   point of the face's edges now goes to that point, when it is within the chord tolerance
   (`onto_edges`). Points within `TOLERANCE` stay on the surface, so exact geometry meshes as
   before. The meshes Boolean operations intersect keep truck's points.
+- `tessellation/triangulation.rs`: a face whose boundary touches itself or another of its loops
+  within `TOLERANCE` (pinched to a point where a body touches its edge, #1648) can cross there by
+  less than that. A segment that would cross one already added was left out of the triangulation,
+  and the fallback that joins the next point instead cut across the face: such a face came out
+  with no triangles, or without those at the pinch, depending on which segment went in first.
+  When a segment is left out, every boundary point within `TOLERANCE` of a segment, away from its
+  ends, is put into it (`pinched`: at most 8192 boundary points, and at most 8192 put in), and
+  the face is triangulated again. Faces whose segments all go in are triangulated as before.
 
 - `tessellation/triangulation.rs`: in display and export meshes (`Deflection::rulings`), a
   direction left undivided along the rulings of a face ruled one way also gets a grid line
