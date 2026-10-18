@@ -220,7 +220,9 @@ fn live(app: &SolveApp, t: &Tool, e: Vec2, px: f64) -> Vec<(f64, Vec2)> {
         }
         ("sketch.arc.center_point", 2) => {
             let a0 = (a - first).angle();
-            vec![(((e - first).angle() - a0).rem_euclid(std::f64::consts::TAU), e)]
+            // Out along the radius, clear of the cursor: a box on it would take the hover and
+            // the click meant for a point there (#2201).
+            vec![(((e - first).angle() - a0).rem_euclid(std::f64::consts::TAU), e + dir_or_x(e - first) * (2.5 * off))]
         }
         ("sketch.conic", 2) => {
             // `rho` is the curve's fullness, not a distance: the conic passes through
@@ -234,7 +236,9 @@ fn live(app: &SolveApp, t: &Tool, e: Vec2, px: f64) -> Vec<(f64, Vec2)> {
         }
         ("sketch.slot.center_to_center" | "sketch.slot.overall", 2) => {
             let dir = dir_or_x(a - first);
-            vec![(2.0 * dir.cross(e - first).abs(), e)]
+            let side = if dir.cross(e - first) < 0.0 { -1.0 } else { 1.0 };
+            // Beyond the cursor, away from the centre line, as for the arc (#2201).
+            vec![(2.0 * dir.cross(e - first).abs(), e + dir.perp() * (side * 2.5 * off))]
         }
         _ => Vec::new(),
     }
@@ -402,6 +406,7 @@ fn boxes(app: &SolveApp, ui: &mut egui::Ui, proj: &Proj, t: &mut Tool) -> Option
     }
     let mut completed = false;
     let mut any_focused = false;
+    let view = app.viewport.layout.as_ref().map(|l| l.drawable).filter(|r| r.is_finite() && r.is_positive());
     for (i, b) in t.dims.iter_mut().enumerate() {
         let Some((v, at)) = lv.get(i).copied() else { continue };
         if !b.locked {
@@ -417,7 +422,7 @@ fn boxes(app: &SolveApp, ui: &mut egui::Ui, proj: &Proj, t: &mut Tool) -> Option
             s.cursor.set_char_range(Some(egui::text_selection::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(n))));
             s.store(ui.ctx(), id);
         }
-        let pos: Pos2 = sp + vec2(-34.0, -11.0);
+        let pos = in_view(sp + vec2(-34.0, -11.0), view, ui.ctx().pointer_latest_pos());
         crate::frame::area(egui::Id::new(("sc_dim_area", i))).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
             let fill = if b.locked { tk.accent_soft } else { tk.panel };
             egui::Frame::popup(ui.style()).fill(fill).inner_margin(egui::Margin::symmetric(3, 1)).show(ui, |ui| {
@@ -463,6 +468,28 @@ fn boxes(app: &SolveApp, ui: &mut egui::Ui, proj: &Proj, t: &mut Tool) -> Option
     let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
     let nothing = ui.ctx().memory(|m| m.focused().is_none());
     (enter && (any_focused || nothing)).then_some(e)
+}
+
+/// About the size of a value box, for keeping it in view.
+const BOX: egui::Vec2 = egui::vec2(76.0, 24.0);
+
+/// Where a value box whose top left would be `pos` goes so it stays in the drawing area `view`:
+/// as it is when it fits; else mirrored through the pointer (a box set off the cursor, past the
+/// view's edge, goes to the cursor's other side, still clear of it, #2201); else pushed inside.
+fn in_view(pos: Pos2, view: Option<egui::Rect>, pointer: Option<Pos2>) -> Pos2 {
+    let Some(view) = view else { return pos };
+    let fits = |p: Pos2| view.contains_rect(egui::Rect::from_min_size(p, BOX));
+    if fits(pos) {
+        return pos;
+    }
+    if let Some(c) = pointer {
+        let mirrored = c + (c - (pos + BOX * 0.5)) - BOX * 0.5;
+        if fits(mirrored) {
+            return mirrored;
+        }
+    }
+    let max = (view.max - BOX).max(view.min);
+    pos.clamp(view.min, max)
 }
 
 #[cfg(test)]
