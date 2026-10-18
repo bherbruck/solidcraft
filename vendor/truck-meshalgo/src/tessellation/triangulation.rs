@@ -621,13 +621,17 @@ impl PolyBoundaryPiece {
     }
 }
 
-fn abs_diff(previous: f64) -> impl Fn(&f64, &f64) -> std::cmp::Ordering {
-    let f = move |x: &f64| f64::abs(x - previous);
-    move |x: &f64, y: &f64| f(x).partial_cmp(&f(y)).unwrap()
-}
+/// SolidCraft: `u` moved by whole periods `up` to within half a period of `u0`, however many
+/// periods away it is (on a tie, the lower one, as before). A hinted search on a revolved
+/// surface can return an angle millions of turns from its hint, the same point; moving it by two
+/// periods at most left a face's boundary loop spanning those turns, and the polyline that closes
+/// it across the seam then had millions of points: meshing it never finished (#1985).
 fn get_mindiff(u: f64, u0: f64, up: f64) -> f64 {
-    let closure = |i| u + i as f64 * up;
-    (-2..=2).map(closure).min_by(abs_diff(u0)).unwrap()
+    let d = (u - u0).rem_euclid(up);
+    if !d.is_finite() {
+        return u;
+    }
+    u0 + if d >= 0.5 * up { d - up } else { d }
 }
 
 /// SolidCraft: the second field holds each loop's parameter box, so `include` skips loops that
