@@ -318,6 +318,11 @@ fn meshes_cross_only_where_their_surfaces_pass_through_each_other() {
     // Passing through by less than the tolerance doesn't count.
     assert!(!a.crosses(&cube(9.995, 3.0, 1), 0.01));
     assert!(!a.crosses(&cube(9.85, 3.0, 1), f64::NAN));
+    // Crossings left out where the caller knows better: only those, by where they are.
+    let corner = cube(9.85, 9.85, 2);
+    assert!(!a.crosses_except(&corner, 0.01, |_| true));
+    assert!(!a.crosses_except(&corner, 0.01, |p| p.x > 9.8 && p.y > 9.8));
+    assert!(a.crosses_except(&corner, 0.01, |p| p.x < 9.8));
 }
 
 /// A closed box mesh `[x0, x0+a] x [y0, y0+b] x [z0, z0+c]`, outward-facing.

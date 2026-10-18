@@ -251,3 +251,32 @@ fn a_small_gap_past_a_corner_is_not_contact() {
         assert!((f(&r["nearest"][a][0]["distance_mm"]) - want).abs() < 1e-9, "{a} {b}: {r}");
     }
 }
+
+/// A pin turned from a profile (its wall in three faces) in the bore of a tube of its own size
+/// (in two faces), its end inside the bore, a hair off the axis, and a slit tube with the pin
+/// through it: touching, not overlapping. Their facets cross where one body's faces end on the
+/// shared cylinder, and the pairs were left unchecked ("could not be intersected there").
+#[test]
+fn a_turned_pin_in_a_bore_of_its_size_is_contact() {
+    let mut s = Session::default();
+    let pin = |s: &mut Session, name: &str, off: [f64; 3], z0: f64, z1: f64| {
+        run(s, "sketch.create", json!({"plane": {"origin": off, "x_dir": [1, 0, 0], "y_dir": [0, 0, 1]}}));
+        run(s, "sketch.rectangle.two_point", json!({"p0": [0, z0], "p1": [3, z1]}));
+        run(s, "solid.revolve", json!({"axis": "y", "body_name": name}));
+    };
+    let tube = |s: &mut Session, name: &str, x: f64| {
+        run(s, "solid.cylinder", json!({"radius": 5.25, "height": 19.55, "base": [x, 0, 0], "body_name": name}));
+        run(s, "solid.cylinder", json!({"radius": 3, "height": 19.55, "base": [x, 0, 0], "operation": "cut", "targets": [name]}));
+    };
+    pin(&mut s, "Pin", [2.2e-8, 4.7e-7, 0.0], -2.35, 9.65);
+    tube(&mut s, "Tube", 0.0);
+    pin(&mut s, "Through", [30.0, 0.0, 0.0], -3.0, 22.0);
+    tube(&mut s, "Slit", 30.0);
+    run(&mut s, "solid.box", json!({"length": 8, "width": 0.1, "height": 21, "corner": [22, -0.05, -1], "operation": "cut", "targets": ["Slit"]}));
+    let r = run(&mut s, "inspect.clearance", json!({"bodies": ["Pin", "Through"], "against": ["Tube", "Slit"], "clearance": 1e-6}));
+    assert_eq!(r["unchecked"].as_array().map(Vec::len), Some(0), "{r}");
+    assert_eq!(r["overlaps"].as_array().map(Vec::len), Some(0), "{r}");
+    let near = r["near"].as_array().cloned().unwrap_or_default();
+    assert_eq!(near.iter().map(pair).collect::<Vec<_>>(), [["Pin", "Tube"], ["Slit", "Through"]], "{r}");
+    assert!(near.iter().all(|n| f(&n["distance_mm"]) == 0.0 && n.get("overlap_mm3").is_none()), "{r}");
+}
