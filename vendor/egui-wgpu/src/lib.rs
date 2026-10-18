@@ -712,6 +712,43 @@ mod msaa_tests {
     }
 }
 
+/// SolidCraft: run `f` with `device`'s errors captured, and the first error it caused. Uncaptured,
+/// an error goes to the device's handler, which panics by default: a surface the driver can't
+/// reconfigure (D3D12 "Failed to wait for GPU to come idle", #1935) crashed the app. Native error
+/// scopes resolve at once; on the web the scope still keeps the error from the handler.
+pub fn capture_errors<T>(device: &wgpu::Device, f: impl FnOnce() -> T) -> (T, Option<wgpu::Error>) {
+    let scopes = [
+        wgpu::ErrorFilter::OutOfMemory,
+        wgpu::ErrorFilter::Internal,
+        wgpu::ErrorFilter::Validation,
+    ]
+    .map(|filter| device.push_error_scope(filter));
+    let value = f();
+    let mut failed = None;
+    for scope in scopes.into_iter().rev() {
+        let mut popped = std::pin::pin!(scope.pop());
+        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+        if let std::task::Poll::Ready(Some(error)) = std::future::Future::poll(popped.as_mut(), &mut cx) {
+            failed.get_or_insert(error);
+        }
+    }
+    (value, failed)
+}
+
+/// SolidCraft: refused configures in a row after which the surface is recreated (#1935).
+pub const SURFACE_RECREATE_AFTER: u32 = 3;
+
+/// SolidCraft: after `failures` refused surface configures in a row (#1935), how long to wait
+/// before the next try (16 ms, doubling, at most 1 s) and whether to recreate the surface first
+/// (every [`SURFACE_RECREATE_AFTER`] refusals). A device that keeps refusing then costs a try a
+/// second instead of a busy frame loop.
+pub fn configure_retry(failures: u32) -> (std::time::Duration, bool) {
+    let doublings = failures.saturating_sub(1).min(6);
+    let delay = std::time::Duration::from_millis((16u64 << doublings).min(1000));
+    let recreate = failures > 0 && failures % SURFACE_RECREATE_AFTER == 0;
+    (delay, recreate)
+}
+
 /// SolidCraft: the surface size for a window of `width` x `height` pixels on a device whose
 /// textures are at most `max_side` on a side, and the scale it is drawn at. A window that fits is
 /// unchanged (scale 1); a larger one shrinks uniformly, keeping its aspect ratio, so the image
