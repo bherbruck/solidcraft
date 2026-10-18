@@ -2208,6 +2208,11 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     let has_ok = !matches!(d.kind, Kind::Sketch | Kind::Params { .. } | Kind::Measure { .. });
     let valid = match &d.kind {
         Kind::SaveMesh(_) => crate::dialogs_save_mesh::ready(&d.inputs),
+        Kind::SketchModify(crate::sketch_modify_ui::Mod::Corner { .. }) => {
+            // Corner dialogs: preview errors are visual only; validation errors from
+            // `apply_commands` go to `d.error`. OK stays enabled when the preview fails.
+            !has_ok || (built.unwrap_or_else(|| apply_commands(app, &d).is_ok()))
+        }
         _ => !has_ok || !d.previews() || (built.unwrap_or_else(|| apply_commands(app, &d).is_ok()) && app.preview.error.is_none()),
     };
     let width = if wide { crate::frame::Width::Wide } else { crate::frame::Width::Normal };

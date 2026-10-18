@@ -475,3 +475,43 @@ fn chamfer_window_cuts_the_corner_between_two_picked_lines() {
     assert_eq!(sk.curves.len(), before + 1, "a chamfer line: {:?}", h.app.status);
     assert!(sk.curve_index("left").is_some(), "the third line stays");
 }
+
+/// Corner previews draw new curves when a corner is picked, just like Mirror and Offset do.
+/// This tests that `previews()` for Corner produces sketch preview curves visible in the viewport.
+#[test]
+fn fillet_chamfer_corner_preview_draws_curves() {
+    let mut h = crate::scenario::Harness::new();
+    // Create a simple L-shape with two lines meeting at (0, 10).
+    h.app.run("sketch.create", json!({"plane":"XY"})).unwrap();
+    h.app.run("sketch.line", json!({"points": [[-30,10],[0,10]], "ids": ["top"]})).unwrap();
+    h.app.run("sketch.line", json!({"points": ["top.end",[0,-20]], "ids": ["right"]})).unwrap();
+    h.frames(2);
+
+    // Open the fillet tool and pick the corner at (0, 10).
+    h.step(&json!({"start":"sketch.fillet"})).unwrap();
+    h.frames(2);
+    h.step(&json!({"click":{"world":[0.0,10.0,0.0]}})).unwrap();
+    h.frames(3);
+
+    // The preview should have drawn new curves (fillet arcs at picked corners).
+    h.step(&json!({"until":{"count":{"name":"sketch_preview_curves","value":1}}})).unwrap();
+
+    // Verify the sketch itself hasn't been modified yet.
+    let sid = h.app.session.active_sketch.unwrap();
+    let sk = h.app.session.world_state().sketch(sid).unwrap().sketch.clone();
+    assert_eq!(sk.curves.len(), 2, "fillet preview must not modify the sketch");
+
+    // Now test chamfer too. Close the fillet dialog first.
+    h.step(&json!({"key":"Escape"})).unwrap();
+    h.frames(3);
+    h.step(&json!({"start":"sketch.chamfer.equal_distance"})).unwrap();
+    h.frames(2);
+    h.step(&json!({"click":{"world":[0.0,10.0,0.0]}})).unwrap();
+    h.frames(3);
+
+    // Chamfer preview should also produce curves.
+    h.step(&json!({"until":{"count":{"name":"sketch_preview_curves","value":1}}})).unwrap();
+
+    let sk = h.app.session.world_state().sketch(sid).unwrap().sketch.clone();
+    assert_eq!(sk.curves.len(), 2, "chamfer preview must not modify the sketch");
+}
