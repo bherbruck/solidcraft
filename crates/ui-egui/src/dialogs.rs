@@ -534,7 +534,7 @@ impl Dialog {
             }
             "construct.plane.at_angle" => Dialog::new(
                 Kind::AnglePlane { angle: "45 deg".into() },
-                vec![SelInput::new("Plane", PLANES, false), SelInput::new("Axis", AXES, false)],
+                vec![SelInput::new("Plane", PLANES, false), SelInput::new("Axis", AXES | EDGES, false)],
             ),
             "solid.split_body" => Dialog::new(
                 Kind::Split,
@@ -1449,6 +1449,8 @@ fn hint(inp: &SelInput) -> &'static str {
     let a = inp.accept;
     if a & PROFILES != 0 {
         "click profiles in the view"
+    } else if (a & (AXES | EDGES)) == (AXES | EDGES) {
+        "click an axis, line or edge"
     } else if a & EDGES != 0 {
         "click edges or faces"
     } else if a & PLANES != 0 {
@@ -3925,7 +3927,7 @@ fn dialog_commands(app: &SolveApp, d: &Dialog) -> Result<Vec<(String, Value)>, S
                 None if d.extra.contains_key("axis") => d.extra.get("axis").cloned().unwrap_or(Value::Null),
                 Some(Sel::Axis { name }) => json!(name),
                 Some(x) => {
-                    let (o, dir) = axis_of(app, x).ok_or("the axis must be an origin axis or a sketch line")?;
+                    let (o, dir) = axis_of(app, x).ok_or("the axis must be an origin axis, a sketch line or a straight edge")?;
                     json!({"origin": pt(o), "dir": pt(dir)})
                 }
                 None => return Err("select an axis".into()),
@@ -4006,7 +4008,7 @@ fn dialog_commands(app: &SolveApp, d: &Dialog) -> Result<Vec<(String, Value)>, S
             let axis = match sels(d, 1).first() {
                 Some(Sel::Axis { name }) => json!(name),
                 Some(x) => {
-                    let (o, dir) = axis_of(app, x).ok_or("the axis must be an origin axis or a sketch line")?;
+                    let (o, dir) = axis_of(app, x).ok_or("the axis must be an origin axis, a sketch line or a straight edge")?;
                     json!({"origin": pt(o), "dir": pt(dir)})
                 }
                 None => d.extra.get("axis").cloned().ok_or("pick an axis")?,

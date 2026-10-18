@@ -80,3 +80,28 @@ fn offset_plane_rejects_bad_face_picks_without_panicking() {
         assert_eq!(s.doc.features.len(), features, "{base}");
     }
 }
+
+#[test]
+fn plane_at_angle_with_offset_axis_origin_rotates_correctly() {
+    let mut s = Session::default();
+    run(&mut s, "solid.box", json!({"length": 40, "width": 30, "height": 20, "name": "Base"}));
+
+    // Rotate about top edge at y = 0, z = 20, along X axis ([1, 0, 0])
+    run(
+        &mut s,
+        "construct.plane.at_angle",
+        json!({
+            "base": "XY",
+            "axis": {"origin": [0, 0, 20], "dir": [1, 0, 0]},
+            "angle": "45 deg",
+            "name": "Slanted"
+        }),
+    );
+    let slanted = plane(&s, "Slanted");
+    let half = 1.0_f64 / 2.0_f64.sqrt();
+    assert!(slanted.origin.x.abs() < 1e-9, "{slanted:?}");
+    assert!((slanted.origin.y - 20.0 * half).abs() < 1e-9, "{slanted:?}");
+    assert!((slanted.origin.z - (20.0 - 20.0 * half)).abs() < 1e-9, "{slanted:?}");
+    assert!((slanted.normal().y - (-half)).abs() < 1e-9, "{slanted:?}");
+    assert!((slanted.normal().z - half).abs() < 1e-9, "{slanted:?}");
+}
