@@ -207,6 +207,8 @@ pub struct AgentChat {
     pub agent_id: Option<String>,
     /// The agent the running backend is (for permissions and "always allow").
     running_id: String,
+    /// The popped-out chat window was given its saved place (it is open); see `panel::window_builder`.
+    pub(crate) window_placed: bool,
     /// The agent's own modes, and the current one.
     modes: Vec<(String, String)>,
     mode: String,
@@ -1131,6 +1133,9 @@ pub fn control(app: &mut SolveApp, ctx: &egui::Context, p: &Value) -> Result<Val
     if let Some(m) = p.get("minimized").and_then(Value::as_bool) {
         app.preferences.agent_chat_minimized = m;
     }
+    if let Some(w) = p.get("popped").and_then(Value::as_bool) {
+        app.preferences.agent_chat_popped = w;
+    }
     if let Some(w) = p.get("width").and_then(Value::as_f64).filter(|w| w.is_finite()) {
         app.preferences.agent_chat_width = (w as f32).clamp(panel::MIN_WIDTH, panel::MAX_WIDTH);
         panel::forget_width(ctx);
@@ -1233,6 +1238,8 @@ pub fn status(app: &SolveApp) -> Value {
         "open": c.open,
         "side": app.preferences.agent_chat_side,
         "minimized": app.preferences.agent_chat_minimized,
+        "popped": app.preferences.agent_chat_popped,
+        "window": app.preferences.agent_chat_window,
         "width": app.preferences.agent_chat_width,
         "state": c.state().id(),
         "agent": c.agent,

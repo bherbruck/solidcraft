@@ -183,12 +183,19 @@ pub fn page(app: &mut SolveApp, ui: &mut egui::Ui) {
     egui::Grid::new("sc_ai_panel_grid").num_columns(2).spacing([16.0, 6.0]).show(ui, |ui| {
         ui.label(tr("ui.agent_chat_side"));
         ui.horizontal(|ui| {
-            let side = &mut app.preferences.agent_chat_side;
-            if ui.radio(side == "left", tr("ui.agent_chat_left")).clicked() {
-                *side = "left".into();
+            let p = &mut app.preferences;
+            let (left, popped) = (p.agent_chat_side == "left", p.agent_chat_popped);
+            if ui.radio(left && !popped, tr("ui.agent_chat_left")).clicked() {
+                p.agent_chat_side = "left".into();
+                p.agent_chat_popped = false;
             }
-            if ui.radio(side != "left", tr("ui.agent_chat_right")).clicked() {
-                *side = "right".into();
+            if ui.radio(!left && !popped, tr("ui.agent_chat_right")).clicked() {
+                p.agent_chat_side = "right".into();
+                p.agent_chat_popped = false;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if ui.radio(popped, tr("ui.agent_chat_own_window")).on_hover_text(tr("ui.agent_chat_pop_out")).clicked() {
+                p.agent_chat_popped = true;
             }
         });
         ui.end_row();

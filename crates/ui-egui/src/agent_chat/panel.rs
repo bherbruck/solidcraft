@@ -58,6 +58,10 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
     if ctx.input_mut(|i| i.consume_shortcut(&SHORTCUT)) {
         toggle(app);
     }
+    // A window that isn't drawn this frame closes; the next one opens at the saved place.
+    if !(app.agent_chat.open && app.preferences.agent_chat_popped) {
+        app.agent_chat.window_placed = false;
+    }
     // New chat, when the chat has focus (its input, or the pointer over the panel).
     let in_chat = ctx.memory(|m| m.has_focus(Id::new("sc_agent_chat_input")))
         || ctx.pointer_hover_pos().is_some_and(|p| app.agent_chat.panel_rect.is_some_and(|r| r.contains(p)));
@@ -71,6 +75,11 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
     #[cfg(not(target_arch = "wasm32"))]
     if app.agent_chat.detection.is_none() && app.agent_chat.detecting.is_none() {
         refresh(app, &ctx);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    if app.preferences.agent_chat_popped {
+        window(app, &ctx);
+        return;
     }
     let t = Tokens::get();
     let left = app.preferences.agent_chat_side == "left";
@@ -107,7 +116,78 @@ fn request_new_chat(app: &mut SolveApp) {
     }
 }
 
-/// A small drawn button: `kind` is `minimize`, `close`, `stopturn` or `expand`.
+/// A saved window place (`[x, y, width, height]`) that can be used: finite, a usable size, and
+/// not absurdly far away. `x` and `y` may be negative: a screen left of or above the main one.
+pub fn window_place(saved: Option<[f32; 4]>) -> Option<([f32; 2], [f32; 2])> {
+    let [x, y, w, h] = saved?;
+    let usable = [x, y, w, h].iter().all(|v| v.is_finite())
+        && (MIN_WIDTH..=10_000.0).contains(&w)
+        && (200.0..=10_000.0).contains(&h)
+        && x.abs() <= 100_000.0
+        && y.abs() <= 100_000.0;
+    usable.then_some(([x, y], [w, h]))
+}
+
+/// The chat window's settings. The saved place and size go only to a window that is opening:
+/// egui turns a changed place into a move, and the system rounds what it is given, so giving it
+/// every frame made the window chase its own rounding (it shook a pixel up and down).
+pub fn window_builder(app: &SolveApp) -> egui::ViewportBuilder {
+    let title = format!("{} — {}", app.session.doc.name, tr("ui.agent_chat"));
+    let builder = egui::ViewportBuilder::default().with_title(title).with_min_inner_size([MIN_WIDTH, 320.0]);
+    if app.agent_chat.window_placed {
+        return builder;
+    }
+    match window_place(app.preferences.agent_chat_window) {
+        Some((pos, size)) => builder.with_position(pos).with_inner_size(size),
+        None => builder.with_inner_size([app.preferences.agent_chat_width.clamp(MIN_WIDTH, MAX_WIDTH), 720.0]),
+    }
+}
+
+/// The chat in its own window, named after the design: a native window on the desktop, which can
+/// go to another screen, or a window floating inside the app where the system can't open one.
+/// The system's close button closes the chat (it opens there again); Dock puts it back.
+#[cfg(not(target_arch = "wasm32"))]
+fn window(app: &mut SolveApp, ctx: &egui::Context) {
+    let builder = window_builder(app);
+    app.agent_chat.window_placed = true;
+    // The side panel isn't drawn: its place no longer counts as "in the chat".
+    app.agent_chat.panel_rect = None;
+    ctx.show_viewport_immediate(egui::ViewportId::from_hash_of("sc_agent_chat_window"), builder, |ui, class| {
+        let t = Tokens::get();
+        let frame = egui::Frame::NONE.fill(t.panel).inner_margin(egui::Margin::symmetric(8, 6));
+        let r = egui::CentralPanel::default().frame(frame).show(ui, |ui| body(app, ui, false));
+        if class == egui::ViewportClass::EmbeddedWindow {
+            // Floating inside the app: its handles are the main window's, as the panel's are.
+            crate::scenario::publish_rect("agent_chat:window", r.response.rect);
+            app.agent_chat.panel_rect = Some(r.response.rect);
+            return;
+        }
+        let ctx = ui.ctx().clone();
+        if ctx.input_mut(|i| i.consume_shortcut(&SHORTCUT)) {
+            toggle(app);
+        }
+        // The whole window is the chat, so New chat works anywhere in it.
+        if ctx.input_mut(|i| i.consume_shortcut(&NEW_CHAT_SHORTCUT)) {
+            request_new_chat(app);
+        }
+        let (outer, inner, close) = ctx.input(|i| (i.viewport().outer_rect, i.viewport().inner_rect, i.viewport().close_requested()));
+        if let (Some(o), Some(n)) = (outer, inner) {
+            app.preferences.agent_chat_window = Some([o.min.x, o.min.y, n.width(), n.height()]);
+        }
+        if close {
+            app.agent_chat.open = false;
+        }
+    });
+}
+
+/// Whether the chat's own window should become active because the pointer is over its text box:
+/// only when it is in a window of its own that isn't active and the app's main window is (never
+/// taking the focus from another app).
+pub fn take_focus_for_text(popped: bool, over_text: bool, chat_active: Option<bool>, main_active: Option<bool>) -> bool {
+    popped && over_text && chat_active == Some(false) && main_active == Some(true)
+}
+
+/// A small drawn button: `kind` is `minimize`, `close`, `newchat`, `stopturn`, `pop_out` or `dock`.
 fn glyph_button(ui: &mut egui::Ui, kind: &str, tip: &str) -> egui::Response {
     let t = Tokens::get();
     let (r, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
@@ -116,13 +196,29 @@ fn glyph_button(ui: &mut egui::Ui, kind: &str, tip: &str) -> egui::Response {
     }
     let c = r.center();
     let s = Stroke::new(1.4, t.text);
+    let p = ui.painter();
     match kind {
         "minimize" => {
-            ui.painter().line_segment([c + vec2(-5.0, 4.0), c + vec2(5.0, 4.0)], s);
+            p.line_segment([c + vec2(-5.0, 4.0), c + vec2(5.0, 4.0)], s);
         }
         "close" => {
-            ui.painter().line_segment([c + vec2(-4.5, -4.5), c + vec2(4.5, 4.5)], s);
-            ui.painter().line_segment([c + vec2(-4.5, 4.5), c + vec2(4.5, -4.5)], s);
+            p.line_segment([c + vec2(-4.5, -4.5), c + vec2(4.5, 4.5)], s);
+            p.line_segment([c + vec2(-4.5, 4.5), c + vec2(4.5, -4.5)], s);
+        }
+        // A window with an arrow leaving it by its top right corner.
+        "pop_out" => {
+            p.line_segment([c + vec2(-1.0, -5.0), c + vec2(-5.0, -5.0)], s);
+            p.line_segment([c + vec2(-5.0, -5.0), c + vec2(-5.0, 5.0)], s);
+            p.line_segment([c + vec2(-5.0, 5.0), c + vec2(5.0, 5.0)], s);
+            p.line_segment([c + vec2(5.0, 5.0), c + vec2(5.0, 1.0)], s);
+            p.line_segment([c + vec2(-1.0, 1.0), c + vec2(5.5, -5.5)], s);
+            p.line_segment([c + vec2(1.5, -5.5), c + vec2(5.5, -5.5)], s);
+            p.line_segment([c + vec2(5.5, -5.5), c + vec2(5.5, -1.5)], s);
+        }
+        // A window with its right side filled: the panel docked.
+        "dock" => {
+            p.rect_stroke(Rect::from_center_size(c, vec2(11.0, 10.0)), 1.0, s, egui::StrokeKind::Middle);
+            p.rect_filled(Rect::from_min_max(c + vec2(1.5, -5.0), c + vec2(5.5, 5.0)), 0.0, t.text);
         }
         "newchat" => {
             // A speech bubble with a plus.
@@ -179,16 +275,20 @@ fn strip(app: &mut SolveApp, ui: &mut egui::Ui) {
 }
 
 /// The header: a grip to drag the panel to the other side, the title and state, Connect or Stop,
-/// Minimise and Close.
+/// Pop out (or Dock, in its own window), Minimise and Close. In its own window the system moves
+/// and minimises it, so there is no grip and no Minimise.
 fn header(app: &mut SolveApp, ui: &mut egui::Ui, left: bool) {
     let t = Tokens::get();
     let state = app.agent_chat.state();
+    let popped = app.preferences.agent_chat_popped;
     ui.horizontal(|ui| {
         let title = {
-            let (grip, _) = ui.allocate_exact_size(vec2(10.0, 18.0), Sense::hover());
-            for row in 0..3 {
-                for col in 0..2 {
-                    ui.painter().circle_filled(grip.left_top() + vec2(2.5 + col as f32 * 5.0, 4.0 + row as f32 * 5.0), 1.1, t.text_dim);
+            let (grip, _) = ui.allocate_exact_size(vec2(if popped { 0.0 } else { 10.0 }, 18.0), Sense::hover());
+            if !popped {
+                for row in 0..3 {
+                    for col in 0..2 {
+                        ui.painter().circle_filled(grip.left_top() + vec2(2.5 + col as f32 * 5.0, 4.0 + row as f32 * 5.0), 1.1, t.text_dim);
+                    }
                 }
             }
             let l = ui.label(RichText::new(tr("ui.agent_chat")).strong().size(14.0));
@@ -203,14 +303,16 @@ fn header(app: &mut SolveApp, ui: &mut egui::Ui, left: bool) {
         }
         ui.label(RichText::new(s).color(state_color(state)).small());
         // Drag the header across the window to dock on the other side.
-        let drag = ui.interact(title, Id::new("sc_agent_chat_grip"), Sense::drag());
-        crate::scenario::publish_handle("agent_chat:grip", title.center());
-        dock_drag(app, ui, &drag, left);
+        if !popped {
+            let drag = ui.interact(title, Id::new("sc_agent_chat_grip"), Sense::drag());
+            crate::scenario::publish_handle("agent_chat:grip", title.center());
+            dock_drag(app, ui, &drag, left);
+        }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if glyph_button(ui, "close", tr("ui.agent_chat_close")).clicked() {
                 app.agent_chat.open = false;
             }
-            if glyph_button(ui, "minimize", tr("ui.agent_chat_minimize")).clicked() {
+            if !popped && glyph_button(ui, "minimize", tr("ui.agent_chat_minimize")).clicked() {
                 app.preferences.agent_chat_minimized = true;
             }
             #[cfg(not(target_arch = "wasm32"))]
@@ -222,6 +324,13 @@ fn header(app: &mut SolveApp, ui: &mut egui::Ui, left: bool) {
             .clicked()
             {
                 request_new_chat(app);
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let (kind, tip) = if popped { ("dock", "ui.agent_chat_dock") } else { ("pop_out", "ui.agent_chat_pop_out") };
+                if glyph_button(ui, kind, tr(tip)).clicked() {
+                    app.preferences.agent_chat_popped = !popped;
+                }
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -345,6 +454,13 @@ fn desktop_body(app: &mut SolveApp, ui: &mut egui::Ui) {
     };
     let r = ui.add(edit);
     crate::scenario::publish_rect("agent_chat:input", r.rect);
+    // macOS shows a window's cursors only while it is the active window: over the text box of a
+    // chat window that isn't, the pointer stays an arrow. Coming from the main window, the chat
+    // window becomes active, so the text cursor shows and the first click places the caret.
+    let (chat_active, main_active) = (ui.ctx().input(|i| i.viewport().focused), ui.ctx().input_for(egui::ViewportId::ROOT, |i| i.viewport().focused));
+    if take_focus_for_text(app.preferences.agent_chat_popped, r.hovered(), chat_active, main_active) {
+        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
     let enter = r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
     if esc {
         cancel(app);

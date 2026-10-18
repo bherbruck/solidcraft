@@ -366,6 +366,11 @@ pub struct Prefs {
     pub agent_chat_side: String,
     pub agent_chat_width: f32,
     pub agent_chat_minimized: bool,
+    /// Whether the chat is in its own window instead of the side panel, and that window's place
+    /// and size as the system last reported them (`[x, y, width, height]`, points; `x` can be
+    /// negative or past the main screen when the window sits on another one).
+    pub agent_chat_popped: bool,
+    pub agent_chat_window: Option<[f32; 4]>,
     /// Changes the agent may make for one message.
     pub agent_chat_turn_limit: u32,
 }
@@ -456,6 +461,8 @@ impl Default for Prefs {
             agent_chat_side: "right".into(),
             agent_chat_width: 380.0,
             agent_chat_minimized: false,
+            agent_chat_popped: false,
+            agent_chat_window: None,
             agent_chat_turn_limit: crate::agent_chat::gate::DEFAULT_TURN_LIMIT,
         }
     }
@@ -615,6 +622,8 @@ fn defaults(app: &mut SolveApp, page: usize) {
             p.agent_chat_side = d.agent_chat_side;
             p.agent_chat_width = d.agent_chat_width;
             p.agent_chat_minimized = d.agent_chat_minimized;
+            p.agent_chat_popped = d.agent_chat_popped;
+            p.agent_chat_window = d.agent_chat_window;
             p.agent_chat_turn_limit = d.agent_chat_turn_limit;
         }
         1 => {

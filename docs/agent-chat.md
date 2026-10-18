@@ -36,6 +36,12 @@ when you send a message or press **Connect**.
   window and let go. The side it would land on lights up while you drag. You can also pick
   **Left** or **Right** under Preferences → AI → Panel. SolidCraft remembers the side.
 - **Width:** drag the panel's inner edge. SolidCraft remembers it.
+- **Its own window:** the pop-out button in the header (a window with an arrow) moves the chat
+  into a window of its own, named after the design, which you can move anywhere, including
+  another screen. The window's own close button closes the chat, which opens there again next
+  time; **Dock** (the same place in its header) puts it back in the side panel. You can also
+  pick **Own window** under Preferences → AI → Panel. SolidCraft remembers where the window
+  was and how big.
 - **Minimise** (the line in the header) folds the panel into a thin strip that keeps the chat
   icon, the agent's state, and a count of anything waiting for your answer. Click the icon to
   unfold it. **Close** (×) hides the panel. Neither stops the agent; **Stop** does.

@@ -234,6 +234,109 @@ fn ai_features_and_the_toolbar_button_are_on_by_default() {
     assert!(p.ai_features && p.ai_toolbar_button);
 }
 
+/// Pop out puts the chat in its own window (a native window on the desktop, which can go to
+/// another screen; embedded here, where the test context has one viewport), and Dock puts it back
+/// in the side panel. The control channel does the same.
+#[test]
+fn the_chat_pops_out_into_its_own_window_and_docks_back() {
+    use crate::scenario::{handle_at, rect_of};
+    let mut h = crate::scenario::Harness::new();
+    h.call("ui.agent_chat", json!({"open": true}));
+    h.frames(3);
+    assert!(rect_of("agent_chat:panel").is_some() && rect_of("agent_chat:window").is_none(), "docked by default");
+    assert!(!h.app.preferences.agent_chat_popped);
+    let pop = handle_at("agent_chat:pop_out").expect("a pop-out button in the header");
+    h.call("ui.click", json!({"x": pop.x, "y": pop.y}));
+    h.frames(3);
+    assert!(h.app.preferences.agent_chat_popped);
+    assert!(rect_of("agent_chat:panel").is_none(), "the side panel is gone");
+    assert!(rect_of("agent_chat:window").is_some(), "the chat is in its own window");
+    assert_eq!(status(&h.app)["popped"], json!(true));
+    // A window has its own minimise; the strip and the side drag are the docked panel's.
+    assert!(handle_at("agent_chat:minimize").is_none() && handle_at("agent_chat:grip").is_none());
+    let dock = handle_at("agent_chat:dock").expect("a dock button in the popped-out header");
+    h.call("ui.click", json!({"x": dock.x, "y": dock.y}));
+    h.frames(3);
+    assert!(!h.app.preferences.agent_chat_popped);
+    assert!(rect_of("agent_chat:panel").is_some() && rect_of("agent_chat:window").is_none(), "back in the side panel");
+    h.call("ui.agent_chat", json!({"popped": true}));
+    h.frames(3);
+    assert!(rect_of("agent_chat:window").is_some() && rect_of("agent_chat:panel").is_none());
+    // Closing the chat keeps where it lives: it opens popped out again.
+    h.call("ui.agent_chat", json!({"open": false}));
+    h.frames(2);
+    assert!(rect_of("agent_chat:window").is_none());
+    h.call("ui.agent_chat", json!({"open": true}));
+    h.frames(3);
+    assert!(rect_of("agent_chat:window").is_some());
+}
+
+/// The saved place is given to the window once, when it opens; after that the system owns it.
+/// Given every frame, it chased the system's own rounding: a window that shook a pixel up and
+/// down (686, 687, 686…) on a Retina screen.
+#[test]
+fn the_window_place_is_given_once_when_it_opens() {
+    let mut app = SolveApp::new(solidcraft_engine::Session::default(), crate::Services::default());
+    app.preferences.agent_chat_window = Some([1967.0, 160.0, 569.0, 686.0]);
+    let first = panel::window_builder(&app);
+    assert_eq!(first.position, Some(egui::pos2(1967.0, 160.0)));
+    assert_eq!(first.inner_size, Some(egui::vec2(569.0, 686.0)));
+    app.agent_chat.window_placed = true;
+    app.preferences.agent_chat_window = Some([1967.0, 160.0, 569.0, 687.0]);
+    let later = panel::window_builder(&app);
+    assert_eq!((later.position, later.inner_size), (None, None), "nothing to move or resize once it is open");
+    assert!(later.title.is_some());
+    // Docked or closed, the next pop-out opens at the saved place again.
+    let mut h = crate::scenario::Harness::new();
+    h.call("ui.agent_chat", json!({"open": true, "popped": true}));
+    h.frames(2);
+    assert!(h.app.agent_chat.window_placed);
+    h.call("ui.agent_chat", json!({"popped": false}));
+    h.frames(2);
+    assert!(!h.app.agent_chat.window_placed);
+    h.call("ui.agent_chat", json!({"popped": true}));
+    h.frames(2);
+    h.call("ui.agent_chat", json!({"open": false}));
+    h.frames(2);
+    assert!(!h.app.agent_chat.window_placed);
+}
+
+/// macOS shows the text cursor only in the active window: the chat's own window becomes active
+/// when the pointer comes over its text box from the app's main window, and never takes the focus
+/// from another app.
+#[test]
+fn the_chat_window_takes_the_focus_for_its_text_box_from_the_main_window_only() {
+    assert!(panel::take_focus_for_text(true, true, Some(false), Some(true)));
+    assert!(!panel::take_focus_for_text(true, true, Some(false), Some(false)), "another app is active");
+    assert!(!panel::take_focus_for_text(true, true, Some(true), Some(false)), "already active");
+    assert!(!panel::take_focus_for_text(true, false, Some(false), Some(true)), "not over the text box");
+    assert!(!panel::take_focus_for_text(false, true, Some(false), Some(true)), "docked: the main window shows it");
+    assert!(!panel::take_focus_for_text(true, true, None, Some(true)), "unknown: leave it");
+}
+
+/// Whether the chat is popped out, and its window's place and size, are preferences; ones saved
+/// before they existed load docked, and an unusable saved place is ignored.
+#[test]
+fn the_popped_out_window_and_its_place_are_remembered() {
+    use crate::prefs::Prefs;
+    let mut p = Prefs::default();
+    assert!(!p.agent_chat_popped && p.agent_chat_window.is_none());
+    p.agent_chat_popped = true;
+    p.agent_chat_window = Some([-1600.0, 80.0, 420.0, 700.0]);
+    let back: Prefs = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
+    assert!(back.agent_chat_popped);
+    assert_eq!(back.agent_chat_window, Some([-1600.0, 80.0, 420.0, 700.0]), "a place on a screen left of the main one is kept");
+    let mut old = serde_json::to_value(Prefs::default()).unwrap();
+    old.as_object_mut().unwrap().remove("agent_chat_popped");
+    old.as_object_mut().unwrap().remove("agent_chat_window");
+    let old: Prefs = serde_json::from_value(old).unwrap();
+    assert!(!old.agent_chat_popped && old.agent_chat_window.is_none());
+    assert_eq!(panel::window_place(Some([10.0, 20.0, 400.0, 600.0])), Some(([10.0, 20.0], [400.0, 600.0])));
+    for bad in [[f32::NAN, 0.0, 400.0, 600.0], [0.0, 0.0, 10.0, 600.0], [0.0, 0.0, 400.0, f32::INFINITY], [1e9, 0.0, 400.0, 600.0]] {
+        assert_eq!(panel::window_place(Some(bad)), None, "{bad:?}");
+    }
+}
+
 /// "Ask every time": a modelling command waits for Allow; "Always allow" lets the same command
 /// through from then on for this agent. "Allow everything": even a save runs without a question.
 #[test]
