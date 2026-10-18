@@ -16,10 +16,14 @@ def aliases():
 def master_of(icon_id, al=None):
     v = (aliases() if al is None else al).get(icon_id)
     return (v['master'] if isinstance(v, dict) else v) if v else icon_id
-def master_hash(master):
+def lf(data):
+    """Text as committed: a checkout with CRLF line endings (Git for Windows' default) hashes as LF."""
+    return data.replace(b'\r\n', b'\n')
+def master_hash(master, design=None):
+    d = D if design is None else design
     h = hashlib.sha256()
-    for f in sorted(glob.glob(D + '/svg/*/' + master + '.svg')):
-        h.update(os.path.relpath(f, D).replace(os.sep, '/').encode()); h.update(open(f, 'rb').read())
+    for f in sorted(glob.glob(d + '/svg/*/' + master + '.svg')):
+        h.update(os.path.relpath(f, d).replace(os.sep, '/').encode()); h.update(lf(open(f, 'rb').read()))
     return h.hexdigest()
 def load():
     try: r = json.load(open(REVIEW, encoding='utf-8'))

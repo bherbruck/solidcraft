@@ -113,7 +113,8 @@ def palette_css(palette):
 
 
 def revision(path):
-    with open(path, 'rb') as source: return hashlib.sha256(source.read()).hexdigest()
+    # As save_colours reads it: text, so a CRLF checkout's line endings read as LF.
+    with open(path, encoding='utf-8') as source: return hashlib.sha256(source.read().encode()).hexdigest()
 
 
 def save_colours(path, base_revision, changes):

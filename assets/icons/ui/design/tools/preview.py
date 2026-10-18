@@ -14,9 +14,9 @@ for theme in ('light', 'dark'):
     for fam in sorted(os.listdir(d + '/svg')):
         h += '<div class="p %s"><h3>%s - %s</h3>' % (theme, fam, theme)
         for f in sorted(glob.glob('%s/svg/%s/*.svg' % (d, fam))):
-            svg, icon = open(f).read(), os.path.basename(f)[:-4]
+            svg, icon = open(f, encoding='utf-8').read(), os.path.basename(f)[:-4]
             h += '<div class=c>'
             h += '<div style="width:64px;height:64px;margin:auto">%s</div>' % themed(svg, theme, icon, fam, 64).replace('<svg ', '<svg width=64 height=64 ', 1)
             h += '<div class=s>' + ''.join('<span style="width:%dpx;height:%dpx;display:inline-block">%s</span>' % (s, s, themed(svg, theme, icon, fam, s).replace('<svg ', '<svg width=%d height=%d ' % (s, s), 1)) for s in (16, 20, 26)) + '</div>' + icon + '</div>'
         h += '</div>'
-open(out, 'w').write(h)
+open(out, 'w', encoding='utf-8').write(h)
