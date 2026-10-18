@@ -110,6 +110,26 @@ fn dimension_parameters_use_typing_and_ctrl_space_completion() {
     }
 }
 
+/// Clicking a suggestion accepts it, as Enter does, and leaves the dimension open (#2190):
+/// pressing the mouse on the list took focus from the value field, which closed the dimension.
+#[test]
+fn clicking_a_parameter_suggestion_accepts_it() {
+    let mut h = line([20., 0.]);
+    h.app.run("parameters.add", json!({"name":"width","expression":"40 mm"})).unwrap();
+    place(&mut h, &[[10., 0.]], [10., 6.]);
+    let baseline = h.app.session.doc.to_json();
+    type_value(&mut h, "wi");
+    let at = h.widget("width").expect("the suggestion list offers width");
+    h.step(&json!({"click": at})).unwrap();
+    assert!(crate::dim_view::editing(), "the dimension stays open");
+    assert_eq!(h.app.session.doc.to_json(), baseline, "accepting a suggestion does not apply the dimension");
+    assert_eq!(h.ctx.memory(|m| m.focused()), Some(egui::Id::new("sc_dim_edit")), "the value field keeps the keyboard");
+    h.step(&json!({"key":"Enter"})).unwrap();
+    assert!(!crate::dim_view::editing());
+    assert_eq!(h.app.session.doc.params.iter().rev().find(|p| p.model).unwrap().expr, "width");
+    crate::dim_view::cancel();
+}
+
 #[test]
 fn edge_and_endpoint_creation_commit_once_and_undo_restores_exact_design() {
     for (end, picks, at) in [

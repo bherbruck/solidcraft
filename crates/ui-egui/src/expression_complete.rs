@@ -22,6 +22,14 @@ fn popup_id() -> egui::Id {
     egui::Id::new("expression_completion_keyboard")
 }
 
+/// The pointer is pressing on (or just let go over) `editor`'s suggestion list. Pressing the
+/// mouse on the list takes focus from the editor before the click completes (#2190), so while
+/// this holds the list stays up and its click still counts.
+fn pressing_list(ctx: &egui::Context, editor: egui::Id) -> bool {
+    let Some(rect) = ctx.memory(|m| m.area_rect(editor.with("completions"))) else { return false };
+    ctx.input(|i| (i.pointer.any_down() || i.pointer.any_released()) && i.pointer.interact_pos().is_some_and(|p| rect.contains(p)))
+}
+
 /// Run before any TextEdit or viewport shortcuts. Only the focused, recently drawn popup
 /// owns these keys. Raw events are removed too: several expression editors inspect raw Tab.
 pub(crate) fn begin_frame(ctx: &egui::Context) {
@@ -38,7 +46,7 @@ pub(crate) fn begin_frame(ctx: &egui::Context) {
         ctx.data_mut(|d| d.insert_temp(popup_id(), popup.clone()));
     }
     let escape_blurred = ctx.input(|i| i.key_pressed(Key::Escape)) && ctx.memory(|m| m.focused().is_none() && m.had_focus_last_frame(popup.editor));
-    let focused = ctx.memory(|m| m.has_focus(popup.editor)) || escape_blurred;
+    let focused = ctx.memory(|m| m.has_focus(popup.editor)) || escape_blurred || pressing_list(ctx, popup.editor);
     if popup.frame.saturating_add(1) < ctx.cumulative_frame_nr() || !focused || popup.dismissed || popup.count == 0 {
         if !focused || popup.frame.saturating_add(1) < ctx.cumulative_frame_nr() {
             ctx.data_mut(|d| d.remove::<Popup>(popup_id()));
@@ -94,7 +102,7 @@ pub(crate) fn begin_frame(ctx: &egui::Context) {
 
 pub(crate) fn complete(ui: &mut egui::Ui, resp: &egui::Response, text: &mut String) -> bool {
     let ctx = ui.ctx().clone();
-    if !ctx.memory(|m| m.has_focus(resp.id)) {
+    if !ctx.memory(|m| m.has_focus(resp.id)) && !pressing_list(&ctx, resp.id) {
         return false;
     }
     let state = egui::TextEdit::load_state(&ctx, resp.id);
@@ -297,6 +305,28 @@ mod tests {
         state.store(&e.ctx, e.id);
         e.frame(vec![egui::Event::Text("4".into())]);
         assert_eq!(e.text, "1234");
+    }
+
+    /// Clicking a suggestion accepts it, as Enter does (#2190): pressing the mouse on the list
+    /// takes focus from the editor, and the list must still see the release.
+    #[test]
+    fn clicking_a_suggestion_accepts_it() {
+        let mut e = Editor::new("2 * wi");
+        let list = suggestions(&e.ctx, "wi");
+        let rect = e.ctx.memory(|m| m.area_rect(e.id.with("completions"))).expect("the list is shown");
+        let at = rect.min + egui::vec2(24.0, 14.0);
+        let button =
+            |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        e.frame(vec![egui::Event::PointerMoved(at)]);
+        e.frame(vec![button(true)]);
+        let mut accepted = e.accepted;
+        e.frame(vec![button(false)]);
+        accepted |= e.accepted;
+        e.frame(Vec::new());
+        assert_eq!(e.text, format!("2 * {}", list[0].text));
+        assert!(accepted);
+        assert!(e.ctx.memory(|m| m.has_focus(e.id)), "the editor keeps the focus");
+        assert_eq!(e.cursor(), e.text.chars().count());
     }
 
     #[test]
