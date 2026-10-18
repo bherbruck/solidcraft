@@ -1,0 +1,10 @@
+{
+  "description": "Issue #2040: a block with one side at 45 degrees, rounded by 3.8 mm fillets along the ends of its top and bottom. The slanted face's outline has four quarter-ellipses, which its sketch fits as splines; extruding the face as a cut or a join failed with 'boolean ... no result'. The extrude is added by the test.",
+  "commands": [
+    {"command": "sketch.create", "params": {"plane": "XZ", "flip": true}},
+    {"command": "sketch.line", "params": {"points": [[0, 0], [11.514718625761429, 0], [20, 8.485281374238571], [0, 8.485281374238571]], "closed": true}},
+    {"command": "sketch.finish", "params": {}},
+    {"command": "solid.extrude", "params": {"distance": 10}},
+    {"command": "solid.fillet", "params": {"edges": [[10, -10, 8.485281374238571], [10, 0, 8.485281374238571], [5.757359312880714, 0, 0], [5.757359312880714, -10, 0]], "radius": 3.8}}
+  ]
+}

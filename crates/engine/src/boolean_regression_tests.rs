@@ -534,6 +534,60 @@ fn box_intersect_splits_the_end_off_a_raked_wedge_after_its_end_rounds() {
     }
 }
 
+/// The block of #2040 with `extra` run after it.
+fn rounded_block_and(extra: Value) -> Session {
+    let mut script: Value = serde_json::from_str(include_str!("../../../examples/regressions/extrude_face_rounded_by_fillets.json")).unwrap();
+    script["commands"].as_array_mut().unwrap().push(extra);
+    replay(&script.to_string())
+}
+
+/// #2040: the slanted face of a block whose ends fillets round, extruded as a join. Its outline's
+/// quarter-ellipses come into the face's sketch as splines a hair off the body's edges, and the
+/// join failed with "boolean Union: no result"; it now sweeps the body's own face. It adds the
+/// face's area times its height: a 10 x 12 face less four corners of (1 - pi/4) r * r*sqrt(2).
+#[test]
+fn extrude_join_from_a_face_rounded_by_fillets() {
+    let at = json!([16.191269086108846, -6.702792508916929, 4.676550460347439]);
+    let before = volume(&replay(include_str!("../../../examples/regressions/extrude_face_rounded_by_fillets.json")), "Body1");
+    let r = 3.8_f64;
+    let area = 10.0 * 12.0 - 4.0 * (1.0 - std::f64::consts::FRAC_PI_4) * r * r * 2f64.sqrt();
+    let joined = rounded_block_and(json!({"command": "solid.extrude", "params": {"face": at, "distance": 5, "operation": "join"}}));
+    let bodies = &joined.model.state().bodies;
+    assert_eq!(bodies.len(), 1, "the join makes no second body");
+    assert!(bodies[0].body.validity().is_empty(), "{:?}", bodies[0].body.validity());
+    let v = volume(&joined, "Body1");
+    assert!((v - (before + area * 5.0)).abs() < 0.05, "join {v} expected {}", before + area * 5.0);
+}
+
+/// #2040: a cut 3 mm into the slanted face of the block rounded along its top only (its bottom
+/// edge left sharp). The walls from the bottom edge go into the body and the others only touch
+/// it, along edges with curved faces beside them: the cut failed with "boolean Cut: no result".
+/// In the face's plane the body's section at depth t is the block's section (10 wide, h high, its
+/// top corners rounded) moved down the face by t: the cut takes
+/// √2 ∫₀³ (10 (h − t/√2) − 2 (1 − π/4) r²) dt.
+#[test]
+fn extrude_cut_into_a_face_beside_rounds() {
+    let at = json!([16.191269086108846, -6.702792508916929, 4.676550460347439]);
+    let top_only = |extra: Option<Value>| {
+        let mut script: Value = serde_json::from_str(include_str!("../../../examples/regressions/extrude_face_rounded_by_fillets.json")).unwrap();
+        let commands = script["commands"].as_array_mut().unwrap();
+        let fillet = commands.last_mut().unwrap();
+        fillet["params"]["edges"] = json!([[10, -10, 8.485281374238571], [10, 0, 8.485281374238571]]);
+        commands.extend(extra);
+        replay(&script.to_string())
+    };
+    let before = volume(&top_only(None), "Body1");
+    let cut = top_only(Some(json!({"command": "solid.extrude", "params": {"face": at, "distance": 3, "direction": "negative", "operation": "cut"}})));
+    let bodies = &cut.model.state().bodies;
+    assert_eq!(bodies.len(), 1);
+    assert!(bodies[0].body.validity().is_empty(), "{:?}", bodies[0].body.validity());
+    let (h, r, d, w) = (8.485281374238571_f64, 3.8_f64, 3.0_f64, 10.0_f64);
+    let corner = (1.0 - std::f64::consts::FRAC_PI_4) * r * r;
+    let taken = 2f64.sqrt() * w * h * d - w * d * d / 2.0 - 2.0 * 2f64.sqrt() * corner * d;
+    let v = before - volume(&cut, "Body1");
+    assert!((v - taken).abs() < 0.05, "took {v}, expected {taken}");
+}
+
 /// #1853: half a slot drawn on a plate's top face, cut along its centreline, revolved about a
 /// construction line on that centreline as a cut. Half a turn into the plate and a full turn
 /// both failed with "no result": the revolve came out wrong where its arcs end on the axis (a

@@ -716,7 +716,7 @@ fn unsupported_shell(m: &str) -> KernelError {
     KernelError::Failed(format!("not supported yet: {m}"))
 }
 
-fn point_tri(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> f64 {
+pub(crate) fn point_tri(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> f64 {
     let n = (b - a).cross(c - a);
     let Some(nn) = n.normalized() else { return f64::INFINITY };
     let h = (p - a).dot(nn);
