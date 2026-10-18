@@ -239,6 +239,7 @@
   "cmd.joint_rigid_group": "Starrgruppe",
   "cmd.joint_screw": "Schraube",
   "cmd.joint_solve": "Gelenke lösen",
+  "cmd.joint_sweep": "Gelenk bis zum Kontakt durchfahren",
   "cmd.library_apply": "Lokalen Bibliothekseintrag anwenden",
   "cmd.library_export": "Designbibliothek exportieren",
   "cmd.library_inspect": "Lokale Bibliothek prüfen",

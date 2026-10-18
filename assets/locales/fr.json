@@ -436,6 +436,7 @@
   "cmd.joint_rigid_group": "Groupe rigide",
   "cmd.joint_screw": "Vis",
   "cmd.joint_solve": "Résoudre les liaisons",
+  "cmd.joint_sweep": "Balayer une liaison",
   "cmd.library_apply": "Appliquer une entrée de la bibliothèque locale",
   "cmd.library_export": "Exporter la bibliothèque de la conception",
   "cmd.library_inspect": "Inspecter la bibliothèque locale",

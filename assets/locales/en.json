@@ -441,6 +441,7 @@
   "cmd.joint_rigid_group": "Rigid Group",
   "cmd.joint_screw": "Screw",
   "cmd.joint_solve": "Solve Joints",
+  "cmd.joint_sweep": "Sweep Joint",
   "cmd.library_apply": "Apply Local Library Entry",
   "cmd.library_export": "Export Design Library",
   "cmd.library_inspect": "Inspect Local Library",

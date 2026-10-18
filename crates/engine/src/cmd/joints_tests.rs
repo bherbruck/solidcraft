@@ -1453,6 +1453,10 @@ mod cam;
 #[path = "motion_analysis_tests.rs"]
 mod motion_analysis;
 
+// Joints swept until parts touch: a door, the four-bar above and a Watt six-bar.
+#[path = "motion_sweep_tests.rs"]
+mod motion_sweep;
+
 /// A pin through a hole of its own radius whose axis is a hair off the hole's (parts placed from
 /// rounded coordinates): the walls are all but tangent along two lines, which the boolean can't
 /// intersect. Each offset gets a checked answer: clear on the axis and within the kernel's

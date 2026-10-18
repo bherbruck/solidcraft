@@ -239,6 +239,7 @@
   "cmd.joint_rigid_group": "강체 그룹",
   "cmd.joint_screw": "나사",
   "cmd.joint_solve": "관절 해석",
+  "cmd.joint_sweep": "관절 스윕",
   "cmd.library_apply": "로컬 라이브러리 항목 적용",
   "cmd.library_export": "설계 라이브러리 내보내기",
   "cmd.library_inspect": "로컬 라이브러리 확인",

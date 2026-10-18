@@ -400,6 +400,7 @@
   "cmd.joint_origin": "Bağlantı orijini",
   "cmd.joint_rigid_group": "Rijit grup",
   "cmd.joint_solve": "Bağlantıları çöz",
+  "cmd.joint_sweep": "Bağlantıyı tara",
   "cmd.library_apply": "Yerel kitaplık girişini uygula",
   "cmd.library_export": "Tasarım kitaplığını dışa aktar",
   "cmd.library_inspect": "Yerel kitaplığı incele",

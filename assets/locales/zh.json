@@ -441,6 +441,7 @@
   "cmd.joint_rigid_group": "刚性组",
   "cmd.joint_screw": "螺旋",
   "cmd.joint_solve": "解算接头",
+  "cmd.joint_sweep": "扫掠接头",
   "cmd.library_apply": "应用本地库条目",
   "cmd.library_export": "导出设计库",
   "cmd.library_inspect": "检查本地库",

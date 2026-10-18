@@ -434,6 +434,7 @@
   "cmd.joint_rigid_group": "Жорстка група",
   "cmd.joint_screw": "Гвинт",
   "cmd.joint_solve": "Розв'язати з'єднання",
+  "cmd.joint_sweep": "Прогін з'єднання",
   "cmd.library_apply": "Застосувати елемент локальної бібліотеки",
   "cmd.library_export": "Експортувати бібліотеку проєкту",
   "cmd.library_inspect": "Перевірити локальну бібліотеку",

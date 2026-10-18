@@ -310,10 +310,10 @@ fn ranges(m: &MotionStudy, samples: &[usize], n: usize) -> Vec<[f64; 2]> {
     out.into_iter().map(|(a, b)| [step_of(m, a, n), step_of(m, b, n)]).collect()
 }
 
-pub(super) fn interference(s: &mut Session, p: &Value) -> Result<Value> {
-    let cmd = "motion.interference";
-    let m = s.doc.assembly.studies.get(study_index(s, p, cmd)?).cloned().ok_or_else(|| bad(cmd, "study"))?;
-    let n = samples(p, &m, 2, cmd)?;
+/// The pairs of parts a check looks at, as `motion.interference` and `joint.sweep` take them:
+/// `occurrences` against each other (or each only `against` others), the design's contact sets
+/// with `contact_sets`, else every occurrence.
+pub(super) fn checked_pairs(s: &Session, p: &Value, cmd: &str) -> Result<ContactGeometry> {
     let everything = || vec![s.doc.occurrences.iter().map(|o| o.id).collect::<Vec<u64>>()];
     // Each of `occurrences` only against these.
     let against = match p.get("against") {
@@ -354,6 +354,14 @@ pub(super) fn interference(s: &mut Session, p: &Value) -> Result<Value> {
         let a = occurrences(s, p, cmd)?;
         geometry.keep_pairs(|x, y| (a.contains(&x) && b.contains(&y)) || (a.contains(&y) && b.contains(&x)));
     }
+    Ok(geometry)
+}
+
+pub(super) fn interference(s: &mut Session, p: &Value) -> Result<Value> {
+    let cmd = "motion.interference";
+    let m = s.doc.assembly.studies.get(study_index(s, p, cmd)?).cloned().ok_or_else(|| bad(cmd, "study"))?;
+    let n = samples(p, &m, 2, cmd)?;
+    let geometry = checked_pairs(s, p, cmd)?;
     let mut found: BTreeMap<(u64, u64), Collision> = BTreeMap::new();
     let (mut work, mut checked, mut truncated) = (0usize, 0usize, false);
     let stop = play(s, &m, n, false, |t, k| {

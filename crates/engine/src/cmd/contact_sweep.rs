@@ -1,11 +1,12 @@
 //! Bounded, chronological checks of a joint trajectory. This samples tessellated geometry;
 //! it is deliberately not advertised as exact continuous collision detection.
-use std::collections::{BTreeSet, HashMap};
+use std::cell::Cell;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 use solidcraft_doc::joints;
-use solidcraft_doc::{IDENTITY, Mat, apply_point, mat_mul};
-use solidcraft_geom::{Aabb3, Mesh, Vec3};
+use solidcraft_doc::{Document, IDENTITY, Mat, apply_point, mat_mul};
+use solidcraft_geom::{Aabb3, Bvh, Mesh, Vec3};
 
 use crate::params::bad;
 use crate::{Result, Session};
@@ -25,6 +26,9 @@ struct CachedBody {
     offset: Mat,
     mesh: Arc<Mesh>,
     size: f64,
+    /// How far its mesh may stray from its faces: 0 when every face is flat (the mesh is the
+    /// shape), else the chord tolerance it was tessellated to.
+    chord: f64,
 }
 
 /// A member of a contact set: (occurrence id, name).
@@ -56,7 +60,7 @@ impl ContactGeometry {
             return Ok(out);
         }
         let state = s.model.state();
-        let mut meshes: HashMap<String, Arc<Mesh>> = HashMap::new();
+        let mut meshes: HashMap<String, (Arc<Mesh>, f64)> = HashMap::new();
         let mut stack = vec![(0, Vec::<u64>::new())];
         let mut count = 0;
         while let Some((component, path)) = stack.pop() {
@@ -82,10 +86,11 @@ impl ContactGeometry {
                 if out.bodies.len() >= MAX_BODIES {
                     return Err(limit("too many bodies for a contact sweep"));
                 }
-                let mesh = if let Some(mesh) = meshes.get(&body.name) {
-                    mesh.clone()
+                let (mesh, chord) = if let Some(cached) = meshes.get(&body.name) {
+                    cached.clone()
                 } else {
-                    let mesh = body.body.tessellate((body.body.size() * 1e-3).max(1e-3))?;
+                    let tolerance = (body.body.size() * 1e-3).max(1e-3);
+                    let mesh = body.body.tessellate(tolerance)?;
                     if mesh.triangles.len() > MAX_TRIANGLES || mesh.positions.len().saturating_add(mesh.triangles.len().saturating_mul(4)) > 200_000 {
                         return Err(limit("body exceeds contact sweep tessellation budget"));
                     }
@@ -118,14 +123,20 @@ impl ContactGeometry {
                     }
                     out.step = out.step.min(thickness * 0.25);
                     let mesh = Arc::new(mesh);
-                    meshes.insert(body.name.clone(), mesh.clone());
-                    mesh
+                    // Flat faces tessellate exactly; only planes known from how the face was
+                    // made count (an unknown face is taken as curved).
+                    let faces = body.body.face_count();
+                    let flat = faces <= 1024 && (0..faces).all(|i| body.body.face_plane(i).is_some());
+                    let chord = if flat { 0.0 } else { tolerance };
+                    meshes.insert(body.name.clone(), (mesh.clone(), chord));
+                    (mesh, chord)
                 };
                 out.bodies.push(CachedBody {
                     path: path.clone(),
                     offset: s.doc.model_body_offset(body).copied().unwrap_or(IDENTITY),
                     mesh,
                     size: body.body.size(),
+                    chord,
                 });
             }
         }
@@ -166,9 +177,13 @@ impl ContactGeometry {
     }
 
     fn frame(body: &CachedBody, s: &Session) -> Result<Mat> {
+        Self::frame_in(body, &s.doc)
+    }
+
+    fn frame_in(body: &CachedBody, doc: &Document) -> Result<Mat> {
         let mut frame = IDENTITY;
         for id in &body.path {
-            let occurrence = s.doc.occurrences.iter().find(|o| o.id == *id).ok_or_else(|| limit("contact occurrence disappeared"))?;
+            let occurrence = doc.occurrences.iter().find(|o| o.id == *id).ok_or_else(|| limit("contact occurrence disappeared"))?;
             frame = mat_mul(&frame, &occurrence.transform);
         }
         Ok(mat_mul(&frame, &body.offset))
@@ -229,6 +244,18 @@ impl ContactGeometry {
         Ok(required as usize)
     }
 
+    /// Each body's mesh placed where `s` has it.
+    fn placed(&self, s: &Session) -> Result<Vec<Mesh>> {
+        self.bodies
+            .iter()
+            .map(|body| {
+                let frame = Self::frame(body, s)?;
+                let positions = body.mesh.positions.iter().map(|p| apply_point(&frame, *p)).collect();
+                Ok(Mesh { positions, triangles: body.mesh.triangles.clone(), ..Mesh::default() })
+            })
+            .collect()
+    }
+
     pub(super) fn first_hit(&self, s: &Session, work: &mut usize) -> Result<Option<(String, String, f64)>> {
         Ok(self.hits(s, work, MAX_WORK, false)?.into_iter().next().map(|(a, b, depth)| (a.1, b.1, depth)))
     }
@@ -240,15 +267,7 @@ impl ContactGeometry {
         let mut out: Vec<(Member, Member, f64)> = Vec::new();
         // The member pairs found so far (lower id first).
         let mut found: BTreeSet<(u64, u64)> = BTreeSet::new();
-        let meshes: Vec<Mesh> = self
-            .bodies
-            .iter()
-            .map(|body| {
-                let frame = Self::frame(body, s)?;
-                let positions = body.mesh.positions.iter().map(|p| apply_point(&frame, *p)).collect();
-                Ok(Mesh { positions, triangles: body.mesh.triangles.clone(), ..Mesh::default() })
-            })
-            .collect::<Result<_>>()?;
+        let meshes = self.placed(s)?;
         // Each mesh's box once, not once per pair it is in.
         let boxes: Vec<Aabb3> = meshes.iter().map(Mesh::bounds).collect();
         for (a, b, oa, ob) in &self.pairs {
@@ -291,6 +310,263 @@ impl ContactGeometry {
         }
         Ok(out)
     }
+}
+
+/// How near two set members come: the bodies under them nearest each other.
+pub(super) struct Gap {
+    pub(super) a: Member,
+    pub(super) b: Member,
+    /// 0 where they touch or pass into each other.
+    pub(super) mm: f64,
+    /// The nearest points (world), on a's body and on b's.
+    pub(super) at: (Vec3, Vec3),
+}
+
+impl ContactGeometry {
+    /// The gap between each pair of set members whose bodies come within `cutoff` of each
+    /// other in `s` (all pairs with an infinite cutoff), nearest first. Mesh distances: exact
+    /// for flat faces, within [`ContactGeometry::chord`] for curved ones. `work` adds up the
+    /// cost, refused past `budget`.
+    pub(super) fn gaps(&self, s: &Session, cutoff: f64, work: &mut usize, budget: usize) -> Result<Vec<Gap>> {
+        let meshes = self.placed(s)?;
+        let tris: Vec<Vec<[Vec3; 3]>> = meshes.iter().map(|m| m.triangles.iter().filter_map(|t| m.tri(t)).collect()).collect();
+        let boxes: Vec<Aabb3> = meshes.iter().map(Mesh::bounds).collect();
+        let mut trees: Vec<Option<Bvh>> = vec![None; meshes.len()];
+        let mut nearest: BTreeMap<(u64, u64), Gap> = BTreeMap::new();
+        for (a, b, oa, ob) in &self.pairs {
+            let key = (oa.0.min(ob.0), oa.0.max(ob.0));
+            let limit = nearest.get(&key).map_or(cutoff, |g| g.mm.min(cutoff));
+            let (Some(ta), Some(tb), Some(ba), Some(bb)) = (tris.get(*a), tris.get(*b), boxes.get(*a), boxes.get(*b)) else {
+                return Err(limit_error("invalid contact geometry pair"));
+            };
+            if box_distance(ba, bb) > limit {
+                continue;
+            }
+            if trees.get(*b).is_some_and(Option::is_none)
+                && let Some(slot) = trees.get_mut(*b)
+            {
+                *work = work.saturating_add(tb.len());
+                *slot = Some(Bvh::new(&tb.iter().map(tri_box).collect::<Vec<_>>()));
+            }
+            let Some(Some(tree)) = trees.get(*b) else { return Err(limit_error("invalid contact geometry pair")) };
+            let Some((mm, pa, pb)) = mesh_gap(ta, tb, tree, ba, bb, limit, work, budget)? else { continue };
+            nearest.insert(key, Gap { a: oa.clone(), b: ob.clone(), mm, at: (pa, pb) });
+        }
+        let mut out: Vec<Gap> = nearest.into_values().collect();
+        out.sort_by(|x, y| x.mm.total_cmp(&y.mm));
+        Ok(out)
+    }
+
+    /// The most the gaps can be off: the largest chord tolerance of a curved body (0 when every
+    /// body is flat-faced, and the mesh distances are exact).
+    pub(super) fn chord(&self) -> f64 {
+        self.bodies.iter().map(|b| b.chord).fold(0.0, f64::max)
+    }
+
+    /// The size of the largest body (at least 1 mm): what tolerances scale with.
+    pub(super) fn scale(&self) -> f64 {
+        self.bodies.iter().map(|b| b.size).fold(1.0, f64::max)
+    }
+
+    /// The furthest any point of the bodies moves between `from` and `to` (bounded by the
+    /// corners of each body's box, which a rigid move takes furthest).
+    pub(super) fn travel(&self, from: &Document, to: &Document) -> Result<f64> {
+        let mut most = 0.0_f64;
+        for body in &self.bodies {
+            let (fa, fb) = (Self::frame_in(body, from)?, Self::frame_in(body, to)?);
+            let local = body.mesh.bounds();
+            for c in 0..8 {
+                let pick = |bit: usize, lo: f64, hi: f64| if c & bit == 0 { lo } else { hi };
+                let corner = Vec3::new(pick(1, local.min.x, local.max.x), pick(2, local.min.y, local.max.y), pick(4, local.min.z, local.max.z));
+                most = most.max(apply_point(&fa, corner).dist(apply_point(&fb, corner)));
+            }
+        }
+        Ok(most)
+    }
+}
+
+fn limit_error(message: &str) -> crate::EngineError {
+    limit(message)
+}
+
+fn tri_box(t: &[Vec3; 3]) -> Aabb3 {
+    let mut b = Aabb3::EMPTY;
+    for p in t {
+        b.add(*p);
+    }
+    b
+}
+
+/// The distance between two boxes (0 where they overlap).
+fn box_distance(a: &Aabb3, b: &Aabb3) -> f64 {
+    let axis = |a0: f64, a1: f64, b0: f64, b1: f64| (b0 - a1).max(a0 - b1).max(0.0);
+    let (x, y, z) = (axis(a.min.x, a.max.x, b.min.x, b.max.x), axis(a.min.y, a.max.y, b.min.y, b.max.y), axis(a.min.z, a.max.z, b.min.z, b.max.z));
+    (x * x + y * y + z * z).sqrt()
+}
+
+/// The gap between meshes `a` and `b` (their triangles; `tree` over b's) and their nearest
+/// points, when within `limit` (None: farther). 0 where their surfaces cross, and where one
+/// lies wholly inside the other.
+#[allow(clippy::too_many_arguments)]
+fn mesh_gap(
+    a: &[[Vec3; 3]],
+    b: &[[Vec3; 3]],
+    tree: &Bvh,
+    ba: &Aabb3,
+    bb: &Aabb3,
+    limit: f64,
+    work: &mut usize,
+    budget: usize,
+) -> Result<Option<(f64, Vec3, Vec3)>> {
+    let mut best: Option<(f64, Vec3, Vec3)> = None;
+    // An upper bound to prune with when there is no limit: a vertex of each near the other.
+    let mut bound = limit;
+    if !bound.is_finite() {
+        let centre = bb.center();
+        let near = |list: &[[Vec3; 3]], to: Vec3| list.iter().map(|t| t[0]).min_by(|p, q| p.dist(to).total_cmp(&q.dist(to)));
+        if let Some(pa) = near(a, centre)
+            && let Some(pb) = near(b, pa)
+        {
+            *work = work.saturating_add(a.len() + b.len());
+            bound = pa.dist(pb);
+            best = Some((bound, pa, pb));
+        }
+    }
+    for ta in a {
+        let box_a = tri_box(ta);
+        if box_distance(&box_a, bb) > bound {
+            continue;
+        }
+        // Both callbacks read the bound the other tightens.
+        let (visits, shared) = (Cell::new(0usize), Cell::new(bound));
+        tree.visit(
+            |node| {
+                visits.set(visits.get() + 1);
+                box_distance(node, &box_a) <= shared.get()
+            },
+            |j| {
+                let Some(tb) = b.get(j as usize) else { return };
+                visits.set(visits.get() + 8);
+                let (d, pa, pb) = tri_distance(ta, tb);
+                if d <= shared.get() && best.is_none_or(|(x, _, _)| d < x) {
+                    shared.set(d);
+                    best = Some((d, pa, pb));
+                }
+            },
+        );
+        bound = shared.get();
+        let visits = visits.get();
+        *work = work.saturating_add(visits);
+        if *work > budget {
+            return Err(limit_error("gaps exceed the work budget; check fewer parts or leave out report_gaps"));
+        }
+        if bound <= 0.0 {
+            return Ok(best);
+        }
+    }
+    // Wholly inside, no surface crossing: a vertex of one inside the other.
+    let overlap =
+        ba.min.x <= bb.max.x && bb.min.x <= ba.max.x && ba.min.y <= bb.max.y && bb.min.y <= ba.max.y && ba.min.z <= bb.max.z && bb.min.z <= ba.max.z;
+    if overlap {
+        *work = work.saturating_add(a.len() + b.len());
+        for (p, other) in [(a.first().map(|t| t[0]), b), (b.first().map(|t| t[0]), a)] {
+            if let Some(p) = p
+                && super::inside(p, other)
+            {
+                return Ok(Some((0.0, p, p)));
+            }
+        }
+    }
+    Ok(best.filter(|(d, _, _)| *d <= limit))
+}
+
+/// The distance between triangles `a` and `b`, with their nearest points (0 where they cross).
+fn tri_distance(a: &[Vec3; 3], b: &[Vec3; 3]) -> (f64, Vec3, Vec3) {
+    for (x, y) in [(a, b), (b, a)] {
+        for i in 0..3 {
+            if let (Some(p), Some(q)) = (x.get(i), x.get((i + 1) % 3))
+                && let Some(hit) = segment_hits_triangle(*p, *q, y)
+            {
+                return (0.0, hit, hit);
+            }
+        }
+    }
+    let mut best = (f64::INFINITY, a[0], b[0]);
+    let mut keep = |pa: Vec3, pb: Vec3| {
+        let d = pa.dist(pb);
+        if d < best.0 {
+            best = (d, pa, pb);
+        }
+    };
+    for p in a {
+        keep(*p, super::closest(*p, b[0], b[1], b[2]));
+    }
+    for q in b {
+        keep(super::closest(*q, a[0], a[1], a[2]), *q);
+    }
+    for i in 0..3 {
+        for j in 0..3 {
+            let (pa, pb) = segment_closest(a[i], a[(i + 1) % 3], b[j], b[(j + 1) % 3]);
+            keep(pa, pb);
+        }
+    }
+    best
+}
+
+/// Where segment pq passes through triangle t (None: it misses, or lies in its plane).
+fn segment_hits_triangle(p: Vec3, q: Vec3, t: &[Vec3; 3]) -> Option<Vec3> {
+    let d = q - p;
+    let (e1, e2) = (t[1] - t[0], t[2] - t[0]);
+    let h = d.cross(e2);
+    let det = e1.dot(h);
+    // Parallel (or degenerate): the vertex and edge distances answer it.
+    if det.abs() < 1e-12 * e1.len().max(1e-300) * e2.len().max(1e-300) * d.len().max(1e-300) {
+        return None;
+    }
+    let f = 1.0 / det;
+    let sv = p - t[0];
+    let u = f * sv.dot(h);
+    if !(0.0..=1.0).contains(&u) {
+        return None;
+    }
+    let qv = sv.cross(e1);
+    let v = f * d.dot(qv);
+    if v < 0.0 || u + v > 1.0 {
+        return None;
+    }
+    let along = f * e2.dot(qv);
+    (0.0..=1.0).contains(&along).then(|| p + d * along)
+}
+
+/// The nearest points of segments p1q1 and p2q2.
+fn segment_closest(p1: Vec3, q1: Vec3, p2: Vec3, q2: Vec3) -> (Vec3, Vec3) {
+    let (d1, d2, r) = (q1 - p1, q2 - p2, p1 - p2);
+    let (a, e, f) = (d1.dot(d1), d2.dot(d2), d2.dot(r));
+    let eps = 1e-24;
+    let (s, t) = if a <= eps && e <= eps {
+        (0.0, 0.0)
+    } else if a <= eps {
+        (0.0, (f / e).clamp(0.0, 1.0))
+    } else {
+        let c = d1.dot(r);
+        if e <= eps {
+            ((-c / a).clamp(0.0, 1.0), 0.0)
+        } else {
+            let b = d1.dot(d2);
+            let denom = a * e - b * b;
+            let mut s = if denom > eps * a * e { ((b * f - c * e) / denom).clamp(0.0, 1.0) } else { 0.0 };
+            let mut t = (b * s + f) / e;
+            if t < 0.0 {
+                t = 0.0;
+                s = (-c / a).clamp(0.0, 1.0);
+            } else if t > 1.0 {
+                t = 1.0;
+                s = ((b - c) / a).clamp(0.0, 1.0);
+            }
+            (s, t)
+        }
+    };
+    (p1 + d1 * s, p2 + d2 * t)
 }
 
 #[cfg(test)]

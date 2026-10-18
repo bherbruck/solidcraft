@@ -441,6 +441,7 @@
   "cmd.joint_rigid_group": "リジッド グループ",
   "cmd.joint_screw": "ねじ",
   "cmd.joint_solve": "ジョイントを解決",
+  "cmd.joint_sweep": "ジョイントをスイープ",
   "cmd.library_apply": "ローカルライブラリ項目を適用",
   "cmd.library_export": "デザインライブラリを書き出す",
   "cmd.library_inspect": "ローカルライブラリを確認",

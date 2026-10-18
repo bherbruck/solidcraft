@@ -390,6 +390,7 @@
   "cmd.joint_rigid_group": "Жёсткая группа",
   "cmd.joint_screw": "Винт",
   "cmd.joint_solve": "Решить сопряжения",
+  "cmd.joint_sweep": "Прогон сопряжения",
   "cmd.material_assign": "Физический материал",
   "cmd.material_create": "Новый физический материал",
   "cmd.material_delete": "Удалить физический материал",

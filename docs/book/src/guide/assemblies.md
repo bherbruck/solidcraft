@@ -216,6 +216,18 @@ sets tell them apart: an occurrence inside a sub-assembly placed twice is one pa
 copies are not checked against each other. A check takes at most 256 bodies; on a large design,
 list the `occurrences` to check (an arm, with `against` the parts it must miss). When the work
 runs out it says `truncated` and the step it `checked_to`.
+`joint.sweep {joint, from, to, index?, step?, refine?, occurrences?, against?, contact_sets?,
+report_gaps?, apply?}` drives one joint value from `from` toward `to` and answers how far it gets
+before parts touch: `stopped_at` (the last value clear of contact), `stopped_by` (the two parts
+and the point `at` which they touch, or `"loop"` where a closed loop can no longer close, or
+`"limit"`), and with `report_gaps` the nearest gap at every sample and the nearest each part came
+to another (`min_gap`). The samples are fine enough that no part passes through another between
+two (or `step` apart), and the first contact is bisected until no part moves more than `refine`
+(0.01 mm by default) across it. Gaps are distances between the parts' tessellations
+(`gap_method: "mesh"`): exact for flat faces, within `gap_tolerance_mm` for curved ones. Pairs
+already touching at `from`, such as parts joined face to face, are listed in `touching_at_start`
+and not checked. The sweep runs on a copy (closed loops follow, contact sets don't stop it) and
+leaves the design as it was unless `apply` is true.
 
 **Insert Design** (`component.insert_design {path, translate?}`, on the **ASSEMBLE** panel and
 in the **File** menu) adds a component linked to another saved design, so each part can live in
