@@ -104,14 +104,16 @@ impl Path {
     }
 }
 
-/// Drag: the grabbed entity follows the cursor exactly (a point goes to it; a line or spline
+/// Drag: the grabbed entity follows the cursor where possible (a point moves toward it; a line or spline
 /// slides by the cursor's move; a circle or arc grabbed on its edge changes radius about its
 /// centre; a conic grabbed on its curve reads its fullness, `rho`, off the cursor) and the rest
 /// of the sketch moves as little as it can, staying on the
 /// solution it started on. Fixed geometry stays. A step that cannot be solved with the entity
 /// held (the path crosses where the geometry cannot reach) is approached by halving the way to
 /// it, and the next steps are tried from the last solved state, the last of them being the whole
-/// remaining move. When none past it solves, the first failed step stays placed but unsolved:
+/// remaining move. A point whose exact pin fails instead minimizes cursor distance in the
+/// design's remaining freedom, retaining only corrected, feasible poses. For other entities,
+/// when none past it solves, the first failed step stays placed but unsolved:
 /// the edit's ordinary, non-strict solve that follows (seeded on the last solved state, see
 /// [`Left::MovedFrom`]) then pulls it back (fully constrained geometry) or leaves the sketch
 /// unsolved for the user to see. A step that would sweep an arc through its own start is undone
@@ -126,7 +128,7 @@ pub(super) fn drag_entity(sk: &mut Sketch, e: Ent, from: Vec2, to: Vec2, live: b
     };
     #[cfg(test)]
     let (n, short) = (n.min(step_cap::get()), short.min(step_cap::get()));
-    let moving = path.points().filter_map(|q| Some((q, sk.point(q)?))).collect();
+    let moving: Vec<_> = path.points().filter_map(|q| Some((q, sk.point(q)?))).collect();
     let mut frame = live.then(frame_budget);
     // Only success matters to these solves: the degrees of freedom of a sketch with the entity
     // held are not the sketch's. Each is seeded on the last solved state (`last`), so what the
@@ -209,6 +211,33 @@ pub(super) fn drag_entity(sk: &mut Sketch, e: Ent, from: Vec2, to: Vec2, live: b
                 }
             }
             failed = Some(t);
+        }
+    }
+    // First retain held continuation across unreachable stretches of an otherwise reachable
+    // path (for example an arm dragged through the hole around its shoulder). If it cannot
+    // arrive, optimize the full cursor target without relaxing the design constraints.
+    if failed.is_some()
+        && let Ent::Point(q) = e
+    {
+        let (points, radii) = sk.coupled(&hold.points, &hold.radii);
+        let size = smallest_size(sk, &hold, Some(Group { points: &points, radii: &radii }));
+        let max_step = (size * SHORT_STEP_FRACTION).min(path.length()).max(MIN_STEP);
+        if solidcraft_sketch::move_point_towards(sk, q, to, max_step, |before, after| {
+            let mut geometry = Geometry::default();
+            geometry.take(before);
+            !geometry.sweep_wrapped(after)
+        }) {
+            #[cfg(test)]
+            last_drag::set(solves);
+            let reached = moving
+                .iter()
+                .find(|(p, _)| *p == q)
+                .and_then(|(_, start)| {
+                    let d = to - *start;
+                    sk.point(q).map(|at| if at.dist(to) < 1e-6 || d.dot(d) == 0.0 { 1.0 } else { ((at - *start).dot(d) / d.dot(d)).clamp(0.0, 1.0) })
+                })
+                .unwrap_or(0.0);
+            return (Dragged { reached, moving }, Left::Solved);
         }
     }
     #[cfg(test)]

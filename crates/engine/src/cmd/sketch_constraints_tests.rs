@@ -155,6 +155,36 @@ fn auto_constrain_fully_constrains_a_rough_sketch() {
     assert!(r["added"].as_array().unwrap().len() >= 3, "{r}");
 }
 
+#[cfg(feature = "solver-profiling")]
+#[test]
+fn internal_freedom_queries_skip_redundancy_and_keep_constraint_acceptance() {
+    use solidcraft_sketch::{ConstraintKind, Sketch, profiling::capture};
+
+    let mut sk = Sketch::new();
+    let q = sk.add_point(Vec2::new(10.0, 2.0), None).unwrap();
+    let k = ConstraintKind::Distance { p: 0, q, value: 10.0 };
+    sk.add_constraint(k.clone(), None).unwrap();
+    let redundant = sk.add_constraint(k.clone(), None).unwrap();
+    let (dof, profile) = capture(|| super::dof_now(&sk));
+    assert_eq!(dof, 1);
+    assert_eq!(profile.counters.redundancy_checks, 0);
+
+    let mut doc = solidcraft_doc::Document::default();
+    let before = sk.clone();
+    let (rejected, profile) = capture(|| super::try_add(&mut sk, &mut doc, k, dof, false));
+    assert_eq!(rejected, None, "a duplicate must not be accepted as a DOF reduction");
+    assert_eq!(sk, before);
+    assert_eq!(profile.counters.redundancy_checks, 0);
+
+    let (accepted, profile) = capture(|| super::try_add(&mut sk, &mut doc, ConstraintKind::DistanceX { p: 0, q, value: 6.0 }, dof, false));
+    assert_eq!(accepted, Some(0));
+    assert_eq!(profile.counters.redundancy_checks, 0);
+    let full = solidcraft_sketch::solve(&mut sk);
+    assert!(full.ok());
+    assert_eq!(full.dof, 0);
+    assert!(full.redundant.contains(&redundant), "the final full report must retain diagnostics");
+}
+
 #[test]
 fn drawing_infers_tangent_and_perpendicular() {
     let mut s = new_sketch();
