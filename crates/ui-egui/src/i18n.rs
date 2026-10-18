@@ -37,6 +37,7 @@ static GERMAN: Catalog = Catalog::new("de", "Deutsch", include_str!(concat!(env!
 static SPANISH: Catalog = Catalog::new("es", "Español (España)", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/es.json")));
 static FRENCH: Catalog = Catalog::new("fr", "Français", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/fr.json")));
 static GALICIAN: Catalog = Catalog::new("gl", "Galego", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/gl.json")));
+static ITALIAN: Catalog = Catalog::new("it", "Italiano", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/it.json")));
 static JAPANESE: Catalog = Catalog::new("ja", "日本語", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/ja.json")));
 static KOREAN: Catalog = Catalog::new("ko", "한국어", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/ko.json")));
 static PORTUGUESE_BR: Catalog =
@@ -55,6 +56,7 @@ pub const LOCALES: &[&Catalog] = &[
     &SPANISH,
     &FRENCH,
     &GALICIAN,
+    &ITALIAN,
     &JAPANESE,
     &KOREAN,
     &PORTUGUESE_BR,
@@ -238,13 +240,13 @@ mod tests {
         ENGLISH.messages().values().map(String::as_str).collect()
     }
 
-    /// Catalogs delivered complete. English is the source catalog; Japanese was completed
-    /// upstream, Chinese and Czech land complete here. German, Korean, Russian, French and Ukrainian
+    /// Catalogs delivered complete. English is the source catalog; Czech, Italian, Japanese and Chinese
+    /// are complete. German, Korean, Russian, French and Ukrainian
     /// are partial (German and Korean predate the coverage guards; Russian, French and Ukrainian
     /// are kept partial so a new label doesn't need more translations), so their gaps fall back
     /// to English and are reported by `cargo xtask i18n` without failing the build, while
     /// nothing in the complete catalogs may regress.
-    const COMPLETE: &[&str] = &["ja", "zh"];
+    const COMPLETE: &[&str] = &["it", "ja", "zh"];
 
     /// `text()` falls back to English silently, so a message a complete locale never received is
     /// shown in English inside an otherwise translated UI, with nothing in the build to say so.
@@ -390,6 +392,39 @@ mod tests {
         static PARTIAL: Catalog = Catalog::new("test", "Test", r#"{"ui.preferences":"Prefs"}"#);
         assert_eq!(Locale(&PARTIAL).text("ui.preferences"), "Prefs");
         assert_eq!(Locale(&PARTIAL).text("ui.extrude"), "Extrude");
+    }
+
+    #[test]
+    fn italian_labels_templates_and_names_preserve_technical_values() {
+        assert!(is_supported("it"));
+        let it = Locale::for_language("it");
+        assert_eq!(it.name(), "Italiano");
+        for (source, expected) in [
+            ("Sketch", "Schizzo"),
+            ("Extrude", "Estrusione"),
+            ("Fillet", "Raccordo"),
+            ("Chamfer", "Smusso"),
+            ("Body", "Corpo"),
+            ("New Component", "Nuovo componente"),
+            ("CONSTRAINTS", "VINCOLI"),
+            ("Draft", "Sformo"),
+            ("Counterbore", "Lamatura"),
+            ("Countersink", "Svasatura"),
+        ] {
+            assert_eq!(it.label(source), expected, "{source}");
+        }
+        assert_eq!(it.dynamic("Sketch12"), "Schizzo12");
+        assert_eq!(it.dynamic("Body2"), "Corpo2");
+        assert_eq!(it.dynamic("Component3"), "Componente3");
+        assert_eq!(it.dynamic("Units: mm"), "Unità: mm");
+        assert_eq!(it.dynamic("4 degrees of freedom"), "4 gradi di libertà");
+        assert_eq!(it.given_name("Fillet"), "Fillet");
+        assert_eq!(it.label("solid.extrude"), "solid.extrude");
+        assert_eq!(it.format("document.save_changes", &[("name", "Staffa {v2}")]), "Salvare le modifiche a Staffa {v2}?");
+        assert_eq!(
+            it.format("ui.command_palette_hint", &[("example", "solid.extrude {\"distance\": 20}")]),
+            "Digita un comando, ad es. solid.extrude {\"distance\": 20}  — oppure premi S per cercare"
+        );
     }
 
     /// `label()`'s id fallback (an argument that matches no other entry's English text is

@@ -22,6 +22,24 @@ fn japanese_dialog_keeps_english_scenario_handles() {
 }
 
 #[test]
+fn italian_dialog_keeps_english_scenario_handles() {
+    let mut h = Harness::new();
+    h.app.preferences.language = "it".into();
+    h.app.home.open = false;
+    h.call("ui.start", json!({"command":"sketch.create"}));
+    h.frames(3);
+    assert!(h.widget("Piano").is_some());
+    assert!(h.widget("Annulla").is_some());
+    assert!(!scenario::handles("dialog:Plane").is_empty());
+    assert_eq!(crate::i18n::tr("ui.preferences"), "Preferences");
+
+    h.app.preferences.language = "en".into();
+    h.frames(3);
+    assert!(h.widget("Plane").is_some());
+    assert!(h.widget("Cancel").is_some());
+}
+
+#[test]
 fn sketch_palette_profile_and_points_rows_show_their_own_translation() {
     // ui.palette_profile / ui.palette_points are reached by id, not by the usual English-text
     // lookup (see the comment on sketch_palette::TOGGLES, and
@@ -67,6 +85,7 @@ fn window_chrome_renders_in_the_active_language() {
         ("ko", "브라우저", "선택 필터", "면"),
         ("ru", "БРАУЗЕР", "Фильтр выделения", "Грани"),
         ("fr", "NAVIGATEUR", "Filtre de sélection", "Faces"),
+        ("it", "STRUTTURA", "Filtro di selezione", "Facce"),
         ("uk", "БРАУЗЕР", "Фільтр виділення", "Грані"),
     ] {
         let mut h = Harness::new();
@@ -135,6 +154,22 @@ fn home_page_renders_in_the_active_language() {
         }
     }
     let cases = [
+        (
+            "it",
+            [
+                "Nuovo progetto",
+                "Apri…",
+                "Documentazione",
+                "Segnala un problema",
+                "Novità",
+                "Scorciatoie da tastiera",
+                "Preferenze",
+                "Recenti",
+                "Esempi",
+                "Piastra di esempio",
+            ],
+            "non presente\nAperto 2 h fa",
+        ),
         (
             "ja",
             [

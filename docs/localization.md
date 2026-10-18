@@ -1,7 +1,7 @@
 # UI localization
 
-SolidCraft embeds its translations and works offline. English, Japanese, German, French, Galician, Korean,
-Brazilian Portuguese, Russian, Ukrainian, Turkish and Chinese are currently registered in `crates/ui-egui/src/i18n.rs`. Adding a language requires an
+SolidCraft embeds its translations and works offline. English, Czech, German, Spanish, French, Galician, Italian,
+Japanese, Korean, Brazilian Portuguese, Russian, Turkish, Ukrainian and Chinese are currently registered in `crates/ui-egui/src/i18n.rs`. Adding a language requires an
 embedded catalog and one registration there; the preferences selector and validation use the same
 registry.
 
@@ -31,9 +31,9 @@ that looks untranslated. Two guards catch that in the build:
 
 - `every_complete_catalog_carries_every_english_message` — adding a key to `en.json`
   without giving it to a complete catalog fails the tests. English is the source catalog,
-  Japanese and Chinese are delivered complete; German, Galician, Korean, Brazilian Portuguese, Russian, French, Ukrainian and
+  Czech, Italian, Japanese and Chinese are delivered complete; German, Spanish, Galician, Korean, Brazilian Portuguese, Russian, French, Ukrainian and
   Turkish are partial — their gaps fall back to English and are reported by `cargo xtask i18n` without
-  failing the build. A new label needs en, ja, zh, de and ko; Russian, French and Ukrainian may
+  failing the build. A new label needs en, cs, it, ja, zh, de and ko; Russian, French and Ukrainian may
   follow later.
 - `every_toolbar_tab_and_panel_is_in_the_english_catalog` — tabs and panels reach the UI as bare
   source strings, resolved only by the English-label adapter, so a heading missing from `en.json`
@@ -58,6 +58,14 @@ to do. One key per distinct label: two commands that share a label (`Trim`, `Ext
 claim it, or the English-text lookup would silently pick one.
 
 ## Rendering and coverage
+
+The Italian catalog uses original translations of SolidCraft's English messages, not text
+extracted from commercial CAD software. Its core terminology is Schizzo (Sketch),
+Estrusione (Extrude), Raccordo (Fillet), Smusso (Chamfer), Corpo (Body), Componente
+(Component) and Vincolo (Constraint). Draft geometry is Sformo, while a report draft
+is Bozza; Counterbore is Lamatura and Countersink is Svasatura. Established technical
+terms such as Loft, Sweep, Spline and Offset remain unchanged. Command IDs, shortcuts,
+file formats, units and user-provided names are not translated.
 
 One immutable `Locale` type handles all translations. Table widgets without an app reference
 use a render scope that restores the previous locale when it exits, including nested renders.
