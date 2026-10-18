@@ -26,7 +26,7 @@ fn block_with_circle() -> (Harness, Vec3) {
 /// sketch `sketch` (`sketch.create`'s parameters) makes. Returns the circle centre in the world.
 fn block_and_circle_on(sketch: Value, at: [f64; 2]) -> (Harness, Vec3) {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("solid.box", json!({"length": 40, "width": 30, "height": 20})).unwrap();
     h.app.run("sketch.create", sketch).unwrap();
     h.app.run("sketch.circle.center", json!({"center": at, "radius": 4})).unwrap();
@@ -219,7 +219,7 @@ fn select_other_keeps_the_face_as_picked_beside_many_snapped_points() {
     // More points under the cursor than Select Other lists of one kind: the snapped places are
     // capped as points, and the face as picked keeps its row.
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("solid.box", json!({"length": 40, "width": 30, "height": 20})).unwrap();
     h.app.run("sketch.create", json!({"plane": {"face": [20, 15, 20]}})).unwrap();
     let many = crate::select_other::MAX_PER_KIND + 4;
@@ -244,7 +244,7 @@ fn select_other_keeps_the_face_as_picked_beside_many_snapped_points() {
 /// when given. Returns the corner, then the circle centre, in the world.
 fn block_with_lettering(circle: Option<f64>) -> (Harness, Vec3, Option<Vec3>) {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("solid.box", json!({"length": 40, "width": 30, "height": 20})).unwrap();
     h.app.run("sketch.create", json!({"plane": {"face": [20, 15, 20]}})).unwrap();
     h.app.run("sketch.text", json!({"text": "L", "at": [5, 5], "height": 10})).unwrap();
@@ -321,7 +321,7 @@ fn a_single_hole_snaps_only_to_points_its_sketch_shows() {
     // where it was clicked while the sketch hides it (Show Projected off).
     for shown in [true, false] {
         let mut h = Harness::new();
-        h.app.ui.show_origin = false;
+        h.app.set_origin_shown(false);
         h.app.run("solid.box", json!({"length": 40, "width": 30, "height": 20})).unwrap();
         h.app.run("sketch.create", json!({"plane": {"face": [20, 15, 20]}})).unwrap();
         h.app.run("sketch.options", json!({"show_projected": shown})).unwrap();
@@ -352,7 +352,7 @@ fn a_single_hole_snaps_only_to_points_its_sketch_shows() {
     // Show Points off only hides the markers of the sketch being edited (a finished sketch draws
     // none): its circle's centre is still snapped to.
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("solid.box", json!({"length": 40, "width": 30, "height": 20})).unwrap();
     h.app.run("sketch.create", json!({"plane": {"face": [20, 15, 20]}})).unwrap();
     h.app.run("sketch.options", json!({"show_points": false})).unwrap();
@@ -401,7 +401,7 @@ fn rows_named(list: &Value, prefix: &str) -> usize {
 /// points within 0.1 mm of `at` in the sketch `sketch.create` makes with `sketch`.
 fn cylinder_with_cluster(sketch: Value, at: [f64; 2], view: &str) -> Cluster {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("solid.cylinder", json!({"radius": 15, "height": 20})).unwrap();
     h.app.run("sketch.create", sketch).unwrap();
     let many = 3 * crate::select_other::MAX_PER_KIND;

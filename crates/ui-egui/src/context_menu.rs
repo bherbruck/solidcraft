@@ -483,7 +483,7 @@ fn viewport_items(app: &SolveApp) -> Vec<Item> {
         if app.session.section.is_some() {
             v.push(act("ui.unsection", "Remove Section", "section"));
         }
-        v.push(act("ui.origin", if app.ui.show_origin { "Hide Origin" } else { "Show Origin" }, "origin"));
+        v.push(act("ui.origin", if app.origin_shown() { "Hide Origin" } else { "Show Origin" }, "origin"));
         return v;
     }
     if !sel.is_empty() {
@@ -497,7 +497,7 @@ fn body_items(app: &SolveApp, bodies: &[String], browser: bool) -> Vec<Item> {
     let names = json!(bodies);
     let all_hidden = bodies.iter().all(|b| app.session.visibility.hidden_bodies.contains(b));
     let one = bodies.len() == 1;
-    let locked = bodies.iter().all(|b| app.ui.locked_bodies.contains(b));
+    let locked = bodies.iter().all(|b| app.session.visibility.locked_bodies.contains(b));
     let items = json!(bodies.iter().map(|b| json!({"type": "body", "name": b})).collect::<Vec<_>>());
     let mut v = vec![
         act("ui.moveBodies", "Move/Copy", "move").key("M").with(json!({ "bodies": names })).on(!locked),
@@ -531,8 +531,8 @@ fn body_items(app: &SolveApp, bodies: &[String], browser: bool) -> Vec<Item> {
 
 fn sketch_items(app: &SolveApp, id: u64) -> Vec<Item> {
     let visible = crate::browser::sketch_visible(app, id);
-    let profiles = !app.ui.hidden_profiles.contains(&id);
-    let dims = app.ui.shown_dims.contains(&id);
+    let profiles = !app.session.visibility.hidden_profiles.contains(&id);
+    let dims = app.session.visibility.shown_dimensions.contains(&id);
     let editing = app.session.active_sketch == Some(id);
     let has_profiles = app.session.world_state().sketch(id).is_some_and(|s| !s.profiles.is_empty());
     vec![
@@ -908,11 +908,14 @@ pub fn run_item(app: &mut SolveApp, item: &Item, at: Pos2) {
                 app.session.world_state().bodies.iter().map(|b| b.name.clone()).filter(|b| !bodies.contains(b)).collect();
         }
         "ui.lock" => {
-            let locked = bodies.iter().all(|b| app.ui.locked_bodies.contains(b));
+            let locked = bodies.iter().all(|b| app.session.visibility.locked_bodies.contains(b));
             if locked {
-                app.ui.locked_bodies.retain(|b| !bodies.contains(b));
+                app.session.visibility.locked_bodies.retain(|b| !bodies.contains(b));
             } else {
-                app.ui.locked_bodies.extend(bodies.into_iter().filter(|b| !app.ui.locked_bodies.contains(b)).collect::<Vec<_>>());
+                app.session
+                    .visibility
+                    .locked_bodies
+                    .extend(bodies.into_iter().filter(|b| !app.session.visibility.locked_bodies.contains(b)).collect::<Vec<_>>());
             }
         }
         "ui.moveBodies" => {
@@ -980,7 +983,7 @@ pub fn run_item(app: &mut SolveApp, item: &Item, at: Pos2) {
             }
         }
         "ui.tangentChain" => tangent_chain(app),
-        "ui.origin" => app.ui.show_origin = !app.ui.show_origin,
+        "ui.origin" => app.set_origin_shown(!app.origin_shown()),
         "ui.clear" => drop(app.run("select.clear", json!({}))),
         "ui.unsection" => {
             app.tree.hidden_section = None;
@@ -1009,19 +1012,19 @@ pub fn run_item(app: &mut SolveApp, item: &Item, at: Pos2) {
         }
         "ui.sketchDims" => {
             if let Some(id) = id_of(&p, "sketch") {
-                if app.ui.shown_dims.contains(&id) {
-                    app.ui.shown_dims.retain(|x| *x != id);
+                if app.session.visibility.shown_dimensions.contains(&id) {
+                    app.session.visibility.shown_dimensions.retain(|x| *x != id);
                 } else {
-                    app.ui.shown_dims.push(id);
+                    app.session.visibility.shown_dimensions.push(id);
                 }
             }
         }
         "ui.sketchProfile" => {
             if let Some(id) = id_of(&p, "sketch") {
-                if app.ui.hidden_profiles.contains(&id) {
-                    app.ui.hidden_profiles.retain(|x| *x != id);
+                if app.session.visibility.hidden_profiles.contains(&id) {
+                    app.session.visibility.hidden_profiles.retain(|x| *x != id);
                 } else {
-                    app.ui.hidden_profiles.push(id);
+                    app.session.visibility.hidden_profiles.push(id);
                 }
             }
         }
@@ -1093,7 +1096,7 @@ pub fn run_item(app: &mut SolveApp, item: &Item, at: Pos2) {
             }
         }
         "ui.originAll" => {
-            app.ui.show_origin = true;
+            app.set_origin_shown(true);
             app.session.visibility.hidden_origin.retain(|h| !["O", "X", "Y", "Z", "XY", "XZ", "YZ"].contains(&h.as_str()));
         }
         "ui.originPart" => {
@@ -1319,13 +1322,8 @@ pub(crate) fn commit_rename(app: &mut SolveApp, r: &Rename) {
     }
     match &r.what {
         RenameWhat::Body(old) => {
-            if app.run("body.rename", json!({ "body": old, "name": name })).is_ok() {
-                for list in [&mut app.session.visibility.hidden_bodies, &mut app.ui.locked_bodies] {
-                    for b in list.iter_mut().filter(|b| *b == old) {
-                        *b = name.clone();
-                    }
-                }
-            }
+            // The command renames the body where it is hidden or locked too.
+            drop(app.run("body.rename", json!({ "body": old, "name": name })));
         }
         RenameWhat::Feature(f) => drop(app.run("timeline.rename", json!({ "feature": f, "name": name }))),
         RenameWhat::Component(c) => drop(app.run("component.rename", json!({ "component": c, "name": name }))),
@@ -1892,7 +1890,7 @@ mod tests {
         assert!(list["radial"].as_array().unwrap().is_empty());
         assert!(list["items"].as_array().unwrap().iter().any(|item| item["id"] == "ui.origin" && item["enabled"] == true));
         h.step(&json!({"click":{"handle":"menu:ui.origin"}})).unwrap();
-        assert!(!h.app.ui.show_origin && h.app.viewport.context_menu.is_none(), "the ordinary menu must execute Hide Origin and close");
+        assert!(!h.app.origin_shown() && h.app.viewport.context_menu.is_none(), "the ordinary menu must execute Hide Origin and close");
         h.call("ui.prefs", json!({"radial_context_menu":true}));
         h.step(&json!({"click":point,"button":"right"})).unwrap();
         assert_eq!(describe(&h.app)["radial"].as_array().unwrap().len(), DIRS);

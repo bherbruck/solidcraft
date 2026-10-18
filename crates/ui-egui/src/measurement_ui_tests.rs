@@ -14,7 +14,7 @@ fn result(h: &Harness) -> &Value {
 fn vertex_measurement(a: [f64; 3], b: [f64; 3]) -> Harness {
     let mut h = Harness::new();
     h.app.home.open = false;
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.ui.show_browser = false;
     h.app.run("solid.box", json!({"length":3,"width":4,"height":12,"corner":[-3,0,-12],"body_name":"Box"})).unwrap();
     h.app.session.selection = [a, b].into_iter().map(|p| Sel::Vertex { body: "Box".into(), point: p.into() }).collect();
@@ -45,7 +45,7 @@ fn component_rects() -> Vec<egui::Rect> {
 fn measurement_axis_distances_follow_the_upstream_centre_min_and_max_choices() {
     let mut h = Harness::new();
     h.app.home.open = false;
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.ui.show_browser = false;
     h.app.run("sketch.create", json!({"plane":"XY"})).unwrap();
     let mut items = Vec::new();

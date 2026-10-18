@@ -1230,6 +1230,8 @@
   "ui.hideOrigin": "隐藏原点",
   "ui.hidePlanes": "隐藏平面",
   "ui.hideProfile": "隐藏轮廓",
+  "ui.hide_origin_by_default": "默认隐藏原点",
+  "ui.hide_origin_note": "新设计开始时原点文件夹处于隐藏状态。显示或隐藏过原点的设计会保留自己的原点设置。",
   "ui.hole": "孔",
   "ui.hole_tap_type": "孔攻丝类型",
   "ui.hole_type": "孔类型",

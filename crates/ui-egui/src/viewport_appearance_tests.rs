@@ -24,7 +24,7 @@ fn placed_step_body_uses_imported_opacity_until_a_design_look_overrides_it() {
     session.execute("occurrence.copy", &json!({"component":component,"translate":[30,0,0]})).unwrap();
     let mut app = SolveApp::new(session, Services::default());
     app.ui.ground_shadow = false;
-    app.ui.show_origin = false;
+    app.set_origin_shown(false);
     let placed = app.session.world_state().bodies.iter().find(|b| b.name != source).unwrap().name.clone();
     app.session.selection = vec![solidcraft_engine::Sel::Body { name: placed }];
     app.start("appearance.assign");

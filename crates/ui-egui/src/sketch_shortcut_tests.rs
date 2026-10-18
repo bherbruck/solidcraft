@@ -36,7 +36,7 @@ fn sketch_keys_outside_a_sketch_sketch_on_the_selected_plane_and_start_their_too
 #[test]
 fn a_sketch_key_sketches_on_the_selected_planar_face() {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.ui.pick_bodies = false;
     h.app.run("solid.box", json!({"length":10,"width":10,"height":10,"body_name":"BaseBox"})).unwrap();
     h.call("ui.view", json!({"view":"top"}));

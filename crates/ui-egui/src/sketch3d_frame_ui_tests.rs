@@ -13,7 +13,7 @@ fn bridge_line_snaps_to_points_on_two_visible_sketch_planes() {
     }
     let bridge = h.app.run("sketch.create", json!({"plane":"XY","name":"Bridge"})).unwrap()["sketch"].as_u64().unwrap();
     h.app.run("sketch.options", json!({"sketch_3d":true})).unwrap();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.call("ui.view", json!({"view":"home"}));
     h.call("ui.view", json!({"view":"fit"}));
     h.frames(3);
@@ -55,7 +55,7 @@ fn coplanar_foreign_point() -> (crate::scenario::Harness, u64, u64) {
     h.app.run("sketch.point", json!({"point":[10,20]})).unwrap();
     h.app.run("sketch.finish", json!({})).unwrap();
     let active = h.app.run("sketch.create", json!({"plane":"XY","name":"Active"})).unwrap()["sketch"].as_u64().unwrap();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.call("ui.view", json!({"view":"home"}));
     h.call("ui.view", json!({"view":"fit"}));
     h.frames(3);
@@ -136,7 +136,7 @@ fn second_occurrence_drawn_wire_fit_picks_and_world_triad_drag_stay_aligned() {
     h.app.run("solid.box", json!({"corner":[17,32,45],"length":2,"width":2,"height":10,"body_name":"SnapVertices"})).unwrap();
     h.app.run("browser.visibility", json!({"paths":[[first]],"visible":false})).unwrap();
     let sketch = h.app.run("sketch.create", json!({"plane":"XY","name":"Wire"})).unwrap()["sketch"].as_u64().unwrap();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.settle();
     h.step(&json!({"widget":"3D Sketch"})).unwrap();
     assert!(

@@ -24,14 +24,12 @@ pub struct DocSlot {
     view: DocView,
 }
 
-/// The per-design part of the UI state (what is hidden, shown or locked).
+/// The per-design part of the UI state the session doesn't keep (what is hidden, shown or locked
+/// is in the session's `visibility`, saved with the design).
 #[derive(Clone, Debug, Default)]
 struct DocView {
     render: crate::render_workspace::ViewState,
     sketch_choices: crate::sketch_families::Choices,
-    hidden_profiles: Vec<u64>,
-    shown_dims: Vec<u64>,
-    locked_bodies: Vec<String>,
 }
 
 impl DocSlot {
@@ -63,14 +61,7 @@ impl Documents {
 }
 
 fn take_view(app: &mut SolveApp) -> DocView {
-    let u = &mut app.ui;
-    DocView {
-        render: std::mem::take(&mut app.render_workspace.view),
-        sketch_choices: std::mem::take(&mut app.sketch_choices),
-        hidden_profiles: std::mem::take(&mut u.hidden_profiles),
-        shown_dims: std::mem::take(&mut u.shown_dims),
-        locked_bodies: std::mem::take(&mut u.locked_bodies),
-    }
+    DocView { render: std::mem::take(&mut app.render_workspace.view), sketch_choices: std::mem::take(&mut app.sketch_choices) }
 }
 
 fn put_view(app: &mut SolveApp, v: DocView) {
@@ -78,10 +69,6 @@ fn put_view(app: &mut SolveApp, v: DocView) {
     crate::render_workspace::invalidate_scene(app);
     crate::render_workspace::sync_backend(app);
     app.sketch_choices = v.sketch_choices;
-    let u = &mut app.ui;
-    u.hidden_profiles = v.hidden_profiles;
-    u.shown_dims = v.shown_dims;
-    u.locked_bodies = v.locked_bodies;
 }
 
 /// Put `slot` into the app and return what was there.
@@ -835,6 +822,34 @@ mod tests {
     /// #1205: Units of new designs apply to the empty design a launch shows, to New while that
     /// design is still empty, to `file.new`, and to the blank design left when the last tab closes.
     /// A design that already has features keeps its units.
+    /// Hide Origin by Default hides the Origin of designs that don't keep its eye; a design that
+    /// does keeps it, along with the rest of the browser's view, in its tab and in its file.
+    #[test]
+    fn the_browsers_view_follows_each_design_and_the_origin_preference() {
+        let mut a = app();
+        assert!(a.origin_shown());
+        a.preferences.hide_origin = true;
+        assert!(!a.origin_shown() && !a.session.is_dirty(), "the preference is not a change to the design");
+        let mut b = app();
+        b.load_prefs(&a.prefs());
+        assert!(b.preferences.hide_origin && !b.origin_shown(), "the preference is kept between runs");
+        // This design shows its Origin and locks its body and hides its Sketches folder.
+        a.run("solid.box", json!({"length": 10, "width": 10, "height": 10})).unwrap();
+        a.set_origin_shown(true);
+        a.session.visibility.locked_bodies.push("Body1".into());
+        a.session.visibility.sketches_hidden = true;
+        new_design(&mut a);
+        assert!(!a.origin_shown() && a.session.visibility.is_empty(), "a new design follows the preference");
+        switch(&mut a, 0);
+        assert!(a.origin_shown() && a.session.visibility.locked_bodies == ["Body1"] && a.session.visibility.sketches_hidden);
+        // Opened again, the design's own Origin setting wins over the preference.
+        let text = a.session.design().to_json();
+        let mut c = app();
+        c.preferences.hide_origin = true;
+        c.session = Session::new(solidcraft_engine::doc::Document::from_json(&text).unwrap());
+        assert!(c.origin_shown() && c.session.visibility == a.session.visibility);
+    }
+
     #[test]
     fn new_designs_use_the_preferred_units_including_a_blank_one() {
         let mut a = app();

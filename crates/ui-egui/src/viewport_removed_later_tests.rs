@@ -21,7 +21,7 @@ fn app() -> SolveApp {
     s.execute("solid.remove", &json!({"bodies": ["Gone"]})).unwrap();
     let mut app = SolveApp::new(s, Services::default());
     app.ui.ground_shadow = false;
-    app.ui.show_origin = false;
+    app.set_origin_shown(false);
     app
 }
 

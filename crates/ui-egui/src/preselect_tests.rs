@@ -237,7 +237,7 @@ fn path_plane_click_retains_source_and_previews_then_edits_in_place() {
     let duplicate = h.app.run("sketch.line3d", json!({"points":[[-30,0,0],[-20,0,0]]})).unwrap()["curves"][0].as_str().unwrap().to_string();
     assert_eq!(wire, duplicate, "exercise duplicate curve ids in different sketches");
     h.app.run("sketch.finish", json!({})).unwrap();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.settle();
     h.call("ui.view", json!({"view":"home"}));
     h.call("ui.view", json!({"view":"fit"}));

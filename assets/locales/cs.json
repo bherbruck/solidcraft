@@ -1193,6 +1193,8 @@
   "ui.hideOrigin": "Skrýt počátek",
   "ui.hidePlanes": "Skrýt roviny",
   "ui.hideProfile": "Skrýt profil",
+  "ui.hide_origin_by_default": "Ve výchozím stavu skrýt počátek",
+  "ui.hide_origin_note": "Nové návrhy začínají se skrytou složkou Počátek. Návrh si ponechá vlastní nastavení počátku, jakmile ho zobrazíte nebo skryjete.",
   "ui.hole": "Otvor",
   "ui.hole_tap_type": "Typ závitu otvoru",
   "ui.hole_type": "Typ otvoru",

@@ -86,14 +86,14 @@ fn every_menu_label_is_in_the_english_catalog() {
 
     // The labels that depend on state, so their other branch is seen too.
     let names: Vec<String> = app.session.model.state().bodies.iter().map(|b| b.name.clone()).collect();
-    app.ui.show_origin = false;
+    app.set_origin_shown(false);
     take(&app, &mut seen);
     for name in &names {
-        app.ui.locked_bodies.push(name.clone());
+        app.session.visibility.locked_bodies.push(name.clone());
         app.session.visibility.hidden_bodies.push(name.clone());
     }
     take(&app, &mut seen);
-    app.ui.locked_bodies.clear();
+    app.session.visibility.locked_bodies.clear();
     app.session.visibility.hidden_bodies.clear();
     take(&app, &mut seen);
 

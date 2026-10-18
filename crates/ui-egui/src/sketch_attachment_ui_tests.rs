@@ -4,7 +4,7 @@ use solidcraft_engine::doc::{FaceAttachmentStatus, FeatureKind, PlaneRef};
 
 fn picked_sketch() -> (Harness, u64) {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.session.auto_project = false;
     h.app.run("solid.box", json!({"length":10,"width":10,"height":10,"body_name":"BaseBox","name":"Original"})).unwrap();
     h.app.run("solid.box", json!({"length":10,"width":10,"height":10,"corner":[0,0,20],"body_name":"ControlBox","name":"Control"})).unwrap();
@@ -146,7 +146,7 @@ fn attachment_drafts_leave_on_document_replacement_but_survive_failed_open() {
 #[test]
 fn unsupported_modified_face_offers_explicit_fixed_plane_without_live_links() {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("solid.box", json!({"length":10,"width":10,"height":10,"body_name":"Modified"})).unwrap();
     // An intentional split gives the +z source two distinct planar pieces. A
     // strict attachment cannot claim the original whole-face certificate.
@@ -181,7 +181,7 @@ fn occurrence_click(h: &mut Harness, path: &[u64], control: &str) {
 #[test]
 fn actual_nested_second_placement_face_pick_keeps_target_and_author_paths() {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.session.auto_project = false;
     let parent = h.app.run("component.create", json!({"name":"Parent"})).unwrap();
     let parent_component = parent["component"].as_u64().unwrap();
@@ -336,7 +336,7 @@ fn nested_anchor_saved_fixed_conversion_preserves_rotated_second_author_plane() 
 #[test]
 fn picked_top_face_of_a_stacked_join_extrude_takes_a_sketch() {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("sketch.create", json!({"plane":"XY","name":"Base"})).unwrap();
     h.app.run("sketch.rectangle.two_point", json!({"p0":[0,0],"p1":[40,40]})).unwrap();
     h.app.run("sketch.finish", json!({})).unwrap();

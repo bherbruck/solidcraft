@@ -7,7 +7,7 @@ use solidcraft_engine::{
 
 fn shell() -> Harness {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("solid.box", json!({"length":40,"width":30,"height":20,"body_name":"Case"})).unwrap();
     h.app.run("solid.shell", json!({"faces":[[20,15,20]],"thickness":2})).unwrap();
     h.call("ui.view", json!({"view":"front"}));
@@ -79,7 +79,7 @@ fn pending_create_sketch_accepts_an_actual_shell_wall_patch_click() {
 #[test]
 fn rounded_shell_corner_is_one_physical_face_above_and_below_the_floor() {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("solid.box", json!({"length":80,"width":60,"height":30,"corner":[-40,-30,0],"body_name":"Case"})).unwrap();
     h.app.run("solid.fillet", json!({"edges":[[40,30,15],[-40,30,15],[-40,-30,15],[40,-30,15]],"radius":6})).unwrap();
     h.app.run("solid.shell", json!({"faces":[[0,0,30]],"thickness":2})).unwrap();

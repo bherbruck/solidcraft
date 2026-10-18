@@ -33,7 +33,7 @@ fn last_hole_direction(h: &Harness) -> Vec3 {
 #[test]
 fn a_hole_picked_under_a_thin_plate_on_xy_drills_up_into_it_as_its_arrow_shows() {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("sketch.create", json!({"plane": "XY", "name": "S"})).unwrap();
     h.app.run("sketch.rectangle.two_point", json!({"p0": [0, 0], "p1": [150, 100]})).unwrap();
     h.app.run("sketch.finish", json!({})).unwrap();
@@ -63,7 +63,7 @@ fn a_hole_picked_under_a_thin_plate_on_xy_drills_up_into_it_as_its_arrow_shows()
 #[test]
 fn a_hole_picked_on_a_round_bar_drills_to_its_axis_as_its_arrow_shows() {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("solid.cylinder", json!({"radius": 10, "height": 40})).unwrap();
     h.step(&json!({"call": "ui.view", "params": {"view": "front"}})).unwrap();
     h.settle();
@@ -94,7 +94,7 @@ fn a_hole_picked_on_a_round_bar_drills_to_its_axis_as_its_arrow_shows() {
 #[test]
 fn flip_drills_holes_at_sketch_points_the_other_way() {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("solid.box", json!({"length": 40, "width": 30, "height": 20})).unwrap();
     // A point on a plane through the middle of the block: by itself the hole goes down from the top.
     h.app.run("sketch.create", json!({"plane": {"origin": [0, 0, 10], "x_dir": [1, 0, 0], "y_dir": [0, 1, 0]}, "name": "P"})).unwrap();

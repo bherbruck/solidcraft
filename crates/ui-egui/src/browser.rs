@@ -118,7 +118,8 @@ pub fn sketch_visible(app: &SolveApp, id: u64) -> bool {
     if app.session.visibility.hidden_sketches.contains(&id) {
         return false;
     }
-    app.session.visibility.shown_sketches.contains(&id) || (app.ui.show_sketches && !solidcraft_engine::view::sketch_consumed(&app.session, id))
+    app.session.visibility.shown_sketches.contains(&id)
+        || (!app.session.visibility.sketches_hidden && !solidcraft_engine::view::sketch_consumed(&app.session, id))
 }
 
 pub fn set_sketch_visible(app: &mut SolveApp, id: u64, on: bool) {
@@ -208,7 +209,7 @@ pub fn origin_items(app: &SolveApp) -> Vec<Item> {
 /// Show or hide everything in a component folder.
 pub fn toggle_folder(app: &mut SolveApp, component: u64, folder: &str) {
     if folder == "sketches" {
-        app.ui.show_sketches = !app.ui.show_sketches;
+        app.session.visibility.sketches_hidden = !app.session.visibility.sketches_hidden;
         return;
     }
     let all = entries(app, component, folder);
@@ -878,13 +879,13 @@ fn origin_rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize) {
     let r = draw_row(
         ui,
         ui.id().with(key),
-        &Row { depth, fold: Some(open), eye: Some(app.ui.show_origin), icon: "origin", label: "Origin", ..Default::default() },
+        &Row { depth, fold: Some(open), eye: Some(app.origin_shown()), icon: "origin", label: "Origin", ..Default::default() },
     );
     if r.fold || r.clicked {
         toggle(app, key, false);
     }
     if r.eye {
-        app.ui.show_origin = !app.ui.show_origin;
+        app.set_origin_shown(!app.origin_shown());
     }
     if let Some(p) = r.secondary {
         crate::context_menu::open_for(app, p, Target::Origin);
@@ -912,7 +913,7 @@ fn origin_rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize) {
         let r = draw_row(
             ui,
             ui.id().with(("o", k)),
-            &Row { depth: depth + 1, eye: Some(visible), icon, label, selected, dim: !app.ui.show_origin, ..Default::default() },
+            &Row { depth: depth + 1, eye: Some(visible), icon, label, selected, dim: !app.origin_shown(), ..Default::default() },
         );
         if r.eye {
             if visible {
@@ -1322,7 +1323,7 @@ fn entries(app: &SolveApp, comp: u64, folder: &str) -> Vec<Entry> {
                 visible: app.session.body_visible(&b.name),
                 selected: sel.iter().any(|x| matches!(x, Sel::Body { name } if *name == b.name)),
                 color: None,
-                locked: app.ui.locked_bodies.contains(&b.name),
+                locked: app.session.visibility.locked_bodies.contains(&b.name),
                 sel: Some(Sel::Body { name: b.name.clone() }),
                 target: Some(Target::Body { name: b.name.clone() }),
                 bodies: vec![b.name.clone()],
@@ -1491,7 +1492,7 @@ fn folder_rows_at(app: &mut SolveApp, ui: &mut egui::Ui, comp: u64, path: Option
         }
     }
     let open = is_open(app, &key, true);
-    let any_visible = if folder == "sketches" { app.ui.show_sketches } else { all.iter().any(|e| e.visible) };
+    let any_visible = if folder == "sketches" { !app.session.visibility.sketches_hidden } else { all.iter().any(|e| e.visible) };
     let r = draw_row(
         ui,
         ui.id().with(&key),
@@ -1502,7 +1503,7 @@ fn folder_rows_at(app: &mut SolveApp, ui: &mut egui::Ui, comp: u64, path: Option
     }
     if r.eye {
         if folder == "sketches" {
-            app.ui.show_sketches = !app.ui.show_sketches;
+            app.session.visibility.sketches_hidden = !app.session.visibility.sketches_hidden;
         } else {
             let refs: Vec<&Entry> = all.iter().collect();
             set_visible(app, folder, &refs, !any_visible);
@@ -1894,14 +1895,14 @@ pub fn dims_overlay(app: &SolveApp, ctx: &egui::Context) {
     use solidcraft_engine::geom::Vec2;
     use solidcraft_engine::sketch::{DimFrame, chain_centres, default_text, dim_frame, dim_layout_reaching, dim_reach};
     let Some(rect) = app.viewport.rect else { return };
-    if app.ui.shown_dims.is_empty() {
+    if app.session.visibility.shown_dimensions.is_empty() {
         return;
     }
     let tk = Tokens::get();
     let proj = crate::viewport::projection(app, rect);
     let painter = ctx.layer_painter(egui::LayerId::background()).with_clip_rect(rect);
     let st = app.session.world_state();
-    for id in app.ui.shown_dims.iter().filter(|id| app.session.active_sketch != Some(**id) && sketch_visible(app, **id)) {
+    for id in app.session.visibility.shown_dimensions.iter().filter(|id| app.session.active_sketch != Some(**id) && sketch_visible(app, **id)) {
         let Some(ss) = st.sketch(*id) else { continue };
         let sk = &ss.sketch;
         let to = |p: Vec2| proj.to_screen(ss.plane.to_world(p));

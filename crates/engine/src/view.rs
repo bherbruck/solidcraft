@@ -105,17 +105,12 @@ impl Default for Palette {
 /// joints and moves place them, and the sketches the view draws (not ones used by a feature,
 /// hidden ones, or ones in hidden components). What Home, Fit and the orbit pivot frame.
 pub fn bounds(s: &Session) -> Aabb3 {
-    visible_bounds(s, true)
-}
-
-/// [`bounds`], with the browser's Sketches folder shown (`sketches`) or hidden.
-pub fn visible_bounds(s: &Session, sketches: bool) -> Aabb3 {
     let st = s.world_state();
     let mut b = Aabb3::EMPTY;
     for body in st.bodies.iter().filter(|x| s.body_visible(&x.name)) {
         b = b.union(&body.mesh().bounds());
     }
-    for ss in st.sketches.iter().filter(|x| sketch_drawn(s, x.feature, sketches)) {
+    for ss in st.sketches.iter().filter(|x| sketch_shown(s, x.feature)) {
         // All four corners: on a tilted plane two opposite ones don't span the rectangle.
         if let Some((lo, hi)) = ss.sketch.bounds() {
             for p in [lo, hi, solidcraft_geom::Vec2::new(lo.x, hi.y), solidcraft_geom::Vec2::new(hi.x, lo.y)] {
@@ -527,16 +522,10 @@ pub fn section_segments(m: &solidcraft_geom::Mesh, o: Vec3, n: Vec3) -> Vec<(Vec
     out
 }
 
-/// Is a sketch drawn? The active one is; others unless hidden. Finished sketches are hidden
-/// once a feature uses them, like Fusion's default, unless shown one by one.
+/// Is a sketch drawn? The sketch being edited always is; otherwise not when hidden, nor in a
+/// hidden component. One used by a feature, or any while the browser's Sketches folder is hidden,
+/// only when shown on its own.
 pub fn sketch_shown(s: &Session, id: u64) -> bool {
-    sketch_drawn(s, id, true)
-}
-
-/// Is a sketch drawn, with the browser's Sketches folder shown (`folder`) or hidden? The sketch
-/// being edited always is; otherwise not when hidden, nor in a hidden component, and one used by
-/// a feature only when shown on its own.
-pub fn sketch_drawn(s: &Session, id: u64, folder: bool) -> bool {
     let v = &s.visibility;
     if s.active_sketch == Some(id) {
         return true;
@@ -544,7 +533,7 @@ pub fn sketch_drawn(s: &Session, id: u64, folder: bool) -> bool {
     if v.hidden_sketches.contains(&id) || !sketch_component_visible(s, id) {
         return false;
     }
-    v.shown_sketches.contains(&id) || (folder && !sketch_consumed(s, id))
+    v.shown_sketches.contains(&id) || (!v.sketches_hidden && !sketch_consumed(s, id))
 }
 
 /// Is the placement a sketch is drawn at shown (the active one while its component is being

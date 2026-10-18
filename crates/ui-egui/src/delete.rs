@@ -18,8 +18,12 @@ pub struct Pending {
 /// What Delete acts on now: the selection (bodies not locked), plus the components picked in
 /// the browser (their occurrences).
 pub fn selection_params(app: &SolveApp) -> Value {
-    let items: Vec<&solidcraft_engine::Sel> =
-        app.session.selection.iter().filter(|s| !matches!(s, solidcraft_engine::Sel::Body { name } if app.ui.locked_bodies.contains(name))).collect();
+    let items: Vec<&solidcraft_engine::Sel> = app
+        .session
+        .selection
+        .iter()
+        .filter(|s| !matches!(s, solidcraft_engine::Sel::Body { name } if app.session.visibility.locked_bodies.contains(name)))
+        .collect();
     let occurrences: Vec<u64> = app.tree.picked_components.iter().filter_map(|c| app.session.doc.occurrence_of(*c).map(|o| o.id)).collect();
     json!({ "items": items, "occurrences": occurrences, "canvases": app.tree.picked_canvases })
 }

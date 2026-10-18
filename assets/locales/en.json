@@ -1230,6 +1230,8 @@
   "ui.hideOrigin": "Hide Origin",
   "ui.hidePlanes": "Hide Planes",
   "ui.hideProfile": "Hide Profile",
+  "ui.hide_origin_by_default": "Hide origin by default",
+  "ui.hide_origin_note": "New designs start with the Origin folder hidden. A design keeps its own Origin setting once you show or hide it.",
   "ui.hole": "Hole",
   "ui.hole_tap_type": "Hole Tap Type",
   "ui.hole_type": "Hole Type",

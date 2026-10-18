@@ -81,6 +81,21 @@ fn wrap(r: Result<Value, String>) -> Outcome {
     }
 }
 
+/// `UiState` as `ui.inspect` and `ui.set` report it, with the browser's view of the design
+/// (kept in the session) under the names the UI state used to give it.
+fn ui_state(app: &SolveApp) -> Value {
+    let mut u = serde_json::to_value(&app.ui).unwrap_or_default();
+    let v = &app.session.visibility;
+    if let Some(o) = u.as_object_mut() {
+        o.insert("showOrigin".into(), json!(app.origin_shown()));
+        o.insert("showSketches".into(), json!(!v.sketches_hidden));
+        o.insert("hiddenProfiles".into(), json!(v.hidden_profiles));
+        o.insert("shownDims".into(), json!(v.shown_dimensions));
+        o.insert("lockedBodies".into(), json!(v.locked_bodies));
+    }
+    u
+}
+
 fn key_from(name: &str) -> Option<egui::Key> {
     egui::Key::from_name(name).or(match name.to_ascii_lowercase().as_str() {
         "enter" | "return" => Some(egui::Key::Enter),
@@ -282,7 +297,7 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
         "engine.commands" => wrap(app.session.execute("engine.commands", &json!({})).map_err(|e| e.to_string())),
         "document.inspect" => wrap(app.session.execute("document.inspect", p).map_err(|e| e.to_string())),
         "ui.inspect" => ok(json!({
-            "ui": serde_json::to_value(&app.ui).unwrap_or_default(),
+            "ui": ui_state(app),
             "visibility": app.session.visibility,
             "viewport": app.viewport.rect.map(|r| json!([r.left(), r.top(), r.width(), r.height()])),
             "camera": app.cam,
@@ -330,20 +345,26 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
         }
         "ui.set" => {
             // What is hidden lives in the session (`browser.visibility`); `ui.set` still sets it.
-            const VIS: [(&str, &str); 5] = [
+            const VIS: [(&str, &str); 8] = [
                 ("hiddenBodies", "hidden_bodies"),
                 ("hiddenOrigin", "hidden_origin"),
                 ("hiddenSketches", "hidden_sketches"),
                 ("shownSketches", "shown_sketches"),
                 ("hiddenJoints", "hidden_joints"),
+                ("hiddenProfiles", "hidden_profiles"),
+                ("shownDims", "shown_dimensions"),
+                ("lockedBodies", "locked_bodies"),
             ];
             let mut cur = serde_json::to_value(&app.ui).unwrap_or(json!({}));
             let mut vis = serde_json::to_value(&app.session.visibility).unwrap_or(json!({}));
             if let (Some(o), Some(vo), Some(src)) = (cur.as_object_mut(), vis.as_object_mut(), p.as_object()) {
                 for (k, v) in src {
-                    match VIS.iter().find(|(camel, _)| camel == k) {
-                        Some((_, snake)) => vo.insert(snake.to_string(), v.clone()),
-                        None => o.insert(k.clone(), v.clone()),
+                    let shown = |v: &Value| v.as_bool().map(|b| json!(!b)).unwrap_or_else(|| v.clone());
+                    match (VIS.iter().find(|(camel, _)| camel == k), k.as_str()) {
+                        (Some((_, snake)), _) => vo.insert(snake.to_string(), v.clone()),
+                        (None, "showOrigin") => vo.insert("origin_hidden".into(), shown(v)),
+                        (None, "showSketches") => vo.insert("sketches_hidden".into(), shown(v)),
+                        _ => o.insert(k.clone(), v.clone()),
                     };
                 }
             }
@@ -356,7 +377,7 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
                     }
                     app.ui = u;
                     app.session.visibility = v;
-                    ok(serde_json::to_value(&app.ui).unwrap_or_default())
+                    ok(ui_state(app))
                 }
                 (Err(e), _) | (_, Err(e)) => err(e),
             }
@@ -1091,12 +1112,12 @@ mod tests {
         assert!(shot(&mut app, json!({})) == no_grid);
         assert!(shot(&mut app, json!({"grid": true})) == all);
         // With the Origin off too it has neither; `axes: true` puts the axes back.
-        app.ui.show_origin = false;
+        app.set_origin_shown(false);
         assert!(shot(&mut app, json!({})) == bare);
         assert!(shot(&mut app, json!({"axes": true})) == no_grid);
         // The Origin and the Grid back on: the first picture again.
         app.ui.show_grid = true;
-        app.ui.show_origin = true;
+        app.set_origin_shown(true);
         assert!(shot(&mut app, json!({})) == all);
         let _ = std::fs::remove_dir_all(&dir);
     }

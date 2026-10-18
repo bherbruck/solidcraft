@@ -220,7 +220,7 @@ fn clicked_render_workspace_saves_one_setup_and_restores_design_view() {
         h.app.session.mark_saved();
         h.frames(3);
         let camera = h.app.cam;
-        let flags = (h.app.ui.show_grid, h.app.ui.show_origin, h.app.ui.visual_style, h.app.ui.perspective);
+        let flags = (h.app.ui.show_grid, h.app.origin_shown(), h.app.ui.visual_style, h.app.ui.perspective);
         let undo = h.app.session.undo.len();
         let at = crate::scenario::rect_of("workspace_switcher").unwrap().center();
         h.step(&json!({"click":[at.x,at.y]})).unwrap();
@@ -239,7 +239,7 @@ fn clicked_render_workspace_saves_one_setup_and_restores_design_view() {
         h.step(&json!({"widget":back})).unwrap();
         assert!(!active(&h.app));
         assert_eq!(h.app.cam, camera);
-        assert_eq!(flags, (h.app.ui.show_grid, h.app.ui.show_origin, h.app.ui.visual_style, h.app.ui.perspective));
+        assert_eq!(flags, (h.app.ui.show_grid, h.app.origin_shown(), h.app.ui.visual_style, h.app.ui.perspective));
         h.app.run("edit.undo", json!({})).unwrap();
         assert!(!h.app.session.is_dirty());
     }

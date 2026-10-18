@@ -62,7 +62,7 @@ fn empty_space_offers_view_items_and_greys_out_undo() {
     assert!(!context_menu::radial_items(&app)[0].enabled, "no command to repeat yet");
     // Hide Origin toggles.
     context_menu::run_item(&mut app, &find(&items, "Hide Origin"), pos2(0.0, 0.0));
-    assert!(!app.ui.show_origin);
+    assert!(!app.origin_shown());
 }
 
 #[test]
@@ -220,7 +220,7 @@ fn sketch_menu_hides_and_moves_to_another_plane() {
     context_menu::run_item(&mut app, &find(&items, "Show/Hide"), pos2(0.0, 0.0));
     assert_eq!(crate::browser::sketch_visible(&app, id), !vis);
     context_menu::run_item(&mut app, &find(&items, "Show Dimension"), pos2(0.0, 0.0));
-    assert_eq!(app.ui.shown_dims, vec![id]);
+    assert_eq!(app.session.visibility.shown_dimensions, vec![id]);
     assert!(find(&context_menu::items(&app, &t), "Hide Dimension").enabled);
     context_menu::run_item(&mut app, &find(&items, "Edit Sketch"), pos2(0.0, 0.0));
     assert_eq!(app.session.active_sketch, Some(id));
@@ -276,7 +276,7 @@ fn pick_runs_an_item_of_the_open_menu() {
     assert!(context_menu::pick(&mut app, "Undo").is_err(), "disabled");
     assert!(context_menu::pick(&mut app, "ui.origin").is_ok());
     assert!(app.viewport.context_menu.is_none(), "a pick closes the menu");
-    assert!(!app.ui.show_origin);
+    assert!(!app.origin_shown());
 }
 
 #[test]

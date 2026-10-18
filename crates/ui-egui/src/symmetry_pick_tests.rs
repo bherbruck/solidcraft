@@ -8,7 +8,7 @@ use crate::scenario::Harness;
 /// An XY sketch with points p (10, 5) and q (-12, -3), the Symmetry tool started and both picked.
 fn two_points_picked() -> Harness {
     let mut h = Harness::new();
-    h.app.ui.show_origin = true;
+    h.app.set_origin_shown(true);
     h.app.run("sketch.create", json!({"plane":"XY"})).unwrap();
     h.app.run("sketch.point", json!({"point":[10,5],"id":"p"})).unwrap();
     h.app.run("sketch.point", json!({"point":[-12,-3],"id":"q"})).unwrap();

@@ -278,13 +278,13 @@ pub fn projection(app: &SolveApp, rect: Rect) -> Proj {
 /// Sketches drawn in the viewport: the active one, and finished ones not yet used by a feature.
 fn visible_sketches(app: &SolveApp) -> Vec<u64> {
     let st = app.session.world_state();
-    st.sketches.iter().filter(|s| solidcraft_engine::view::sketch_drawn(&app.session, s.feature, app.ui.show_sketches)).map(|s| s.feature).collect()
+    st.sketches.iter().filter(|s| solidcraft_engine::view::sketch_shown(&app.session, s.feature)).map(|s| s.feature).collect()
 }
 
 /// What Home, Fit and the orbit pivot frame: the bodies and sketches shown now, where they are
-/// now (see [`solidcraft_engine::view::visible_bounds`]).
+/// now (see [`solidcraft_engine::view::bounds`]).
 pub fn view_bounds(app: &SolveApp) -> solidcraft_engine::geom::Aabb3 {
-    solidcraft_engine::view::visible_bounds(&app.session, app.ui.show_sketches)
+    solidcraft_engine::view::bounds(&app.session)
 }
 
 fn scene_key(app: &SolveApp) -> u64 {
@@ -300,12 +300,12 @@ fn scene_key(app: &SolveApp) -> u64 {
     section_plane(app).map(|(o, n)| [o.x, o.y, o.z, n.x, n.y, n.z].map(f64::to_bits)).hash(&mut h);
     app.cam.up.hash(&mut h);
     (app.cam.pitch > 0.0).hash(&mut h);
-    app.ui.show_sketches.hash(&mut h);
+    app.session.visibility.sketches_hidden.hash(&mut h);
     app.session.visibility.hidden_bodies.hash(&mut h);
     app.session.visibility.hidden_occurrences.hash(&mut h);
     app.session.visibility.hidden_sketches.hash(&mut h);
     app.session.visibility.shown_sketches.hash(&mut h);
-    app.ui.hidden_profiles.hash(&mut h);
+    app.session.visibility.hidden_profiles.hash(&mut h);
     app.session.active_component.hash(&mut h);
     app.session.active_occurrence_path.hash(&mut h);
     app.preview.replaced.hash(&mut h);
@@ -767,7 +767,7 @@ fn build_sketch_scene(app: &SolveApp, proj: &Proj) -> GpuScene {
         let active = s.active_sketch == Some(sid);
         // Closed profiles are shaded (lifted off a face they may lie on).
         let lift = ss.plane.normal() * 0.01;
-        let profiles = if app.ui.hidden_profiles.contains(&sid) || ss.sketch.view.hide_profile { &[][..] } else { &ss.profiles[..] };
+        let profiles = if app.session.visibility.hidden_profiles.contains(&sid) || ss.sketch.view.hide_profile { &[][..] } else { &ss.profiles[..] };
         for (index, _) in profiles.iter().enumerate() {
             let display = crate::sketch_display::profile_region(app, sid, index, &ss.plane, proj);
             for tri in display.as_ref().as_ref().map_or_else(Vec::new, |region| crate::sketch_display::fill_triangles(region, &mut fill_budget)) {
@@ -911,7 +911,7 @@ pub fn origin_planes(app: &SolveApp) -> Vec<(&'static str, Vec3, [Vec3; 4])> {
     }
     // While the Origin is hidden, Create Sketch brings the planes back: then every plane;
     // otherwise only those not hidden one by one.
-    let creating = !app.ui.show_origin && app.picking_sketch_plane();
+    let creating = !app.origin_shown() && app.picking_sketch_plane();
     origin_quads(origin_size(app.cam.half_height()))
         .into_iter()
         .filter(|(n, _, _)| creating || !app.session.visibility.hidden_origin.iter().any(|h| h == n))
@@ -3921,7 +3921,7 @@ mod tests {
         const SIZE: u32 = 256;
         let rect = Rect::from_min_size(Pos2::ZERO, vec2(SIZE as f32, SIZE as f32));
         let mut render = |origin: bool| {
-            app.ui.show_origin = origin;
+            app.set_origin_shown(origin);
             app.viewport.gpu = Some(GpuTarget { format: egui_wgpu::wgpu::TextureFormat::Rgba8Unorm, depth: None, samples: 1, tess: false });
             let (scene, highlight) = (build_scene(&app), build_highlight(&app).merged());
             let proj = projection(&app, rect);
@@ -3944,7 +3944,7 @@ mod tests {
             return;
         };
         let (Some(without), _) = render(false) else { return };
-        app.ui.show_origin = true;
+        app.set_origin_shown(true);
         let xy = origin_planes(&app).into_iter().find(|(n, _, _)| *n == "XY").map(|(_, _, q)| q).unwrap();
         let (w, h, r) = (f64::from(SIZE), f64::from(SIZE), scene_radius(&app));
         let (mut samples, mut plain) = (0, Vec::new());
@@ -4130,7 +4130,7 @@ mod tests {
     fn timeline_modifiers_highlight_on_hover_and_click() {
         for command in ["solid.fillet", "solid.chamfer"] {
             let mut h = crate::scenario::Harness::new();
-            h.app.ui.show_origin = false;
+            h.app.set_origin_shown(false);
             let base = h.app.run("solid.box", json!({"length":20,"width":20,"height":20})).unwrap()["feature"].as_u64().unwrap();
             let id = h.app.run(command, json!({"edges":[[0,0,10]],"radius":2,"distance":2,"name":"Blend"})).unwrap()["feature"].as_u64().unwrap();
             h.app.run("solid.box", json!({"length":5,"width":5,"height":5,"corner":[40,0,0]})).unwrap();
@@ -4222,7 +4222,7 @@ mod tests {
             let ctx = egui::Context::default();
             let mut app = SolveApp::new(solidcraft_engine::Session::default(), crate::Services::default());
             app.run("solid.box", json!({"length":200,"width":120,"height":160})).unwrap();
-            app.ui.show_origin = false;
+            app.set_origin_shown(false);
             app.ui.visual_style = style;
             app.cam.yaw = 0.7;
             app.cam.pitch = 0.5;
@@ -4295,7 +4295,7 @@ mod tests {
             let ctx = egui::Context::default();
             let mut app = hover_app(false);
             app.preferences.nav = preset.into();
-            app.ui.show_origin = false;
+            app.set_origin_shown(false);
             hover_frame(&mut app, &ctx, vec![]);
             let point = projection(&app, app.viewport.rect.unwrap()).to_screen(Vec3::ZERO).unwrap();
             let before = app.cam;
@@ -4323,7 +4323,7 @@ mod tests {
                 let ctx = egui::Context::default();
                 let mut app = hover_app(false);
                 app.preferences.nav = preset.into();
-                app.ui.show_origin = false;
+                app.set_origin_shown(false);
                 hover_frame(&mut app, &ctx, vec![]);
                 let point = projection(&app, app.viewport.rect.unwrap()).to_screen(Vec3::ZERO).unwrap();
                 let (start, end) = match action {
@@ -4379,7 +4379,7 @@ mod tests {
             let ctx = egui::Context::default();
             let mut app = hover_app(false);
             app.preferences.nav = crate::prefs::OPENSCAD_NAV.into();
-            app.ui.show_origin = false;
+            app.set_origin_shown(false);
             hover_frame(&mut app, &ctx, vec![]);
             let point = projection(&app, app.viewport.rect.unwrap()).to_screen(Vec3::ZERO).unwrap();
             let (start, end) =
@@ -4729,7 +4729,7 @@ mod tests {
             let mut s = solidcraft_engine::Session::default();
             s.execute("solid.box", &json!({"length": 40, "width": 30, "height": 20})).unwrap();
             let mut app = SolveApp::new(s, crate::Services::default());
-            app.ui.show_origin = false;
+            app.set_origin_shown(false);
             if gpu {
                 app.viewport.gpu = Some(GpuTarget { format: egui_wgpu::wgpu::TextureFormat::Rgba8Unorm, depth: None, samples: 1, tess: false });
             }
@@ -4850,14 +4850,14 @@ mod tests {
         let mut s = solidcraft_engine::Session::default();
         s.execute("solid.cylinder", &json!({"radius": 10, "height": 20})).unwrap();
         let mut app = SolveApp::new(s, crate::Services::default());
-        app.ui.show_origin = false;
+        app.set_origin_shown(false);
         app
     }
 
     #[test]
     fn body_highlight_buffers_are_reused_when_the_camera_orbits_or_pans() {
         let mut app = cylinder_app();
-        app.ui.show_origin = true;
+        app.set_origin_shown(true);
         app.viewport.hover_bodies = vec!["Body1".into()];
         let key = highlight_key(&app);
         let before = build_highlight(&app).merged();
@@ -4887,7 +4887,7 @@ mod tests {
     #[test]
     fn world_highlight_block_survives_zoom_and_refreshes_when_bodies_are_hidden() {
         let mut app = cylinder_app();
-        app.ui.show_origin = true;
+        app.set_origin_shown(true);
         app.viewport.hover_bodies = vec!["Body1".into()];
         let before = build_highlight(&app);
         let bytes = before.blocks[0].bytes.clone();
@@ -5102,7 +5102,7 @@ mod tests {
         let mut h = crate::scenario::Harness::new();
         h.app.run("solid.box", json!({"length":20,"width":20,"height":20,"corner":[-10,-10,-10]})).unwrap();
         h.app.run("inspect.section", json!({"plane": "XZ", "offset": 0})).unwrap();
-        h.app.ui.show_origin = true;
+        h.app.set_origin_shown(true);
         h.frames(2);
         assert!(section_plane(&h.app).is_some());
         let sc = build_highlight(&h.app).merged();
@@ -6211,7 +6211,7 @@ mod grid_plane_tests {
     fn create_sketch_shows_the_origin_planes_through_the_model() {
         let mut app = SolveApp::new(solidcraft_engine::Session::default(), crate::Services::default());
         app.run("solid.box", json!({"length":40,"width":40,"height":40})).unwrap();
-        app.ui.show_origin = false;
+        app.set_origin_shown(false);
         assert!(origin_planes(&app).is_empty());
         assert!(build_highlight(&app).xray.is_empty());
         app.start("sketch.create");
@@ -6222,7 +6222,7 @@ mod grid_plane_tests {
         assert!(sc.guide_trans.is_empty());
         app.dialog = None;
         assert!(origin_planes(&app).is_empty());
-        app.ui.show_origin = true;
+        app.set_origin_shown(true);
         let sc = build_highlight(&app);
         assert!(sc.xray.is_empty() && !sc.guide_trans.is_empty(), "outside Create Sketch the planes are depth-tested");
     }

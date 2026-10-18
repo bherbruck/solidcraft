@@ -8,7 +8,7 @@ use solidcraft_engine::render::{SampledPath, SamplingQuality};
 use std::sync::Arc;
 
 fn circle(h: &mut Harness) -> u64 {
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.run("parameters.add", json!({"name":"foreground_diameter","expression":"2 mm"})).unwrap();
     h.app.run("sketch.create", json!({"plane":"XY","name":"PixelCircle"})).unwrap();
     h.app.run("sketch.circle.center", json!({"center":[0,0],"radius":1})).unwrap();
@@ -295,7 +295,7 @@ fn pixel_frame_budget_does_not_cache_unbounded_empty_curve_results() {
 #[test]
 fn zoomed_in_ring_fill_fits_the_hover_highlight_budget() {
     let mut h = Harness::new();
-    h.app.ui.show_origin = false;
+    h.app.set_origin_shown(false);
     h.app.ui.perspective = true;
     h.app.run("sketch.create", json!({"plane":"XY","name":"Ring"})).unwrap();
     h.app.run("sketch.circle.center", json!({"center":[0,0],"radius":40})).unwrap();

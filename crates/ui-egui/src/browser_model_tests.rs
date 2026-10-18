@@ -22,7 +22,7 @@ fn navigating_and_selecting_reuse_placements_but_rows_read_live_view_state() {
     h.app.cam.yaw += 0.25;
     h.app.run("select.set", json!({"items":[Sel::Body{name:"Body1".into()}]})).unwrap();
     h.app.session.visibility.hidden_bodies.push("Body1".into());
-    h.app.ui.locked_bodies.push("Body1".into());
+    h.app.session.visibility.locked_bodies.push("Body1".into());
     let after = super::model_placement(&mut h.app, &[occurrence]).unwrap();
     assert!(Arc::ptr_eq(&first, &after), "view-only changes resolved the same placement again");
     let rows = super::entries(&h.app, component, "bodies");

@@ -12,7 +12,7 @@ fn app() -> SolveApp {
     s.execute("solid.fillet", &json!({"edges": [[40, 15, 20]], "radius": 4})).unwrap();
     s.execute("solid.cylinder", &json!({"radius": 8, "height": 35, "base": [10, 10, 0], "operation": "new_body"})).unwrap();
     let mut app = SolveApp::new(s, crate::Services::default());
-    app.ui.show_origin = false;
+    app.set_origin_shown(false);
     app.cam.target = Vec3::new(20.0, 15.0, 12.0);
     app.cam.distance = 110.0;
     // A GPU viewport (no device is needed to hand the picker a tile).
