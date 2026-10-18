@@ -477,3 +477,5 @@ A frame whose meshes the GPU refuses to stage (device lost or out of memory) is
 skipped with a warning instead of panicking (#1469).
 Paint callbacks are prepared only after a drawable is acquired, so a skipped
 surface frame cannot strand cached meshes without their GPU initialization.
+Surface configuration and background capture submissions share a gate, preventing
+thumbnail rendering from submitting while the surface waits for the device to be idle (#1789).

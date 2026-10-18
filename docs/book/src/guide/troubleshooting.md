@@ -21,6 +21,13 @@ Setting `SOLIDCRAFT_SAFE_MODE=1` does the same. From 0.10.2, if two launches in 
 before the window opens, the next one starts in safe mode by itself. `SOLIDCRAFT_RENDERER=cpu`
 uses only the software renderer and keeps your settings.
 
+If graphics setup fails, or graphics fail within ten seconds of the first presentation,
+SolidCraft retries once in safe mode in a fresh process. Interacting with the app or having
+unsaved designs disables this retry. That retry ignores `WGPU_BACKEND` and saved graphics
+preferences so it can use the software renderer. If that also fails, it shows the error;
+it does not keep restarting. The original panic is still saved in the crash folder.
+The control channel starts after this startup settling period.
+
 ## Reset the settings
 
 SolidCraft keeps its settings and its data in the folders below. All installed versions share

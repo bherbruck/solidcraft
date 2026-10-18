@@ -34,7 +34,7 @@ pub fn install(rs: &egui_wgpu::RenderState, depth_bits: u8, stencil_bits: u8, sa
 pub fn install_picture_renderer(rs: &egui_wgpu::RenderState) {
     match solidcraft_gpu::capture::Capturer::new(&rs.adapter, rs.device.clone(), rs.queue.clone()) {
         Ok(capturer) => {
-            let capturer = std::sync::Arc::new(capturer);
+            let capturer = std::sync::Arc::new(capturer.with_queue_access(rs.queue_access.clone()));
             solidcraft_engine::capture::install(std::sync::Arc::new(move |scene, cam, w, h| {
                 let rgba = capturer.rgba(scene, cam, w, h).map_err(|e| e.to_string())?;
                 Ok(solidcraft_engine::capture::Picture { rgba, renderer: capturer.renderer() })

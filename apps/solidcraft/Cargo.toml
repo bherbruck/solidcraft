@@ -81,3 +81,8 @@ winit = { version = "0.30", default-features = false, features = ["x11"] }
 
 [build-dependencies]
 embed-resource = "3.0.11"
+
+[target.'cfg(target_os = "windows")'.dev-dependencies]
+solidcraft-gpu = { workspace = true }
+# Reproduce a failed surface reconfiguration on WARP without hanging a physical GPU.
+winit = { version = "0.30", default-features = false, features = ["rwh_06"] }

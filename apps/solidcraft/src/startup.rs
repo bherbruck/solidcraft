@@ -8,10 +8,68 @@
 //!   row the next launch starts in safe mode by itself.
 //! - **Safe mode** (`--safe-mode` or `SOLIDCRAFT_SAFE_MODE=1`): default settings (the saved ones
 //!   are left untouched), no recovery offer, the software renderer and CPU meshing.
-//! - **No usable graphics device**: one retry on the software renderer
-//!   (`SOLIDCRAFT_RENDERER=cpu`), then a message box saying what failed and what to try.
+//! - **Graphics failure during startup**: one retry in safe mode on the
+//!   software renderer, then a message box saying what failed and what to try.
 
 use std::path::{Path, PathBuf};
+
+/// A queued presentation can return before a driver reset is reported (#1789). Keep
+/// recovery available for ten seconds after it, unless the user starts interacting.
+pub const STARTUP_SETTLE_TIME: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Shared with the event-loop caller so unwinding the app can veto a relaunch if it
+/// contains unsaved work. Once startup has settled or user activity begins, never rearm.
+#[derive(Clone)]
+pub struct Recovery(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+impl Default for Recovery {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Recovery {
+    pub fn new() -> Self {
+        Self(std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)))
+    }
+
+    pub fn eligible(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    pub fn observe(&self, since_present: Option<std::time::Duration>, user_activity: bool) {
+        if user_activity || since_present.is_some_and(|elapsed| elapsed >= STARTUP_SETTLE_TIME) {
+            self.0.store(false, std::sync::atomic::Ordering::Release);
+        }
+    }
+}
+
+/// Start eframe under the graphics recovery boundary, including its app-creation callback.
+pub fn run_native(name: &str, options: eframe::NativeOptions, create_app: eframe::AppCreator<'_>) -> eframe::Result {
+    run_graphics(|| eframe::run_native(name, options, create_app))
+}
+
+/// Keep graphics setup and the first paint inside the same recovery boundary. In particular,
+/// wgpu's surface acquisition can panic after eframe has already constructed the app (#1789).
+/// The installed panic hook still records the original failure before it is caught here.
+pub fn run_graphics(run: impl FnOnce() -> eframe::Result) -> eframe::Result {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)) {
+        Ok(result) => result,
+        Err(payload) => {
+            let message = payload.downcast_ref::<String>().map(String::as_str).or_else(|| payload.downcast_ref::<&str>().copied());
+            let message: String = message.unwrap_or("non-text panic").chars().take(2000).collect();
+            Err(eframe::Error::AppCreation(std::io::Error::other(format!("graphics event loop panicked: {message}")).into()))
+        }
+    }
+}
+
+/// A fresh process avoids reusing a failed device or winit event loop. Safe mode also keeps
+/// saved settings untouched, disables GPU meshing, and ignores a saved backend preference.
+pub fn software_retry(exe: &Path, args: impl IntoIterator<Item = std::ffi::OsString>) -> std::process::Command {
+    let mut command = std::process::Command::new(exe);
+    command.args(args).arg("--safe-mode").env(RENDERER_ENV, "cpu").env_remove(WGPU_BACKEND_ENV);
+    command
+}
 
 /// The environment variable that starts safe mode (any value but `0` or empty).
 pub const SAFE_MODE_ENV: &str = "SOLIDCRAFT_SAFE_MODE";
@@ -206,6 +264,139 @@ pub fn no_window_message(error: &str, settings: Option<&Path>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_non_text_graphics_panic_is_an_error_too() {
+        let error = run_graphics(|| std::panic::panic_any(17usize)).unwrap_err();
+        assert!(error.to_string().contains("non-text panic"));
+    }
+
+    #[test]
+    fn a_post_present_failure_can_retry_but_interaction_or_unsaved_work_vetoes_it() {
+        use std::time::Duration;
+        let recovery = Recovery::new();
+        let app = recovery.clone();
+        app.observe(None, false);
+        assert!(recovery.eligible());
+        // The reporter's normal launch fails at 7 s and safe mode at 2 s, after
+        // Queue::present has returned. Neither should be mistaken for stable startup.
+        for seconds in [2, 7] {
+            app.observe(Some(Duration::from_secs(seconds)), false);
+            assert!(recovery.eligible());
+        }
+        let error = run_graphics(|| panic!("Surface is not configured for presentation"));
+        assert!(error.is_err() && recovery.eligible());
+        // App::drop observes dirty documents even if a paint panics before the next logic.
+        app.observe(None, true);
+        assert!(!recovery.eligible());
+        app.observe(Some(Duration::ZERO), false);
+        assert!(!recovery.eligible(), "saving or becoming idle must not rearm recovery");
+
+        let recovery = Recovery::new();
+        recovery.observe(Some(STARTUP_SETTLE_TIME), false);
+        assert!(!recovery.eligible(), "later runtime failures must not relaunch");
+    }
+
+    #[test]
+    fn software_retry_preserves_files_and_control_args_but_clears_the_backend_override() {
+        let args = ["--control", "47812", "a design.solidcraft"].map(std::ffi::OsString::from);
+        let command = software_retry(Path::new("solidcraft.exe"), args);
+        let args: Vec<_> = command.get_args().collect();
+        assert_eq!(args, ["--control", "47812", "a design.solidcraft", "--safe-mode"]);
+        let env: std::collections::HashMap<_, _> = command.get_envs().collect();
+        assert_eq!(env.get(std::ffi::OsStr::new(RENDERER_ENV)), Some(&Some(std::ffi::OsStr::new("cpu"))));
+        assert_eq!(env.get(std::ffi::OsStr::new(WGPU_BACKEND_ENV)), Some(&None));
+    }
+
+    /// #1789's exact validation panic, on WARP, without a driver reset. A failed
+    /// reconfiguration can remove wgpu's presentation state while leaving a surface object.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn an_unconfigured_surface_after_setup_reaches_graphics_recovery() {
+        use eframe::wgpu;
+        use winit::{event_loop::EventLoop, platform::windows::EventLoopBuilderExtWindows, window::Window};
+
+        let mut builder = EventLoop::builder();
+        builder.with_any_thread(true);
+        let event_loop = builder.build().unwrap();
+        #[allow(deprecated)]
+        let window = std::sync::Arc::new(event_loop.create_window(Window::default_attributes().with_visible(false)).unwrap());
+        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+        descriptor.backends = wgpu::Backends::DX12;
+        let instance = wgpu::Instance::new(descriptor);
+        let surface = instance.create_surface(window).unwrap();
+        let adapter = pollster::block_on(instance.enumerate_adapters(wgpu::Backends::DX12))
+            .into_iter()
+            .find(|a| a.get_info().device_type == wgpu::DeviceType::Cpu && a.is_surface_supported(&surface));
+        let Some(adapter) = adapter else {
+            assert!(std::env::var_os("SOLIDCRAFT_REQUIRE_GPU").is_none(), "WARP is required for the surface regression");
+            eprintln!("skipping the surface regression: no WARP adapter");
+            return;
+        };
+        // The reporter's second failure is a surface reconfigure racing thumbnails on
+        // the very same queue. Exercise the actual painter resize and capture paths.
+        #[allow(deprecated)]
+        let capture_window = std::sync::Arc::new(
+            event_loop
+                .create_window(Window::default_attributes().with_visible(false).with_inner_size(winit::dpi::PhysicalSize::new(64, 64)))
+                .unwrap(),
+        );
+        captures_during_surface_resize(capture_window);
+        let (device, _queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
+        let config = surface.get_default_config(&adapter, 64, 64).unwrap();
+        surface.configure(&device, &config);
+        let frame = match surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(frame) | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+            other => panic!("WARP must acquire the initial frame: {other:?}"),
+        };
+        // Capturing this deliberate configuration failure lets the next acquire reproduce
+        // the report's secondary panic. Drop the old frame inside the same error scope.
+        let validation = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        surface.configure(&device, &config);
+        drop(frame);
+        assert!(pollster::block_on(validation.pop()).is_some());
+        let result = run_graphics(|| {
+            let _frame = surface.get_current_texture();
+            Ok(())
+        });
+        assert!(result.unwrap_err().to_string().contains("Surface is not configured for presentation"));
+    }
+
+    #[cfg(target_os = "windows")]
+    fn captures_during_surface_resize(window: std::sync::Arc<winit::window::Window>) {
+        use eframe::egui_wgpu;
+        use std::num::NonZeroU32;
+        use std::sync::Arc;
+        let mut painter = pollster::block_on(egui_wgpu::winit::Painter::new(
+            egui::Context::default(),
+            crate::wgpu_options(true, None),
+            false,
+            egui_wgpu::RendererOptions::default(),
+        ));
+        pollster::block_on(painter.set_window(egui::ViewportId::ROOT, Some(window))).unwrap();
+        let rs = painter.render_state().unwrap();
+        assert_eq!(rs.adapter.get_info().device_type, eframe::wgpu::DeviceType::Cpu);
+        let capturer = solidcraft_gpu::capture::Capturer::new(&rs.adapter, rs.device.clone(), rs.queue.clone())
+            .unwrap()
+            .with_queue_access(rs.queue_access.clone());
+        let barrier = Arc::new(std::sync::Barrier::new(2));
+        std::thread::scope(|scope| {
+            let capture_barrier = barrier.clone();
+            scope.spawn(move || {
+                let scene = solidcraft_engine::render::Scene::default();
+                let camera = solidcraft_engine::render::Camera::default();
+                capture_barrier.wait();
+                for _ in 0..64 {
+                    let rgba = capturer.rgba(&scene, &camera, 64, 64).unwrap();
+                    assert_eq!(rgba.len(), 64 * 64 * 4);
+                }
+            });
+            barrier.wait();
+            for i in 0..256 {
+                painter.on_window_resized(egui::ViewportId::ROOT, NonZeroU32::new(64 + i % 2).unwrap(), NonZeroU32::new(64).unwrap());
+            }
+        });
+    }
 
     fn scratch(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("solidcraft-startup-{name}-{}", std::process::id()));

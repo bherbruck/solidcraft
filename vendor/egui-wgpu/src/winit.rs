@@ -27,8 +27,16 @@ struct SurfaceState {
     needs_recreate: bool,
 }
 
-/// SolidCraft: whether a frame was presented yet (`crate::STEP_FIRST_PRESENT`).
+/// SolidCraft: whether the first presentation attempt began (`crate::STEP_FIRST_PRESENT`).
 static FIRST_PRESENT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+static FRAME_PRESENTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// SolidCraft: whether a root window frame has actually reached `Queue::present` successfully.
+/// Beginning an acquisition or running the app's logic again does not prove this (#1789).
+pub fn has_presented_frame() -> bool {
+    FRAME_PRESENTED.load(std::sync::atomic::Ordering::Acquire)
+}
 
 /// Everything you need to paint egui with [`wgpu`] on [`winit`].
 ///
@@ -147,6 +155,10 @@ impl Painter {
             surf_config.desired_maximum_frame_latency = desired_maximum_frame_latency;
         }
 
+        // SolidCraft: Surface::configure requires an idle queue. A thumbnail submission
+        // racing its internal wait produces GpuWaitTimeout and removes presentation state
+        // (#1789), even on WARP. Hold the same gate as background capture submissions.
+        let _access = render_state.queue_access.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         surface_state
             .surface
             .configure(&render_state.device, &surf_config);
@@ -812,6 +824,9 @@ impl Painter {
             // wgpu doesn't document where vsync can happen. Maybe here?
             let start = web_time::Instant::now();
             render_state.queue.present(output_frame);
+            if viewport_id == ViewportId::ROOT {
+                FRAME_PRESENTED.store(true, std::sync::atomic::Ordering::Release);
+            }
             vsync_sec += start.elapsed().as_secs_f32();
         }
 

@@ -34,25 +34,56 @@ use solidcraft_ui_egui::{Services, SolveApp};
 
 struct App {
     solve: SolveApp,
-    /// The settings folder whose start marker the first frame clears (`startup::started`).
+    /// The settings folder whose start marker a settled startup clears.
     starting: Option<std::path::PathBuf>,
-    /// Frames begun; the second one means the first was drawn (startup is over).
-    frames: u32,
+    startup_complete: bool,
+    first_presented: Option<std::time::Instant>,
+    recovery: startup::Recovery,
+    /// Bind after startup settles, so a failed startup cannot hold the retry's port.
+    control_port: Option<u16>,
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     space_mouse: space_mouse::SpaceMouse,
 }
 
+impl Drop for App {
+    fn drop(&mut self) {
+        // Painting and control commands can change a design after logic ran. Check on
+        // unwind too: a replacement process must never discard an unsaved document.
+        self.recovery.observe(None, solidcraft_ui_egui::documents::any_dirty(&self.solve));
+    }
+}
+
 impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if self.frames < 2 {
-            self.frames += 1;
-            // A second frame right away, which means the first was presented: the app is up.
-            ctx.request_repaint();
-            if self.frames == 2 {
+        if !self.startup_complete {
+            let interacted = ctx.input(|i| {
+                i.events.iter().any(|event| {
+                    matches!(
+                        event,
+                        egui::Event::PointerButton { .. }
+                            | egui::Event::Key { .. }
+                            | egui::Event::Text(_)
+                            | egui::Event::Paste(_)
+                            | egui::Event::Touch { .. }
+                            | egui::Event::MouseWheel { .. }
+                    )
+                })
+            });
+            self.recovery.observe(self.first_presented.map(|at| at.elapsed()), interacted || solidcraft_ui_egui::documents::any_dirty(&self.solve));
+            if eframe::egui_wgpu::winit::has_presented_frame() {
+                self.first_presented.get_or_insert_with(std::time::Instant::now);
+            }
+            if !self.recovery.eligible() {
+                self.startup_complete = true;
+                if let Some(port) = self.control_port.take() {
+                    self.solve.set_control(control_server::start(port, ctx.clone()));
+                }
                 solidcraft_engine::crash::phase(solidcraft_engine::crash::RUNNING);
                 if let Some(dir) = self.starting.take() {
                     startup::started(&dir);
                 }
+            } else {
+                ctx.request_repaint_after(std::time::Duration::from_millis(100));
             }
         }
         // The design on screen is the one whose commands a crash report replays.
@@ -561,14 +592,13 @@ fn main() -> eframe::Result {
     // Files opened from Finder and the Dock arrive as events, not arguments.
     #[cfg(target_os = "macos")]
     open_documents::install();
-    let created = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let created_in_app = created.clone();
     let starting = settings.clone();
-    let result = eframe::run_native(
+    let recovery = startup::Recovery::new();
+    let app_recovery = recovery.clone();
+    let result = startup::run_native(
         "SolidCraft",
         options,
         Box::new(move |cc| {
-            created_in_app.store(true, std::sync::atomic::Ordering::SeqCst);
             solidcraft_engine::crash::phase("app setup");
             solidcraft_ui_egui::fonts::setup_fonts(&cc.egui_ctx);
             let mut app = SolveApp::new(Session::default(), services(cc));
@@ -604,10 +634,6 @@ fn main() -> eframe::Result {
                     "Renderer: {:?} {} ({}), MSAA {}x",
                     info.backend, info.name, info.driver, rs.msaa_samples
                 ));
-            }
-            if let Some(port) = control_port {
-                let rx = control_server::start(port, cc.egui_ctx.clone());
-                app = app.with_control(rx);
             }
             // The agent chat's MCP bridge reaches the app through an endpoint of its own, started
             // on a free port the first time the chat connects (docs/agent-chat.md).
@@ -661,7 +687,10 @@ fn main() -> eframe::Result {
             Ok(Box::new(App {
                 solve: app,
                 starting,
-                frames: 0,
+                startup_complete: false,
+                first_presented: None,
+                recovery: app_recovery,
+                control_port,
                 #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
                 space_mouse,
             }))
@@ -669,7 +698,14 @@ fn main() -> eframe::Result {
     );
     control_server::remove_token_file();
     match result {
-        Err(e) if !created.load(std::sync::atomic::Ordering::SeqCst) => no_window(e, cpu_renderer, settings.as_deref()),
+        Err(e) if recovery.eligible() => no_window(e, cpu_renderer, settings.as_deref()),
+        Ok(()) => {
+            // A normal quit within the settling interval is not a failed launch.
+            if let Some(dir) = settings.as_deref() {
+                startup::started(dir);
+            }
+            Ok(())
+        }
         r => r,
     }
 }
@@ -715,7 +751,7 @@ fn no_window(error: eframe::Error, tried_cpu: bool, settings: Option<&std::path:
     eprintln!("SolidCraft: the window could not open: {error}");
     if !tried_cpu && let Ok(exe) = std::env::current_exe() {
         eprintln!("SolidCraft: trying again with the software renderer ({}=cpu)", startup::RENDERER_ENV);
-        match std::process::Command::new(exe).args(std::env::args_os().skip(1)).env(startup::RENDERER_ENV, "cpu").status() {
+        match startup::software_retry(&exe, std::env::args_os().skip(1)).status() {
             Ok(status) if status.success() => return Ok(()),
             // The second try showed its own message.
             Ok(_) => return Err(error),

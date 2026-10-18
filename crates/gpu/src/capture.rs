@@ -34,6 +34,8 @@ const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 pub struct Capturer {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    /// Shared with surface configuration when this capturer uses a window's device.
+    queue_access: Option<Arc<Mutex<()>>>,
     adapter: String,
     /// The adapter is a GPU driver running on the CPU (llvmpipe, lavapipe, WARP).
     software: bool,
@@ -78,7 +80,15 @@ impl Capturer {
             state: Mutex::new(State { renderer, background, key: 0, access_version: 0 }),
             device,
             queue,
+            queue_access: None,
         })
+    }
+
+    /// Serialize submissions with surface configuration on a shared window device.
+    /// Only submission holds this gate; encoding and readback never block window resize.
+    pub fn with_queue_access(mut self, access: Arc<Mutex<()>>) -> Self {
+        self.queue_access = Some(access);
+        self
     }
 
     /// A device of its own, without a window (native only): the adapter the `SOLIDCRAFT_GPU`
@@ -210,7 +220,14 @@ impl Capturer {
             },
             size,
         );
-        let submission = queue.submit([encoder.finish()]);
+        let submission = {
+            let _access = self
+                .queue_access
+                .as_ref()
+                .map(|access| access.lock().map_err(|_| GpuError::Render("surface configuration failed on this device".into())))
+                .transpose()?;
+            queue.submit([encoder.finish()])
+        };
         if let Some(e) = caught(scopes) {
             return Err(GpuError::Render(e));
         }
@@ -222,11 +239,14 @@ impl Capturer {
         device
             .poll(wgpu::PollType::Wait { submission_index: Some(submission), timeout: Some(TIMEOUT) })
             .map_err(|e| GpuError::Render(format!("waiting for the picture: {e}")))?;
-        match rx.try_recv() {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => return Err(GpuError::Render(format!("reading the picture back: {e}"))),
-            Err(_) => return Err(GpuError::Unsupported("reading a picture back without waiting for the browser".into())),
-        }
+        // Another thread polling this shared device (surface configuration does this)
+        // may own the completed mapping callback but not have dispatched it yet. A
+        // successful poll is not proof that this channel is ready at this instant.
+        #[cfg(not(target_arch = "wasm32"))]
+        let mapped = rx.recv_timeout(TIMEOUT).map_err(|e| GpuError::Render(format!("waiting for picture readback: {e}")))?;
+        #[cfg(target_arch = "wasm32")]
+        let mapped = rx.try_recv().map_err(|_| GpuError::Unsupported("reading a picture back without waiting for the browser".into()))?;
+        mapped.map_err(|e| GpuError::Render(format!("reading the picture back: {e}")))?;
         let data = slice.get_mapped_range().map_err(|e| GpuError::Render(format!("reading the picture back: {e}")))?;
         let mut rgba = Vec::with_capacity((row as usize) * (height as usize));
         for r in data.chunks(padded as usize).take(height as usize) {

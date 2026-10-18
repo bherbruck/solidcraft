@@ -206,6 +206,10 @@ Original package sources from https://github.com/emilk/egui/tree/0.36.2/crates/e
 with both original licence texts retained. No images or bundled documentation are copied.
 
 SolidCraft changes:
+- `src/lib.rs`, `src/winit.rs`: share a queue submission gate with offscreen capture;
+  surface configuration cannot race background thumbnail submissions (#1789).
+- `src/winit.rs`: expose whether the root window has successfully presented a frame, so a
+  graphics panic after app creation still reaches the host's startup recovery (#1789).
 - `src/lib.rs`: use 1x MSAA on the selected OpenGL adapter before creating pipelines,
   exposing the effective sample count so host paint callbacks can match it.
 - `src/winit.rs`: use that same effective count for depth and resolve attachments.
