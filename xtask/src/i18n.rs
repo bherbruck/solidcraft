@@ -24,7 +24,7 @@ const DIR: &str = "assets/locales";
 
 /// Catalogs delivered complete: a missing message here fails `--check`. English is the source
 /// catalog and is checked implicitly; keep this in step with `COMPLETE` in `ui-egui::i18n`.
-const COMPLETE: &[&str] = &["ja", "zh"];
+const COMPLETE: &[&str] = &["ja", "ms", "zh"];
 
 /// What `run` found.
 #[derive(Default)]

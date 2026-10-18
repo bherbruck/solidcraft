@@ -1,6 +1,6 @@
 # UI localization
 
-SolidCraft embeds its translations and works offline. English, Japanese, German, French, Galician, Korean,
+SolidCraft embeds its translations and works offline. English, Japanese, German, French, Galician, Korean, Malay,
 Brazilian Portuguese, Russian, Ukrainian, Turkish and Chinese are currently registered in `crates/ui-egui/src/i18n.rs`. Adding a language requires an
 embedded catalog and one registration there; the preferences selector and validation use the same
 registry.
@@ -31,9 +31,9 @@ that looks untranslated. Two guards catch that in the build:
 
 - `every_complete_catalog_carries_every_english_message` — adding a key to `en.json`
   without giving it to a complete catalog fails the tests. English is the source catalog,
-  Japanese and Chinese are delivered complete; German, Galician, Korean, Brazilian Portuguese, Russian, French, Ukrainian and
+  Japanese, Malay and Chinese are delivered complete; German, Galician, Korean, Brazilian Portuguese, Russian, French, Ukrainian and
   Turkish are partial — their gaps fall back to English and are reported by `cargo xtask i18n` without
-  failing the build. A new label needs en, ja, zh, de and ko; Russian, French and Ukrainian may
+  failing the build. A new label needs en, ja, ms, zh, de and ko; Russian, French and Ukrainian may
   follow later.
 - `every_toolbar_tab_and_panel_is_in_the_english_catalog` — tabs and panels reach the UI as bare
   source strings, resolved only by the English-label adapter, so a heading missing from `en.json`
