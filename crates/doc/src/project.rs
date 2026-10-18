@@ -3,13 +3,16 @@
 //!
 //! Model geometry is found again on every recompute: a face or an edge by the persistent name
 //! its link keeps, anything else (and a link saved without a name) from the reference point
-//! stored in the link. Edge polylines from the tessellation lie exactly on their curves,
-//! so lines and circular arcs are recovered exactly by fitting; anything else (an ellipse from
-//! a tilted circle, a spline edge) becomes a chain of lines.
+//! stored in the link. An edge of a solid lying in a plane parallel to the sketch's comes in as
+//! its exact curve (a line, an arc, the Bézier pieces of a free-form curve such as a letter
+//! cut from a font), so a profile drawn round it meets the solid's faces exactly. Anything
+//! else is fitted to its polyline from the tessellation, which lies exactly on the curve:
+//! lines and circular arcs are recovered exactly, the rest (an ellipse from a tilted circle,
+//! a spline edge running out of the plane) becomes a chain of lines.
 
 use std::collections::BTreeMap;
 
-use solidcraft_geom::{Mesh, Plane, Vec2, Vec3};
+use solidcraft_geom::{Mesh, Plane, Seg2, Vec2, Vec3};
 use solidcraft_sketch::{CurveKind, LinkGeom, LinkKind, LinkSource, Sketch};
 
 use crate::eval::ModelState;
@@ -117,7 +120,8 @@ fn resolve_uncached(
             let name = st.bodies.get(bi).map(|b| b.name.clone()).unwrap_or_else(|| body.clone());
             source = LinkSource::Edge { body: name, at: q };
             edge_index = Some(e);
-            edge_geom(plane, kind, mesh.edges.get(e).cloned().unwrap_or_default(), &mut wires)
+            let exact = st.bodies.get(bi).and_then(|b| exact_edges(b, plane, &[e]).pop().flatten());
+            edge_geom(plane, kind, exact, mesh.edges.get(e).cloned().unwrap_or_default(), &mut wires)
         }
         LinkSource::Face { body, at } => {
             let (bi, mesh) = body_mesh(st, body, *at)?;
@@ -133,13 +137,8 @@ fn resolve_uncached(
             match kind {
                 LinkKind::Intersect => section(plane, &mesh, Some(f)),
                 _ => {
-                    let mut g = Vec::new();
                     let target = st.bodies.get(bi).ok_or_else(|| lost("the projection body"))?;
-                    for e in projection_face_edges(target, &mesh, f, plane)? {
-                        if let Some(pts) = mesh.edges.get(e) {
-                            g.extend(fit_world(plane, pts));
-                        }
-                    }
+                    let g = projected_edges(target, &mesh, plane, &projection_face_edges(target, &mesh, f, plane)?);
                     if certified_planar_construction(target, f as usize) { merge_family_lines(g)? } else { g }
                 }
             }
@@ -284,15 +283,58 @@ fn off_plane(plane: &Plane, pts: &[Vec3]) -> bool {
 
 /// What a body edge (its points) gives a sketch: its section with the sketch plane, itself as a
 /// 3D curve (into `wires`) when it is included and leaves the plane, else its projection.
-fn edge_geom(plane: &Plane, kind: LinkKind, pts: Vec<Vec3>, wires: &mut Vec<Vec<Vec3>>) -> Vec<LinkGeom> {
+/// An edge (its `exact` curve when read, and its polyline `pts`) projected for a link of `kind`.
+fn edge_geom(plane: &Plane, kind: LinkKind, exact: Option<Vec<LinkGeom>>, pts: Vec<Vec3>, wires: &mut Vec<Vec<Vec3>>) -> Vec<LinkGeom> {
     match kind {
         LinkKind::Intersect => section_of_polyline(plane, &pts),
         LinkKind::Include if off_plane(plane, &pts) => {
             wires.push(pts);
             Vec::new()
         }
-        _ => fit_world(plane, &pts),
+        _ => exact.unwrap_or_else(|| fit_world(plane, &pts)),
     }
+}
+
+/// Edges `edges` of `body` (indices into its mesh's `edges`) on `plane` as their exact curves:
+/// lines, circles and arcs, and the Bézier pieces of a free-form curve. `None` for an edge that
+/// doesn't lie in a plane parallel to `plane` or isn't read exactly (a mesh body's): it is
+/// fitted to its polyline instead.
+fn exact_edges(body: &crate::ModelBody, plane: &Plane, edges: &[usize]) -> Vec<Option<Vec<LinkGeom>>> {
+    body.body.planar_edges(plane, edges).into_iter().map(|segs| segs?.iter().map(link_geom).collect()).collect()
+}
+
+/// `edges` of `body` projected on `plane`: each exactly ([`exact_edges`]) or fitted to its
+/// polyline in `mesh`.
+fn projected_edges(body: &crate::ModelBody, mesh: &Mesh, plane: &Plane, edges: &[usize]) -> Vec<LinkGeom> {
+    let mut out = Vec::new();
+    for (e, exact) in edges.iter().zip(exact_edges(body, plane, edges)) {
+        match exact {
+            Some(g) => out.extend(g),
+            None => {
+                if let Some(pts) = mesh.edges.get(*e) {
+                    out.extend(fit_world(plane, pts));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// A boundary segment as the link geometry that is the same curve.
+fn link_geom(s: &Seg2) -> Option<LinkGeom> {
+    Some(match *s {
+        Seg2::Line { a, b } => LinkGeom::Line(a, b),
+        Seg2::Arc { center, radius, sweep, .. } if sweep.abs() >= std::f64::consts::TAU - 1e-9 => LinkGeom::Circle(center, radius),
+        Seg2::Arc { center, radius, start, sweep } => {
+            let at = |t: f64| center + Vec2::new(t.cos(), t.sin()) * radius;
+            // Counter-clockwise from `a` to `b`.
+            let (a, b) = if sweep > 0. { (at(start), at(start + sweep)) } else { (at(start + sweep), at(start)) };
+            LinkGeom::Arc { c: center, a, b }
+        }
+        Seg2::Conic { a, apex, b, w } => LinkGeom::Conic { a, apex, b, rho: w / (1. + w) },
+        Seg2::Cubic { p0, p1, p2, p3 } => LinkGeom::Spline { pts: vec![p0, p1, p2, p3], control: true, degree: 3, periodic: false },
+        Seg2::Bezier { n, p } => LinkGeom::Spline { pts: p.get(..=usize::from(n))?.to_vec(), control: true, degree: n, periodic: false },
+    })
 }
 
 /// The persistent name of the edge an `Edge` reference resolved to, for its link to keep and
@@ -331,7 +373,8 @@ fn resolve_named_edge(st: &ModelState, plane: &Plane, kind: LinkKind, body: &str
         .min_by(|a, b| a.dist(near).total_cmp(&b.dist(near)))
         .ok_or_else(|| lost("named projection edge"))?;
     let mut wires = Vec::new();
-    let geom = edge_geom(plane, kind, pts, &mut wires);
+    let exact = exact_edges(target, plane, &[index]).pop().flatten();
+    let geom = edge_geom(plane, kind, exact, pts, &mut wires);
     if geom.is_empty() && wires.is_empty() {
         return Err(DocError::Invalid("named edge projects to nothing on this sketch plane".into()));
     }
@@ -350,12 +393,7 @@ fn resolve_named_face(st: &ModelState, plane: &Plane, kind: LinkKind, body: &str
     let geom = if kind == LinkKind::Intersect {
         section(plane, &mesh, Some(index))
     } else {
-        let mut geom = Vec::new();
-        for edge in projection_face_edges(target, &mesh, index, plane)? {
-            if let Some(points) = mesh.edges.get(edge) {
-                geom.extend(fit_world(plane, points));
-            }
-        }
+        let geom = projected_edges(target, &mesh, plane, &projection_face_edges(target, &mesh, index, plane)?);
         let geom = merge_split_circles(geom);
         if certified_planar_construction(target, index as usize) { merge_family_lines(geom)? } else { geom }
     };
@@ -425,11 +463,7 @@ pub fn resolve_face_indices(st: &ModelState, plane: &Plane, kind: LinkKind, body
         } else {
             order::family_edges(&mesh, &selected, plane)?
         };
-        for edge in edges {
-            if let Some(points) = mesh.edges.get(edge) {
-                geometry.extend(fit_world(plane, points));
-            }
-        }
+        geometry.extend(projected_edges(body, &mesh, plane, &edges));
     }
     if kind != LinkKind::Intersect && (indices.len() > 1 || indices.first().is_some_and(|index| certified_planar_construction(body, *index))) {
         geometry = merge_family_lines(geometry)?;

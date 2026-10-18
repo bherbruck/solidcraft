@@ -1361,6 +1361,29 @@ impl Body {
             .collect())
     }
 
+    /// Edges `indices` (as in [`Body::tessellate`]'s `edges`) in `plane`'s coordinates,
+    /// exactly: lines, circular arcs, and free-form curves as the Bézier spans they are, for a
+    /// sketch to project them. `None` for an edge that doesn't lie in a plane parallel to
+    /// `plane`, isn't read exactly or isn't there, and for every edge of a mesh body.
+    pub fn planar_edges(&self, plane: &solidcraft_geom::Plane, indices: &[usize]) -> Vec<Option<Vec<solidcraft_geom::Seg2>>> {
+        let none = || vec![None; indices.len()];
+        if self.is_mesh() {
+            return none();
+        }
+        let tol = (self.size() * 1e-7).max(1e-9) * 10.0;
+        guard("planar edges", || {
+            let edges = Self::unique_edges(&self.solid);
+            Ok(indices
+                .iter()
+                .map(|i| {
+                    let mut work = 262_144usize;
+                    edges.get(*i).and_then(|e| crate::prism_curve::projected(e, plane, tol, &mut work))
+                })
+                .collect())
+        })
+        .unwrap_or_else(|_| none())
+    }
+
     /// Faces with area and centroid.
     pub fn faces(&self, tol: f64) -> Result<Vec<FaceInfo>> {
         let m = self.tessellate(tol)?;

@@ -242,6 +242,18 @@ pub(super) fn segment_fitted(e: &mt::Edge, plane: &Plane, tol: f64, fit: f64, wo
 }
 
 pub(super) fn segment(e: &mt::Edge, plane: &Plane, tol: f64, work: &mut usize) -> Option<Vec<Seg2>> {
+    read(e, plane, tol, work, false)
+}
+
+/// Edge `e` in `plane` exactly, for a sketch to project it: as [`segment`], and a curve of
+/// several Bézier spans (a chain of a font's curves, a spline through points) as one segment
+/// per span, each the line, conic or Bézier it is. `None` when the edge doesn't lie in a plane
+/// parallel to `plane` or isn't read exactly.
+pub(crate) fn projected(e: &mt::Edge, plane: &Plane, tol: f64, work: &mut usize) -> Option<Vec<Seg2>> {
+    read(e, plane, tol, work, true)
+}
+
+fn read(e: &mt::Edge, plane: &Plane, tol: f64, work: &mut usize, each_span: bool) -> Option<Vec<Seg2>> {
     if !tol.is_finite() || tol <= 0. {
         return None;
     }
@@ -279,7 +291,45 @@ pub(super) fn segment(e: &mt::Edge, plane: &Plane, tol: f64, work: &mut usize) -
     if a.dist(b) > tol && spans.iter().all(|s| line_span(s, a, b, tol, error, work).is_some()) {
         return Some(vec![Seg2::Line { a, b }]);
     }
-    arc(&c, &spans, plane, a, b, tol, error, work).or_else(|| free_form(&spans, a, b, tol))
+    arc(&c, &spans, plane, a, b, tol, error, work)
+        .or_else(|| free_form(&spans, a, b, tol))
+        .or_else(|| if each_span { span_by_span(&spans, a, b, tol) } else { None })
+}
+
+/// Several `spans` end to end, from `a` to `b`, each as the segment it is: a span whose control
+/// polygon lies along its chord a line, the others as [`free_form`] reads them. Spans whose
+/// ends meet are left out; each segment starts where the one before ended.
+fn span_by_span(spans: &[Vec<H>], a: Vec2, b: Vec2, tol: f64) -> Option<Vec<Seg2>> {
+    let spans: Vec<&Vec<H>> = spans.iter().filter(|s| s.first().zip(s.last()).is_some_and(|(p, q)| point(*p).dist(point(*q)) > tol)).collect();
+    if spans.len() < 2 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(spans.len());
+    let mut start = a;
+    for (i, span) in spans.iter().enumerate() {
+        let end = if i + 1 == spans.len() { b } else { point(*span.last()?) };
+        let seg = match free_form(std::slice::from_ref(*span), start, end, tol) {
+            Some(mut s) => s.pop()?,
+            None if span.iter().all(|p| (p[2] - 1.).abs() <= 1e-12) && off_chord(&span.iter().map(|p| point(*p)).collect::<Vec<_>>()) <= tol => {
+                Seg2::Line { a: start, b: end }
+            }
+            None => return None,
+        };
+        out.push(seg);
+        start = end;
+    }
+    Some(out)
+}
+
+/// How far the control points `pts` lie off the chord between the first and the last.
+fn off_chord(pts: &[Vec2]) -> f64 {
+    let (Some(first), Some(last)) = (pts.first().copied(), pts.last().copied()) else { return f64::INFINITY };
+    let chord = last - first;
+    let len = chord.len();
+    if !(len > 0.) {
+        return f64::INFINITY;
+    }
+    pts.iter().map(|p| chord.cross(*p - first).abs()).fold(0., f64::max) / len
 }
 
 /// One Bézier span that is neither a line nor an arc, as the exact free-form segment it is
