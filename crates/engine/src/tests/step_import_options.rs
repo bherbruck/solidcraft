@@ -202,3 +202,29 @@ fn the_bodies_are_named_after_the_solid_the_product_or_the_instance() {
     run(&mut again, "solid.move", json!({"bodies": ["Post-1"], "translate": [0, 0, 5]}));
     assert_eq!(body_names(&again), ["Plate-1", "Post-1"]);
 }
+
+/// `matrix` places the inserted file's component, after `up`, in the same command (one undo
+/// step); a matrix that is not rigid is refused before anything is added.
+#[test]
+fn a_step_file_can_be_inserted_at_a_matrix() {
+    let path = frame_file("matrix");
+    let quarter = json!([0, -1, 0, 100, 1, 0, 0, 0, 0, 0, 1, 0]);
+    let mut s = Session::default();
+    let r = run(&mut s, "file.insert_step", json!({"path": path, "matrix": quarter}));
+    // (x, y, z) goes to (100 - y, x, z): the frame (0..40, 0..34, 0..20) spans x 66..100, y 0..40.
+    let (lo, hi) = extent(&s);
+    assert!(near(lo, [66.0, 0.0, 0.0]) && near(hi, [100.0, 40.0, 20.0]), "{lo:?} {hi:?} {r}");
+    assert_eq!(r["transform"][3][0], json!(100.0), "{r}");
+    assert_eq!(s.undo.len(), 1);
+
+    // Stood up first ((0..40, -20..0, 0..34)), then turned and moved.
+    let mut d = Session::default();
+    run(&mut d, "file.insert_step", json!({"path": path, "up": "y", "matrix": quarter}));
+    let (lo, hi) = extent(&d);
+    assert!(near(lo, [100.0, 0.0, 0.0]) && near(hi, [120.0, 40.0, 34.0]), "{lo:?} {hi:?}");
+
+    let mut d = Session::default();
+    let e = d.execute("file.insert_step", &json!({"path": path, "matrix": [2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0]})).unwrap_err().to_string();
+    assert!(e.contains("not rigid"), "{e}");
+    assert!(d.doc.features.is_empty() && d.doc.occurrences.is_empty());
+}
