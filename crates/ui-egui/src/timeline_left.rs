@@ -2,10 +2,11 @@
 
 use egui::{Color32, Rect, RichText, Sense, Stroke, pos2, vec2};
 use serde_json::json;
-use solidcraft_engine::doc::FeatureKind;
 
 use crate::theme::Tokens;
-use crate::timeline::{clipboard_buttons, delete_feature, delete_features, icon_of, message_button, selected_feature_ids, transport_glyph};
+use crate::timeline::{
+    TimelineKind, clipboard_buttons, delete_feature, delete_features, icon_of, message_button, selected_feature_ids, transport_glyph,
+};
 use crate::{SolveApp, icons};
 
 const FOLDER_INDENT: f32 = 14.0;
@@ -427,7 +428,7 @@ fn group_ancestors_are_open(app: &SolveApp, groups: &[solidcraft_engine::doc::Ti
 
 fn group_first_feature(
     groups: &[solidcraft_engine::doc::TimelineGroup],
-    features: &[(u64, String, &'static str, bool, &'static str, FeatureKind)],
+    features: &[(u64, String, &'static str, bool, &'static str, TimelineKind)],
     id: u64,
 ) -> Option<usize> {
     let group = groups.iter().find(|group| group.id == id)?;
@@ -438,7 +439,7 @@ fn group_first_feature(
 
 fn group_last_feature(
     groups: &[solidcraft_engine::doc::TimelineGroup],
-    features: &[(u64, String, &'static str, bool, &'static str, FeatureKind)],
+    features: &[(u64, String, &'static str, bool, &'static str, TimelineKind)],
     id: u64,
 ) -> Option<usize> {
     let group = groups.iter().find(|group| group.id == id)?;
@@ -449,7 +450,7 @@ fn group_last_feature(
 
 fn visible_order(
     app: &SolveApp,
-    features: &[(u64, String, &'static str, bool, &'static str, FeatureKind)],
+    features: &[(u64, String, &'static str, bool, &'static str, TimelineKind)],
     groups: &[solidcraft_engine::doc::TimelineGroup],
 ) -> Vec<TimelineItem> {
     let mut order = Vec::new();
@@ -615,7 +616,9 @@ fn vertical_features(app: &mut SolveApp, ui: &mut egui::Ui) {
         .doc
         .features
         .iter()
-        .map(|feature| (feature.id, feature.name.clone(), icon_of(&feature.kind), feature.suppressed, feature.kind.type_name(), feature.kind.clone()))
+        .map(|feature| {
+            (feature.id, feature.name.clone(), icon_of(&feature.kind), feature.suppressed, feature.kind.type_name(), TimelineKind::of(&feature.kind))
+        })
         .collect();
     let groups = app.session.doc.timeline_groups.clone();
     let order = visible_order(app, &features, &groups);
@@ -685,7 +688,7 @@ fn vertical_features(app: &mut SolveApp, ui: &mut egui::Ui) {
         }
         slots.push(VerticalSlot { y: ui.cursor().top(), position: index, group: group_id, indent_group });
         let indent = group_id.map(|id| (group_depth(&groups, id) + 1) as f32 * 14.0).unwrap_or(0.0);
-        let has_patterns = matches!(kind, FeatureKind::Sketch { .. }) && crate::sketch_pattern_tree::has_patterns(app, *id);
+        let has_patterns = matches!(kind, TimelineKind::Sketch) && crate::sketch_pattern_tree::has_patterns(app, *id);
         let pattern_key = format!("timeline/sketch/{id}/patterns");
         let patterns_open = crate::browser::is_open(app, &pattern_key, true);
         let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click_and_drag());
@@ -771,10 +774,7 @@ fn vertical_features(app: &mut SolveApp, ui: &mut egui::Ui) {
         if response.double_clicked() && !on_fold {
             edit = Some(*id);
         }
-        let sketch = match kind {
-            FeatureKind::Extrude { sketch, .. } | FeatureKind::Revolve { sketch, .. } | FeatureKind::Sweep { sketch, .. } => Some(*sketch),
-            _ => None,
-        };
+        let sketch = kind.profile_sketch();
         if response.secondary_clicked() && !selected {
             select_only(app, TimelineItem::Feature(*id));
         }

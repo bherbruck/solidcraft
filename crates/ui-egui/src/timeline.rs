@@ -4,12 +4,38 @@ pub(crate) use crate::icons::glyphs::transport_glyph;
 use egui::{Rect, Sense, Stroke, UiBuilder, pos2, vec2};
 use serde_json::json;
 use solidcraft_engine::doc::{
-    FeatureKind, PlaneRef,
+    FeatureKind, PlaneRef, SketchId,
     construct::{AxisDef, PointDef},
 };
 
 use crate::theme::Tokens;
 use crate::{SolveApp, icons};
+
+// Snapshot only the data used by timeline interactions. Cloning FeatureKind here would
+// also copy imported mesh vertices and triangles on every frame.
+#[derive(Clone, Copy)]
+pub(crate) enum TimelineKind {
+    Sketch,
+    Profile(SketchId),
+    Other,
+}
+
+impl TimelineKind {
+    pub(crate) fn of(kind: &FeatureKind) -> Self {
+        match kind {
+            FeatureKind::Sketch { .. } => Self::Sketch,
+            FeatureKind::Extrude { sketch, .. } | FeatureKind::Revolve { sketch, .. } | FeatureKind::Sweep { sketch, .. } => Self::Profile(*sketch),
+            _ => Self::Other,
+        }
+    }
+
+    pub(crate) fn profile_sketch(self) -> Option<SketchId> {
+        match self {
+            Self::Profile(sketch) => Some(sketch),
+            _ => None,
+        }
+    }
+}
 
 pub(crate) fn icon_of(k: &FeatureKind) -> &'static str {
     match k {
@@ -263,7 +289,7 @@ pub fn timeline(app: &mut SolveApp, ui: &mut egui::Ui) {
                     .doc
                     .features
                     .iter()
-                    .map(|f| (f.id, f.name.clone(), icon_of(&f.kind), f.suppressed, f.kind.type_name(), f.kind.clone()))
+                    .map(|f| (f.id, f.name.clone(), icon_of(&f.kind), f.suppressed, f.kind.type_name(), TimelineKind::of(&f.kind)))
                     .collect();
                 // The feature whose body is under the cursor in the viewport.
                 let st = app.session.world_state();
@@ -373,12 +399,7 @@ pub fn timeline(app: &mut SolveApp, ui: &mut egui::Ui) {
                     if resp.double_clicked() {
                         edit = Some(*id);
                     }
-                    let sketch_of = match kind {
-                        FeatureKind::Extrude { sketch, .. } | FeatureKind::Revolve { sketch, .. } | FeatureKind::Sweep { sketch, .. } => {
-                            Some(*sketch)
-                        }
-                        _ => None,
-                    };
+                    let sketch_of = kind.profile_sketch();
                     resp.context_menu(|ui| {
                         if ui.button(crate::i18n::tr_label("Edit Feature")).clicked() {
                             edit = Some(*id);
@@ -593,6 +614,27 @@ mod tests {
         h.app.run("select.clear", json!({})).unwrap();
         h.frames(4);
         h
+    }
+
+    #[test]
+    fn the_feature_menu_edits_its_profile_sketch_in_both_timelines() {
+        for left in [false, true] {
+            let mut h = Harness::new();
+            h.app.preferences.timeline_left = left;
+            h.app.run("sketch.create", json!({"plane": "XY", "name": "Base"})).unwrap();
+            h.app.run("sketch.rectangle.two_point", json!({"p0": [0, 0], "p1": [10, 10]})).unwrap();
+            h.app.run("sketch.finish", json!({})).unwrap();
+            h.app.run("solid.extrude", json!({"sketch": "Base", "distance": 10, "operation": "new", "name": "Depth"})).unwrap();
+            let sketch = h.app.session.doc.find_feature("Base").map(|f| f.id).unwrap();
+            h.frames(4);
+
+            h.step(&json!({"click": {"handle": "timeline:Base"}, "button": "right"})).unwrap();
+            assert!(h.widget("Edit Profile Sketch").is_none(), "left: {left}");
+            h.step(&json!({"key": "Escape"})).unwrap();
+            h.step(&json!({"click": {"handle": "timeline:Depth"}, "button": "right"})).unwrap();
+            h.step(&json!({"widget": "Edit Profile Sketch"})).unwrap();
+            assert_eq!(h.app.session.active_sketch, Some(sketch), "left: {left}");
+        }
     }
 
     fn copied(h: &Harness) -> Vec<String> {
