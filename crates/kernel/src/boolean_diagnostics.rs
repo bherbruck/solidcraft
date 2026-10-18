@@ -17,6 +17,9 @@ pub enum BooleanStrategy {
     /// A boss in the other body's bore, grown into the material around it (nothing recut).
     GrownBoss,
     PlanarFallback,
+    /// The bodies meet along curved faces, which no exact route takes: both were faceted and
+    /// the polygons combined, so the result is flat where they curve.
+    FacetedFallback,
     ToolNudge,
     Piecewise,
     /// No retry gave a result, and the answer from sample points was kept although the bodies'
@@ -38,10 +41,11 @@ pub struct BooleanFallback {
 
 impl BooleanStrategy {
     /// Whether a result made this way can differ from the exact one: the tool was moved
-    /// against the other body, or part of where they meet was ignored. The other retries work
-    /// on temporary geometry or tolerances only, and their results are the exact ones.
+    /// against the other body, part of where they meet was ignored, or curved faces were
+    /// replaced by facets. The other retries work on temporary geometry or tolerances only,
+    /// and their results are the exact ones.
     pub fn alters_result(self) -> bool {
-        matches!(self, BooleanStrategy::ToolNudge | BooleanStrategy::UnverifiedShortcut)
+        matches!(self, BooleanStrategy::ToolNudge | BooleanStrategy::UnverifiedShortcut | BooleanStrategy::FacetedFallback)
     }
 }
 
@@ -60,6 +64,9 @@ impl BooleanFallback {
             BooleanStrategy::CommonBore => format!("temporary bore offset {:.6e} mm, followed by recutting the original bore", self.face_shift_mm),
             BooleanStrategy::GrownBoss => format!("boss grown {:.6e} mm into the material around the bore it fills", self.face_shift_mm),
             BooleanStrategy::PlanarFallback => "exact planar fallback (no displacement)".into(),
+            BooleanStrategy::FacetedFallback => {
+                format!("curved contact faceted to {:.6e} mm (the result is flat where the faces curve)", self.tolerance_mm)
+            }
             BooleanStrategy::ToolNudge => format!("tool displacement {:.6e} mm, rotation {:.6e} rad", self.translation_mm, self.rotation_rad),
             BooleanStrategy::Piecewise => "piecewise retry (no displacement)".into(),
             BooleanStrategy::UnverifiedShortcut => format!(

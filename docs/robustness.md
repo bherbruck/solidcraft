@@ -64,8 +64,8 @@ The changed seeds and the reason are added to the file's `notes`; say why in the
 ## Successful Boolean retries
 
 When an accepted Boolean result needs a retry that can make it differ from the
-exact one (a tool nudge, or the unverified shortcut), the feature shows a
-warning in the timeline. Every other retry works on temporary geometry or
+exact one (a tool nudge, the faceted fallback, or the unverified shortcut), the
+feature shows a warning in the timeline. Every other retry works on temporary geometry or
 tolerances and leaves the exact result, so it is recorded but not warned about.
 `timeline.inspect` and `doc.inspect` expose every retry in the feature's
 `boolean_diagnostics`, including the strategy and the applied translation,
@@ -91,6 +91,17 @@ intersect, so refining only the failing copy is too late. Every candidate must p
 the volume, membership and spatial checks; a rejected candidate continues to the
 next tolerance, then the ordinary routes. The existing acceptance checks still
 apply to all results.
+
+Where the bodies meet along faces that curve, no exact route applies: the
+polygon fallback takes planar faces only, and the operation used to be refused
+(#1865). Both bodies are then faceted and the polygons combined, reported as
+the faceted fallback with the tolerance they were faceted to. It is asked last,
+after every exact route has failed, so a result any of them gives is kept as it
+was; the faceted boolean must first agree with its complementary operation (a
+join and an intersection add up to the operands), and its result is then held
+to the same acceptance checks as every other retry's. Bodies that come to more
+facets than the route combines quickly keep the error they had. It is warned
+about: the result is flat where the faces curve.
 
 A join or a cut that needed any retry is then held to what it can do at all
 (`crates/kernel/src/boolean_guard.rs`, #616): the result is closed, a join
