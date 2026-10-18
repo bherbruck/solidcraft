@@ -1,0 +1,19 @@
+{
+ "description": "Public-safe companion for #1765: a 40 x 30 x 10 plate with a 2 mm round on its top-front edge and two radius-5 circular cuts 1.5 mm deep. Roll back before the circles, insert a 30 x 10 pocket 0.75 mm deep across their upper halves, restore the timeline and redefine the circular cut. This part checks the rebuild and analytic material; empty numerical attempts are injected separately in the kernel regression, since the original design is unavailable.",
+ "commands": [
+  {"command": "solid.box", "params": {"length": 40, "width": 30, "height": 10, "body_name": "Plate", "name": "Plate"}},
+  {"command": "solid.fillet", "params": {"edges": [[20, 0, 10]], "radius": 2, "name": "Rim"}},
+  {"command": "sketch.create", "params": {"plane": "XY", "offset": 10, "name": "Circles"}},
+  {"command": "sketch.circle.center", "params": {"center": [12, 15], "radius": 5}},
+  {"command": "sketch.circle.center", "params": {"center": [28, 15], "radius": 5}},
+  {"command": "sketch.finish", "params": {}},
+  {"command": "solid.extrude", "params": {"sketch": "Circles", "distance": -1.5, "operation": "cut", "name": "ShallowCuts"}},
+  {"command": "timeline.rollback", "params": {"position": 2}},
+  {"command": "sketch.create", "params": {"plane": "XY", "offset": 10, "name": "PocketOutline"}},
+  {"command": "sketch.rectangle.two_point", "params": {"p0": [5, 15], "p1": [35, 25]}},
+  {"command": "sketch.finish", "params": {}},
+  {"command": "solid.extrude", "params": {"sketch": "PocketOutline", "distance": -0.75, "operation": "cut", "name": "EarlierPocket"}},
+  {"command": "timeline.rollback", "params": {}},
+  {"command": "timeline.redefine", "params": {"feature": "ShallowCuts", "command": "solid.extrude", "params": {"sketch": "Circles", "profiles": [0, 1], "distance": "-1.5", "direction": "positive", "convention": "total_distance", "operation": "cut"}}}
+ ]
+}

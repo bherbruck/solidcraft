@@ -45,6 +45,30 @@ fn volume(s: &Session, body: &str) -> f64 {
     s.model.state().body(body).map(|b| solidcraft_kernel::measure(&b.body).unwrap().volume).unwrap_or(0.0)
 }
 
+/// The timeline insertion from #1765 on a small part with analytic material. The kernel test
+/// separately forces the empty numerical attempts, without needing the reporter's design.
+#[test]
+fn shallow_cuts_rebuild_after_inserting_an_earlier_pocket() {
+    let s = replay(include_str!("../../../examples/regressions/shallow_cuts_after_earlier_pocket.json"));
+    let rounded_plate = 40.0 * 30.0 * 10.0 - (4.0 - std::f64::consts::PI) * 40.0;
+    // Half of each circle overlaps the existing 0.75 mm pocket.
+    let expected = rounded_plate - 30.0 * 10.0 * 0.75 - 2.0 * std::f64::consts::PI * 25.0 * (1.5 - 0.75 / 2.0);
+    let reopened = Session::new(solidcraft_doc::Document::from_json(&s.doc.to_json()).unwrap());
+    for session in [s, reopened] {
+        assert!(session.model.results.iter().all(|r| r.error.is_none()));
+        assert_eq!(session.model.state().bodies.len(), 1);
+        let body = &session.model.state().bodies[0].body;
+        assert!(body.validity().is_empty(), "{:?}", body.validity());
+        let actual = volume(&session, "Plate");
+        assert!((actual - expected).abs() < 0.02, "{actual} vs {expected}");
+        let mesh = body.tessellate(0.001).unwrap();
+        assert!(!mesh.contains(solidcraft_geom::Vec3::new(12.0, 14.0, 9.0)));
+        assert!(mesh.contains(solidcraft_geom::Vec3::new(12.0, 14.0, 8.0)));
+        assert!(!mesh.contains(solidcraft_geom::Vec3::new(20.0, 20.0, 9.5)));
+        assert!(mesh.contains(solidcraft_geom::Vec3::new(20.0, 20.0, 9.0)));
+    }
+}
+
 /// #2059: tabs exactly as wide as their supporting ribs share the ribs' side
 /// planes. The base's remote conical chamfer must not prevent their join.
 #[test]
