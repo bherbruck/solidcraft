@@ -2,8 +2,3 @@ self-hosted-runner:
   labels:
     - self-hosted-fast
     - self-hosted-light
-    # Blacksmith (Ubuntu 24.04 only; see the top of workflows/ci.yml).
-    - blacksmith-2vcpu-ubuntu-2404
-    - blacksmith-4vcpu-ubuntu-2404
-    - blacksmith-8vcpu-ubuntu-2404
-    - blacksmith-16vcpu-ubuntu-2404
