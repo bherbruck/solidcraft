@@ -343,6 +343,10 @@ fn faceted_polys(b: &Body, tol: f64, operand: usize) -> Option<Vec<Poly>> {
 /// triangles of `b`; an edge between facets of one face of `a`, or between triangles of `b`,
 /// has no origin.
 pub fn faceted_boolean(a: &Body, b: &Mesh, op: BoolOp, tol: f64) -> Result<Option<Body>> {
+    crate::profile::timed(crate::profile::Kind::Boolean, || faceted_boolean_untimed(a, b, op, tol))
+}
+
+fn faceted_boolean_untimed(a: &Body, b: &Mesh, op: BoolOp, tol: f64) -> Result<Option<Body>> {
     a.require_brep("a boolean")?;
     if !(tol.is_finite() && tol > 0.0) {
         return Err(KernelError::Invalid("facet tolerance".into()));

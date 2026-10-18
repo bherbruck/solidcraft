@@ -1326,6 +1326,10 @@ impl Body {
     /// The reference mesher's angular display mesh: what [`Body::display_mesh_angular`] falls
     /// back to when no plan can be made.
     pub fn reference_display_mesh_angular(&self, tol: f64, angle: f64) -> Result<Mesh> {
+        crate::profile::timed(crate::profile::Kind::Tessellate, || self.reference_display_mesh_angular_untimed(tol, angle))
+    }
+
+    fn reference_display_mesh_angular_untimed(&self, tol: f64, angle: f64) -> Result<Mesh> {
         if let Some((shared, t)) = self.display_of.as_deref()
             && let Some(placed) =
                 shared.mesh.get_or_init(|| shared.original.reference_display_mesh_angular(tol, angle).ok()).as_ref().and_then(|m| placed_mesh(m, t))
