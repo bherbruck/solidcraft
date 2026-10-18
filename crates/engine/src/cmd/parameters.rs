@@ -75,7 +75,7 @@ fn failing(s: &Session) -> Vec<Value> {
     s.model.results.iter().filter_map(|r| r.error.as_ref().map(|e| json!({"feature": r.name, "error": e}))).collect()
 }
 
-fn known(s: &Session, name: &str) -> bool {
+pub(super) fn known(s: &Session, name: &str) -> bool {
     s.doc.param(name).is_some() || s.doc.features.iter().any(|f| f.param_names.iter().any(|n| n == name))
 }
 

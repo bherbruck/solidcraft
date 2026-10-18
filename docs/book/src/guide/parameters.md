@@ -51,3 +51,21 @@ The table's Library picker selects material or appearance values. Choose **Follo
 to clear an appearance override. Custom looks retain their colour and opacity across
 activation, undo and save/reopen. See
 [configuration commands and examples](https://github.com/bherbruck/solidcraft/blob/main/docs/configurations.md).
+
+## Checking a design across a parameter's range
+
+**Parameter Sweep** (`inspect.parameter_sweep`) rebuilds a copy of the design at each of a
+parameter's values and reports what no longer holds, so a design meant to be driven by its
+parameters (one template, many sizes) can be checked before it is trusted. The design itself is
+not changed.
+
+```json
+{"command": "inspect.parameter_sweep", "params": {"parameter": "Width", "from": 300, "to": 510, "steps": 21}}
+```
+
+`values` lists the values instead (numbers or expressions). For each value it gives the rebuild's
+time and what changed from the design as it is now: features that fail (`failed`) or warn
+(`warned`), joints whose origin is no longer found (`joints_lost`) or turned over on its own part
+(`joints_flipped`, more than 90°), sketch planes that turned over (`sketches_flipped`) and sketch
+solves that fail or only hold by flipping a triangle's turn or an offset's side (`sketches_failed`).
+`summary` counts the values that show each.

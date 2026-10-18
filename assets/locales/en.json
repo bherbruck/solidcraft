@@ -423,6 +423,7 @@
   "cmd.inspect_interference": "Interference",
   "cmd.inspect_isocurve": "Isocurve Analysis",
   "cmd.inspect_minimum_radius": "Minimum Radius Analysis",
+  "cmd.inspect_parameter_sweep": "Parameter Sweep",
   "cmd.inspect_silhouette": "Silhouette",
   "cmd.inspect_zebra": "Zebra Analysis",
   "cmd.joint_as_built": "As-Built Joint",
