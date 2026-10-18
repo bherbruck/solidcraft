@@ -15,8 +15,8 @@ use crate::{EngineError, Result, Session};
 
 pub static COMMANDS: &[CommandSpec] = &[
     CommandSpec::new("timeline.add", "Add Recorded Feature", add).icon("new").params(
-        "feature: a feature as the design file and timeline.inspect hold it ({type, name?, id?, …}; id and name are kept when free, \
-         so later steps can refer to them); params?: [{name, expression, unit?, comment?}] (the model parameters its sketch \
+        "feature: a feature as the design file and timeline.inspect hold it ({type, name?, id?, …}; the name is kept even when another \
+         feature has it, the id is kept and refused when another feature has it, so later steps can refer to them); params?: [{name, expression, unit?, comment?}] (the model parameters its sketch \
          dimensions use); the feature goes at the marker → feature, name, error, warning",
     ),
     CommandSpec::new("timeline.export_script", "Export Command Script", export_script).icon("export").noundo().doc_only().params(

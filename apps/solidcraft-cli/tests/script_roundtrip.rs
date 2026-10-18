@@ -84,3 +84,42 @@ fn corpus_designs_replay_from_their_scripts() {
     }
     assert!(replayed >= 7, "replayed {replayed} corpus designs");
 }
+
+/// #1990: a sketch and its extrude may share a name, and the design's script still replays,
+/// keeping the names: the replayed design's own script has the same steps.
+#[test]
+fn a_design_naming_a_sketch_and_its_extrude_alike_replays_from_its_script() {
+    let dir = std::env::temp_dir().join(format!("solidcraft-shared-names-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let cli = |args: &[&std::ffi::OsStr]| {
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_solidcraft-cli")).args(args).output().unwrap();
+        assert!(
+            out.status.success(),
+            "{}: {}",
+            args.iter().map(|a| a.to_string_lossy()).collect::<Vec<_>>().join(" "),
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    let script = dir.join("mini.json");
+    let saved = dir.join("mini.solidcraft");
+    let exported = dir.join("rt.json");
+    let replayed = dir.join("rt.solidcraft");
+    let again = dir.join("rt2.json");
+    let commands = json!({"commands": [
+        {"command": "sketch.create", "params": {"plane": "XY", "name": "Block"}},
+        {"command": "sketch.rectangle.two_point", "params": {"p0": [0, 0], "p1": [20, 10]}},
+        {"command": "sketch.finish", "params": {}},
+        {"command": "solid.extrude", "params": {"distance": "5", "name": "Block"}},
+    ]});
+    std::fs::write(&script, commands.to_string()).unwrap();
+    cli(&["run".as_ref(), script.as_ref(), "--save".as_ref(), saved.as_ref()]);
+    cli(&["script".as_ref(), saved.as_ref(), "--out".as_ref(), exported.as_ref()]);
+    cli(&["run".as_ref(), exported.as_ref(), "--save".as_ref(), replayed.as_ref()]);
+    cli(&["script".as_ref(), replayed.as_ref(), "--out".as_ref(), again.as_ref()]);
+    let first: Value = serde_json::from_str(&std::fs::read_to_string(&exported).unwrap()).unwrap();
+    let second: Value = serde_json::from_str(&std::fs::read_to_string(&again).unwrap()).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    let names: Vec<&str> = first["commands"].as_array().unwrap().iter().filter_map(|c| c["params"]["feature"]["name"].as_str()).collect();
+    assert_eq!(names, ["Block", "Block"], "{first:#}");
+    assert_eq!(second["commands"], first["commands"], "the replayed design's script has the same steps");
+}

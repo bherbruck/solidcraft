@@ -188,7 +188,6 @@ fn a_recorded_feature_that_does_not_fit_is_refused_and_changes_nothing() {
     };
     let refused = [
         ("id taken", with(&extrude, &["feature", "name"], json!("Other"))),
-        ("name taken", with(&extrude, &["feature", "id"], json!(0))),
         ("id out of range", with(&with(&extrude, &["feature", "id"], json!(1u64 << 60)), &["feature", "name"], json!("X"))),
         ("parameter taken", with(&with(&sketch, &["feature", "id"], json!(0)), &["feature", "name"], json!("S2"))),
         (
@@ -250,4 +249,46 @@ fn replayed_features_claiming_the_same_body_name_do_not_crash() {
     assert!(!matches!(r, Err(crate::EngineError::Internal(..))), "{r:?}");
     let m = run(&mut s, "inspect.measure", json!({}));
     assert!(m["body_count"].as_u64().is_some_and(|n| n >= 1), "{m}");
+}
+
+/// #1990: a sketch and the extrude built from it may share a name, as the sample and oracle
+/// designs do; the design's script replays into the same design, names included.
+#[test]
+fn a_design_naming_a_sketch_and_its_extrude_alike_replays() {
+    let mut s = Session::default();
+    run(&mut s, "sketch.create", json!({"plane": "XY", "name": "Block"}));
+    run(&mut s, "sketch.rectangle.two_point", json!({"p0": [0, 0], "p1": [20, 10]}));
+    run(&mut s, "sketch.finish", json!({}));
+    run(&mut s, "solid.extrude", json!({"distance": "5", "name": "Block"}));
+    let names = |t: &Session| t.doc.features.iter().map(|f| f.name.clone()).collect::<Vec<_>>();
+    assert_eq!(names(&s), ["Block", "Block"]);
+    let written = script(&mut s);
+    assert_eq!(commands(&written), ["timeline.add", "timeline.add"]);
+    let mut t = replay(&written);
+    same(&mut s, &mut t);
+    assert_eq!(names(&t), ["Block", "Block"], "the replay keeps both names");
+    assert_eq!(volume(&mut t), 1000.0);
+    // The replay's own script is the same script.
+    assert_eq!(script(&mut t), written);
+}
+
+/// #1990: `timeline.add` keeps a recorded name another feature has, as `solid.extrude` does.
+#[test]
+fn a_replayed_feature_keeps_a_name_another_feature_has() {
+    let mut s = Session::default();
+    run(&mut s, "solid.box", json!({"length": "5", "width": "5", "height": "5", "name": "Twin"}));
+    let r = run(
+        &mut s,
+        "timeline.add",
+        json!({"feature": {"type": "box", "name": "Twin", "length": "5", "width": "5", "height": "5", "corner": [20, 0, 0]}}),
+    );
+    assert_eq!(r["name"], "Twin");
+    assert_eq!(s.doc.features.iter().filter(|f| f.name == "Twin").count(), 2);
+    // A blank recorded name still gets a fresh one.
+    let r = run(
+        &mut s,
+        "timeline.add",
+        json!({"feature": {"type": "box", "name": " ", "length": "5", "width": "5", "height": "5", "corner": [40, 0, 0]}}),
+    );
+    assert_eq!(r["name"], "Box1");
 }
