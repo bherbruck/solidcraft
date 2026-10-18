@@ -6,7 +6,7 @@ use solidcraft_engine::render::StandardView;
 #[test]
 fn thin_rotated_bounds_fit_using_the_original_full_projection() {
     for (width, height, scale) in [(1400.0, 900.0, 1.0), (700.0, 450.0, 2.0), (700.0, 360.0, 2.0), (900.0, 720.0, 1.0)] {
-        let vp = Rect::from_min_max(pos2(250.0, 126.0), pos2(width, height - 30.0));
+        let vp = Rect::from_min_max(pos2(250.0, crate::toolbar::APP_BAR_HEIGHT + crate::toolbar::RIBBON_HEIGHT), pos2(width, height - 30.0));
         let dock = Rect::from_min_max(pos2(width - 205.0, vp.top()), vp.max);
         let layout = Layout::new(vp, &[dock], scale, crate::prefs::NavigatorStyle::Axes);
         assert!(layout.drawable.width() >= 80.0 && layout.drawable.height() >= 30.0, "{layout:?}");
@@ -46,7 +46,7 @@ fn measured_palette_fit_exposes_endpoints_and_layout_changes_preserve_manual_vie
     h.app.run("sketch.line", json!({"points":[[0,0],[20,0]]})).unwrap();
     h.call("ui.view", json!({"view":"top"}));
     h.settle();
-    for (scale, width, height) in [(1.0, 1400.0, 900.0), (2.0, 700.0, 450.0), (2.0, 700.0, 360.0), (1.0, 900.0, 720.0)] {
+    for (scale, width, height) in [(1.0, 1400.0, 900.0), (2.0, 700.0, 475.0), (2.0, 700.0, 385.0), (1.0, 900.0, 720.0)] {
         h.call("ui.prefs", json!({"ui_scale":scale}));
         h.call("ui.resize", json!({"width":width,"height":height}));
         h.settle();
@@ -124,7 +124,7 @@ fn fit_home_animation_and_manual_takeover_use_one_layout_solution() {
 #[test]
 fn measured_navigator_targets_home_and_drag_work_beside_the_palette_at_hidpi() {
     for style in crate::prefs::NavigatorStyle::ALL {
-        for (scale, width, height) in [(1.0, 900.0, 720.0), (2.0, 700.0, 450.0), (2.0, 700.0, 360.0)] {
+        for (scale, width, height) in [(1.0, 900.0, 720.0), (2.0, 700.0, 475.0), (2.0, 700.0, 385.0)] {
             let mut h = Harness::new();
             h.call("ui.prefs", json!({"navigator_style":style}));
             h.app.preferences.look_at_anim = false;
@@ -221,7 +221,7 @@ fn immediate_standard_view_cancels_fit_before_the_measured_frame() {
 #[test]
 fn navigation_anchors_ignore_positioned_resized_and_covering_dialogs() {
     for (width, height, scale) in [(1400.0, 900.0, 1.0), (700.0, 450.0, 2.0), (700.0, 360.0, 2.0)] {
-        let vp = Rect::from_min_max(pos2(250.0, 126.0), pos2(width, height - 30.0));
+        let vp = Rect::from_min_max(pos2(250.0, crate::toolbar::APP_BAR_HEIGHT + crate::toolbar::RIBBON_HEIGHT), pos2(width, height - 30.0));
         let baseline = Layout::new(vp, &[], scale, crate::prefs::NavigatorStyle::Axes);
         assert!(baseline.axis_view.is_positive() && baseline.navigation.is_positive());
         assert_eq!(baseline.axis_view.right_top(), vp.right_top());

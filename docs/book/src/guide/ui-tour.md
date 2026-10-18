@@ -7,8 +7,10 @@
   and one tab per open design (each with its own undo history, selection and camera; a dot marks
   unsaved changes). On the right: Report a bug, Help (?), Preferences (which hold the theme) and the
   window's buttons.
-- **Toolbar.** The workspace switcher (DESIGN) sits on the left. The tabs (SOLID, SURFACE,
-  SHEET METAL, PLASTIC, UTILITIES, and SKETCH while you sketch) hold panels of commands. Click a
+- **Toolbar.** The workspace switcher (DESIGN) sits on the left. The tabs (MODEL, SURFACE,
+  ASSEMBLE, INSERT, INSPECT, MANAGE and VIEW) hold sections of commands. SKETCH appears while
+  editing a sketch; SHEET METAL appears for the active sheet body. Both select automatically
+  when entered, and the other tabs remain available. Click a
   panel's name for all its commands. Drag a command from the dropdown onto a panel's label
   or empty space to append it; the insertion line shows its destination. Drop onto an existing
   button to insert before it. Buttons can also move between panels, and the layout is saved.

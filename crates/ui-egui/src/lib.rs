@@ -197,8 +197,11 @@ pub use control::{ControlRequest, ControlResponse};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct UiState {
-    /// Toolbar tab: SOLID, SURFACE, MESH, SHEET METAL, PLASTIC, UTILITIES (SKETCH while sketching).
+    /// Ribbon tab; contextual SKETCH and SHEET METAL join the seven design tabs.
     pub tab: String,
+    /// Last contextual body/sketch, only used to select on entry.
+    #[serde(skip)]
+    pub ribbon_context: Option<String>,
     pub show_browser: bool,
     pub show_timeline: bool,
     pub show_grid: bool,
@@ -231,7 +234,8 @@ pub struct UiState {
 impl Default for UiState {
     fn default() -> Self {
         UiState {
-            tab: "SOLID".into(),
+            tab: "MODEL".into(),
+            ribbon_context: None,
             show_browser: true,
             show_timeline: true,
             show_grid: true,
@@ -690,12 +694,10 @@ impl SolveApp {
                 self.set_status(msg, true);
             }
         }
-        if self.session.active_sketch.is_some() && self.ui.tab != "SKETCH" {
-            self.ui.tab = "SKETCH".into();
-        } else if self.session.active_sketch.is_none() && self.ui.tab == "SKETCH" {
-            self.ui.tab = "SOLID".into();
+        if self.session.active_sketch.is_none() && self.ui.tab == "SKETCH" {
             self.tool = None;
         }
+        workspace::sync_context(self);
         r
     }
 
@@ -716,6 +718,7 @@ impl SolveApp {
             self.set_status(format!("{label}: {why}"), true);
             return;
         }
+        workspace::select_command_tab(self, id);
         if id == "material.properties.validate" {
             self.material_card_review = Some(material_card_review::ReviewWindow::default());
             self.home.open = false;
@@ -1368,6 +1371,7 @@ impl SolveApp {
             }
         }
         toolbar::toolbar(self, ui);
+        theme::TabAccent::publish(self, ui.ctx());
         let show_timeline = self.ui.show_timeline && !render_workspace::active(self);
         let left_timeline = show_timeline && self.preferences.timeline_left;
         if show_timeline && !left_timeline {

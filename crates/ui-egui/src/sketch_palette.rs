@@ -565,7 +565,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
         ui.add_space((line - gap).max(0.0));
         // A row as tall as the button, so the gap below it is just the line.
         ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), egui::Layout::right_to_left(egui::Align::Min), |ui| {
-            let button = ui.add(egui::Button::new(RichText::new(app.tr("ui.finish_sketch")).color(Color32::WHITE)).fill(t.accent));
+            let button = ui.add(egui::Button::new(RichText::new(app.tr("ui.finish_sketch")).color(t.on_accent)).fill(t.accent));
             crate::scenario::publish_rect("sketch_palette:finish", button.rect);
             crate::scenario::publish_handle("sketch_palette:finish", button.rect.center());
             if button.clicked() {

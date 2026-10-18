@@ -22,7 +22,7 @@ pub(crate) mod pointer;
 
 /// Textures already rasterised: one per (master, look, pixel size).
 #[derive(Clone, Default)]
-struct Cache(Arc<Mutex<HashMap<(&'static str, Look, u32), TextureHandle>>>);
+struct Cache(Arc<Mutex<HashMap<(&'static str, Look, u32, Option<Color32>), TextureHandle>>>);
 
 /// Draw the icon `name` in `r`. The ink, fill and accent colours the callers pass are no longer
 /// used: the palette decides. Only the ink's opacity is kept, so a dimmed (disabled) button dims
@@ -39,6 +39,20 @@ pub fn paint_icon(p: &Painter, r: Rect, name: &str, opacity: f32) {
 /// Draw the icon `name` for a surface that is always dark (the application bar), whatever the
 /// theme: `dark: Some(true)`. `None` follows the theme.
 pub fn paint_on(p: &Painter, r: Rect, name: &str, dark: Option<bool>, opacity: f32) {
+    paint_with_ink(p, r, name, dark, opacity, None);
+}
+
+/// Monochrome flat controls on the application bar use its text token exactly.
+pub(crate) fn paint_app_bar(p: &Painter, r: Rect, name: &str, opacity: f32) {
+    paint_with_ink(p, r, name, Some(true), opacity, Some(crate::theme::Tokens::get().app_bar_text));
+}
+
+/// Paint a single-colour icon in `ink`.
+pub(crate) fn paint_ink(p: &Painter, r: Rect, name: &str, ink: Color32) {
+    paint_with_ink(p, r, name, Some(true), 1.0, Some(ink));
+}
+
+fn paint_with_ink(p: &Painter, r: Rect, name: &str, dark: Option<bool>, opacity: f32, ink: Option<Color32>) {
     let ctx = p.ctx();
     let ppp = ctx.pixels_per_point().max(0.5);
     let side = r.width().min(r.height());
@@ -47,11 +61,16 @@ pub fn paint_on(p: &Painter, r: Rect, name: &str, dark: Option<bool>, opacity: f
     let look = Look { dark: dark.unwrap_or_else(|| ctx.global_style().visuals.dark_mode), accent: resolved.accent, vision: crate::theme::vision() };
     let cache = ctx.data_mut(|d| d.get_temp_mut_or_insert_with(egui::Id::new("sc_icon_cache"), Cache::default).clone());
     let Ok(mut map) = cache.0.lock() else { return };
-    let key = (resolved.master, look, px);
+    let key = (resolved.master, look, px, ink);
     if let std::collections::hash_map::Entry::Vacant(slot) = map.entry(key) {
         let Some(doc) = icon_svg::doc_for(resolved.master, px) else { return };
         let Some(pm) = icon_svg::render(doc, look, px) else { return };
-        let image = egui::ColorImage::from_rgba_premultiplied([px as usize, px as usize], pm.data());
+        let mut image = egui::ColorImage::from_rgba_premultiplied([px as usize, px as usize], pm.data());
+        if let Some(ink) = ink {
+            for pixel in &mut image.pixels {
+                *pixel = ink.gamma_multiply(f32::from(pixel.a()) / 255.0);
+            }
+        }
         slot.insert(ctx.load_texture(format!("icon:{}:{px}", resolved.master), image, TextureOptions::LINEAR));
     }
     let Some(tex) = map.get(&key) else { return };
@@ -66,6 +85,24 @@ pub fn paint_on(p: &Painter, r: Rect, name: &str, dark: Option<bool>, opacity: f
 mod tests {
     use super::*;
     use crate::theme::{self, ColorVision};
+
+    #[test]
+    fn assistant_pixels_use_the_application_bar_text_token() {
+        let previous = theme::is_dark();
+        for dark in [false, true] {
+            let ctx = egui::Context::default();
+            theme::set_dark(dark);
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                paint_app_bar(ui.painter(), Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(32.0, 32.0)), "assistant", 1.0);
+            });
+            let ink = theme::Tokens::get().app_bar_text;
+            assert!(out.textures_delta.set.iter().any(|(_, deltas)| deltas.iter().any(|delta| match &delta.image {
+                egui::ImageData::Color(image) => image.pixels.contains(&ink),
+            })));
+            out.textures_delta.clear();
+        }
+        theme::set_dark(previous);
+    }
 
     #[test]
     fn actual_uploaded_icon_pixels_follow_semantics_and_vision_cache_changes() {

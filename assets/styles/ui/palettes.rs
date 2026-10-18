@@ -8,7 +8,31 @@ const fn icon_primary(rgb: [u8; 3]) -> Color32 {
 impl Tokens {
     pub const fn light() -> Tokens {
         Tokens {
+            space_2: 2.0,
+            space_3: 3.0,
+            space_4: 4.0,
+            space_6: 6.0,
+            space_8: 8.0,
+            space_10: 10.0,
+            space_12: 12.0,
+            space_14: 14.0,
+            space_16: 16.0,
+            space_24: 24.0,
+            radius_sm: 4,
+            radius_md: 6,
+            radius_lg: 8,
+            radius_xl: 10,
+            font_badge: 9.5,
+            font_micro: 10.0,
+            font_panel: 10.5,
+            font_small: 11.0,
+            font_caption: 11.5,
+            font_body: 12.0,
+            font_label: 12.5,
+            font_button: 13.0,
+            font_heading: 14.0,
             app_bar: Color32::from_rgb(52, 56, 64),
+            app_bar_separator: Color32::from_rgb(136, 145, 160),
             toolbar: Color32::from_rgb(246, 247, 249),
             panel: Color32::from_rgb(250, 251, 252),
             panel_header: Color32::from_rgb(236, 238, 242),
@@ -18,6 +42,14 @@ impl Tokens {
             accent: Color32::from_rgb(38, 120, 218),
             accent_soft: Color32::from_rgb(214, 230, 250),
             sketch_accent: icon_primary(crate::icon_svg::SKETCH_PRIMARY[0]),
+            // Icon palette active-3 ramps; these accents have no compiled constants yet.
+            surface_accent: Color32::from_rgb(164, 80, 0),
+            mesh_accent: Color32::from_rgb(130, 103, 0),
+            form_accent: Color32::from_rgb(115, 73, 205),
+            render_accent: Color32::from_rgb(174, 45, 113),
+            on_accent: Color32::WHITE,
+            agent_ok: Color32::from_rgb(76, 194, 122),
+            agent_busy: Color32::from_rgb(108, 180, 240),
             error: Color32::from_rgb(214, 54, 54),
             warning: Color32::from_rgb(222, 150, 30),
             icon: Color32::from_rgb(70, 78, 92),
@@ -81,6 +113,10 @@ impl Tokens {
             rubber_band: Color32::from_rgb(30, 120, 230),
             app_bar_text: Color32::from_rgb(230, 234, 242),
             app_bar_hover: Color32::from_rgba_unmultiplied_const(255, 255, 255, 28),
+            app_bar_hover_subtle: Color32::from_rgba_unmultiplied_const(255, 255, 255, 18),
+            app_bar_hover_button: Color32::from_rgba_unmultiplied_const(255, 255, 255, 30),
+            app_bar_hover_strong: Color32::from_rgba_unmultiplied_const(255, 255, 255, 40),
+            app_bar_tab_active: Color32::from_rgb(53, 59, 71),
             timeline_item: Color32::WHITE,
             timeline_item_error: Color32::from_rgb(250, 220, 220),
             timeline_marker: Color32::from_rgb(70, 76, 88),
@@ -135,7 +171,7 @@ impl Tokens {
     pub const fn dark() -> Tokens {
         let mut t = Tokens::light();
         t.app_bar = Color32::from_rgb(28, 31, 38);
-        t.toolbar = Color32::from_rgb(37, 41, 49);
+        t.toolbar = Color32::from_rgb(39, 43, 52);
         t.panel = Color32::from_rgb(39, 43, 52);
         t.panel_header = Color32::from_rgb(47, 52, 62);
         t.border = Color32::from_rgb(63, 69, 82);
@@ -144,6 +180,10 @@ impl Tokens {
         t.accent = Color32::from_rgb(58, 136, 238);
         t.accent_soft = Color32::from_rgb(42, 70, 110);
         t.sketch_accent = icon_primary(crate::icon_svg::SKETCH_PRIMARY[1]);
+        t.surface_accent = Color32::from_rgb(149, 104, 45);
+        t.mesh_accent = Color32::from_rgb(133, 113, 0);
+        t.form_accent = Color32::from_rgb(123, 99, 166);
+        t.render_accent = Color32::from_rgb(224, 116, 174);
         t.construction_geom = icon_primary(crate::icon_svg::CONSTRUCTION_PRIMARY[1]);
         t.error = Color32::from_rgb(240, 100, 96);
         t.warning = Color32::from_rgb(236, 170, 70);
@@ -210,6 +250,9 @@ impl Tokens {
         t.icons.access = [good, Color32::from_rgb(217, 102, 13)];
         t.construction_geom = icon_primary(crate::icon_svg::CONSTRUCTION_RED_GREEN[dark as usize]);
         t.icons.draft = [good, Color32::from_rgb(242, 230, 153)];
+        t.surface_accent = if dark { Color32::from_rgb(200, 135, 55) } else { Color32::from_rgb(164, 80, 0) };
+        t.mesh_accent = if dark { Color32::from_rgb(190, 175, 70) } else { Color32::from_rgb(130, 103, 0) };
+        t.form_accent = if dark { Color32::from_rgb(165, 135, 220) } else { Color32::from_rgb(115, 73, 205) };
         if dark {
             t.bend_up = Color32::from_rgb(110, 165, 255);
             t.bend_down = Color32::from_rgb(240, 180, 70);
@@ -229,6 +272,11 @@ impl Tokens {
     pub(super) const fn blue_yellow(self, dark: bool) -> Tokens {
         let mut t = self;
         t.analysis.hatch = true;
+        t.surface_accent = if dark { Color32::from_rgb(210, 120, 95) } else { Color32::from_rgb(164, 65, 50) };
+        t.mesh_accent = if dark { Color32::from_rgb(200, 175, 135) } else { Color32::from_rgb(130, 103, 65) };
+        t.form_accent = if dark { Color32::from_rgb(150, 140, 210) } else { Color32::from_rgb(115, 73, 170) };
+        // Green and blue status lights merge for tritan vision; use rose for working.
+        t.agent_busy = Color32::from_rgb(232, 150, 190);
         t.preview_sketch = Color32::from_rgb(125, 180, 105);
         t.glyph_text = icon_primary(crate::icon_svg::CONSTRAINT_BLUE_YELLOW[dark as usize]);
         t.construction_geom = icon_primary(crate::icon_svg::CONSTRUCTION_BLUE_YELLOW[dark as usize]);

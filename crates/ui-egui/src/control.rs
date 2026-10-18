@@ -348,12 +348,13 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
                 }
             }
             match (serde_json::from_value::<crate::UiState>(cur), serde_json::from_value::<solidcraft_engine::Visibility>(vis)) {
-                (Ok(u), Ok(v)) => {
+                (Ok(mut u), Ok(v)) => {
                     if (u.tab == "RENDER") != crate::render_workspace::active(app)
                         && let Err(e) = crate::render_workspace::enter(app, u.tab == "RENDER")
                     {
                         return err(e);
                     }
+                    u.ribbon_context = app.ui.ribbon_context.clone();
                     app.ui = u;
                     app.session.visibility = v;
                     ok(serde_json::to_value(&app.ui).unwrap_or_default())

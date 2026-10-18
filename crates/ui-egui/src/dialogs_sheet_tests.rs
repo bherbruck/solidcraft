@@ -200,7 +200,12 @@ fn flat_pattern_islands_fit_before_the_actual_command_panel() {
                 ui.label("Flat size: 50 × 10 × 2.5 mm");
             });
             let painter = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Background, egui::Id::new("island-fit")));
-            assert!(overlay(&mut app, &painter, Rect::from_min_max(pos2(250.0, 126.0), pos2(1400.0, 832.0)), &dialog));
+            assert!(overlay(
+                &mut app,
+                &painter,
+                Rect::from_min_max(pos2(250.0, crate::toolbar::APP_BAR_HEIGHT + crate::toolbar::RIBBON_HEIGHT), pos2(1400.0, 832.0)),
+                &dialog
+            ));
         });
         output.textures_delta.clear();
     }

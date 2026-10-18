@@ -9,7 +9,7 @@
   }
  },
  {
-  "click": {"handle": "panel:SOLID:CREATE"}
+  "click": {"handle": "panel:MODEL:CREATE"}
  },
  {
   "drag": [{"handle": "dropdown:solid.sphere"}, {"handle": "button:solid.extrude"}],
@@ -41,7 +41,7 @@
   "note": "The pin icon on a hovered drop-down row pins the command."
  },
  {
-  "click": {"handle": "panel:SOLID:CREATE"}
+  "click": {"handle": "panel:MODEL:CREATE"}
  },
  {
   "move": {"handle": "dropdown:solid.torus"}
@@ -74,7 +74,7 @@
   "note": "A button dragged back into its open drop-down leaves the toolbar."
  },
  {
-  "click": {"handle": "panel:SOLID:CREATE"}
+  "click": {"handle": "panel:MODEL:CREATE"}
  },
  {
   "drag": [{"handle": "button:solid.torus"}, {"handle": "dropdown:solid.box"}],

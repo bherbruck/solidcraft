@@ -429,9 +429,65 @@ pub fn shown(app: &SolveApp) -> bool {
     app.preferences.ai_features && cfg!(not(target_arch = "wasm32"))
 }
 
-/// The AI button at the toolbar row's right end is shown.
-pub fn toolbar_button_shown(app: &SolveApp) -> bool {
+/// The Assistant button in the application bar is shown (honours the existing preference).
+pub fn app_bar_button_shown(app: &SolveApp) -> bool {
     shown(app) && app.preferences.ai_toolbar_button
+}
+
+/// The application bar's status mark, independent of panel layout and painting.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AssistantMark {
+    Quiet,
+    Ready,
+    Busy,
+    NeedsAuth,
+    Stopped,
+    Waiting(usize),
+}
+
+fn assistant_mark_for(state: State, login: &str, configured: bool, waiting: usize, stopped: bool, failed: bool) -> AssistantMark {
+    if waiting > 0 {
+        return AssistantMark::Waiting(waiting);
+    }
+    if state == State::NeedsAuth {
+        return AssistantMark::NeedsAuth;
+    }
+    if state == State::Exited || stopped || failed {
+        return AssistantMark::Stopped;
+    }
+    match state {
+        State::Busy | State::Starting => AssistantMark::Busy,
+        // A live session is stronger evidence than an older discovery login probe.
+        State::Ready => AssistantMark::Ready,
+        State::Off if configured && matches!(login, "signed_in" | "key") => AssistantMark::Ready,
+        State::Off if configured && login == "signed_out" => AssistantMark::NeedsAuth,
+        _ => AssistantMark::Quiet,
+    }
+}
+
+pub(crate) fn assistant_mark(app: &SolveApp) -> AssistantMark {
+    let chat = &app.agent_chat;
+    let current = agents::current(app);
+    assistant_mark_for(
+        chat.state(),
+        current.as_ref().map_or("", |e| e.login),
+        current.is_some(),
+        chat.waiting(),
+        chat.stopped,
+        chat.ended.as_deref() == Some("error"),
+    )
+}
+
+pub(crate) fn assistant_tip(mark: AssistantMark) -> String {
+    let state = match mark {
+        AssistantMark::Quiet => tr("ui.agent_chat_state_off").to_string(),
+        AssistantMark::Ready => tr("ui.agent_chat_state_ready").to_string(),
+        AssistantMark::Busy => tr("ui.agent_chat_state_busy").to_string(),
+        AssistantMark::NeedsAuth => tr("ui.agent_chat_state_auth").to_string(),
+        AssistantMark::Stopped => tr("ui.agent_chat_state_exited").to_string(),
+        AssistantMark::Waiting(count) => trf("ui.assistant_waiting", &[("count", &count.to_string())]),
+    };
+    format!("{} (Ctrl+Shift+A) — {state}", tr("ui.assistant"))
 }
 
 /// Whether a permission question is about one of SolidCraft's own tools (which SolidCraft's own

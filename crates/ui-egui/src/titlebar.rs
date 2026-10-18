@@ -28,8 +28,6 @@ pub const WIDTH: f32 = 3.0 * BUTTON_WIDTH;
 pub const TRAFFIC_LIGHTS: f32 = 76.0;
 /// Windows' resize border at 100 % (96 DPI): `SM_CXSIZEFRAME` + `SM_CXPADDEDBORDER`, 4 + 4 px.
 pub const RESIZE_BORDER_AT_96_DPI: f32 = 8.0;
-/// The Close button's hover colour (as on Windows).
-const CLOSE_HOVER: Color32 = Color32::from_rgb(196, 43, 28);
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Caption {
@@ -103,16 +101,14 @@ pub fn caption_buttons(app: &mut SolveApp, ui: &mut Ui, bar: Rect) {
     for (i, c) in CAPTIONS.into_iter().enumerate() {
         let r = Rect::from_min_size(pos2(bar.right() - WIDTH + i as f32 * BUTTON_WIDTH, bar.top()), vec2(BUTTON_WIDTH, bar.height()));
         let resp = ui.interact(r, caption_id(c), Sense::click());
-        let close = c == Caption::Close;
         let fill = match (resp.is_pointer_button_down_on(), resp.hovered()) {
-            (true, _) if close => CLOSE_HOVER.gamma_multiply(0.8),
-            (_, true) if close => CLOSE_HOVER,
-            (true, _) => Color32::from_white_alpha(18),
-            (_, true) => Color32::from_white_alpha(30),
+            (true, _) => t.app_bar_hover_subtle,
+            (_, true) => t.app_bar_hover_button,
+            _ if resp.has_focus() => t.app_bar_hover_button,
             _ => Color32::TRANSPARENT,
         };
         ui.painter().rect_filled(r, 0.0, fill);
-        let ink = if close && resp.hovered() { Color32::WHITE } else { t.app_bar_text };
+        let ink = t.app_bar_text;
         paint_glyph(ui, c, max, r.center(), Stroke::new(1.0, ink));
         let tip = match c {
             Caption::Minimize => "Minimize",
@@ -286,6 +282,53 @@ mod tests {
         let mut v = vec![];
         out.shapes.iter().for_each(|c| walk(&c.shape, &mut v));
         v
+    }
+
+    #[test]
+    fn every_bar_control_uses_translucent_hover_chrome() {
+        let previous = crate::theme::is_dark();
+        for dark in [false, true] {
+            crate::theme::set_dark(dark);
+            let mut w = Win::new(1600.0);
+            w.app.home.open = false;
+            w.frame(vec![]);
+            w.frame(vec![]);
+            let t = Tokens::get();
+            let mut controls: Vec<Rect> = [
+                "titlebar:home",
+                "appbar:file",
+                "titlebar:save",
+                "appbar:undo",
+                "appbar:redo",
+                "tab:design:0",
+                "tab:close:0",
+                "titlebar:assistant",
+                "titlebar:preferences",
+                "appbar:help",
+                "titlebar:report",
+            ]
+            .into_iter()
+            .map(|name| crate::scenario::rect_of(name).unwrap_or_else(|| panic!("{name}")))
+            .collect();
+            controls.extend(CAPTIONS.map(|c| w.caption(c)));
+            for rect in controls {
+                w.frame(vec![Event::PointerMoved(rect.center())]);
+                let out = w.frame(vec![]);
+                let fills: Vec<_> = out
+                    .shapes
+                    .iter()
+                    .filter_map(|s| match &s.shape {
+                        egui::Shape::Rect(shape) if shape.rect == rect || shape.rect == rect.shrink(3.0) => Some(shape.fill),
+                        _ => None,
+                    })
+                    .collect();
+                assert!(
+                    fills.iter().any(|fill| [t.app_bar_hover, t.app_bar_hover_button, t.app_bar_hover_strong, t.app_bar_tab_active].contains(fill)),
+                    "dark={dark}: {rect:?} has no application bar hover fill: {fills:?}"
+                );
+            }
+        }
+        crate::theme::set_dark(previous);
     }
 
     #[test]

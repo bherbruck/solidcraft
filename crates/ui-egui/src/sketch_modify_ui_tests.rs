@@ -583,7 +583,7 @@ fn sketch_pattern_tools_are_promoted_together_and_open_from_the_toolbar() {
     let panels = crate::toolbar_custom::panel_lists("SKETCH");
     let (_, cmds, promoted) = panels.iter().find(|(panel, ..)| *panel == "PATTERN").unwrap();
     let ids: Vec<_> = cmds.iter().take(*promoted).map(|c| c.id).collect();
-    assert_eq!(ids, ["sketch.mirror", "sketch.pattern.rectangular", "sketch.pattern.circular"]);
+    assert_eq!(ids, ["sketch.mirror", "sketch.pattern.circular", "sketch.pattern.rectangular"]);
     for id in ids {
         h.settle();
         h.step(&json!({"click":{"handle":format!("toolbar:{id}")}})).unwrap();

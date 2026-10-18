@@ -105,8 +105,9 @@ pub fn search(app: &SolveApp, q: &str) -> Vec<(&'static str, &'static str, &'sta
     let mut v: Vec<(u32, &'static str, &'static str, &'static str, String)> = command_specs()
         .into_iter()
         .filter_map(|c| {
-            let place = if c.tab.is_empty() { String::new() } else { format!("{} › {}", c.tab, c.panel) };
-            let s = score(&q, c.label).max(score(&q, c.id) * 9 / 10).max(score(&q, c.tab) / 3).max(score(&q, c.panel) / 3);
+            let (tab, panel) = crate::workspace::destination(c).unwrap_or(("", ""));
+            let place = if tab.is_empty() { String::new() } else { format!("{} › {}", app.tr_label(tab), app.tr_label(panel)) };
+            let s = score(&q, c.label).max(score(&q, c.id) * 9 / 10).max(score(&q, tab) / 3).max(score(&q, panel) / 3);
             let recent = app.sbox.recent.iter().position(|r| r == c.id).map_or(0, |i| 2000 - i as u32);
             // Commands that can run now come before those that can't.
             let usable = if c.info(&app.session).enabled { 150 } else { 0 };
@@ -160,14 +161,15 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     let mut picked: Option<&'static str> = None;
     let mut pin: Option<&'static str> = None;
     let mut menu: Option<(Pos2, &'static str)> = None;
-    let h = 380.0;
+    let w = W.min((screen.width() - 8.0).max(32.0));
+    let h = 380.0_f32.min((screen.height() - 8.0).max(120.0));
     let pos = pos2(
-        at.x.clamp(screen.left() + 4.0, (screen.right() - W - 4.0).max(screen.left())),
-        at.y.clamp(screen.top() + 4.0, (screen.bottom() - h).max(screen.top())),
+        at.x.clamp(screen.left() + 4.0, (screen.right() - w - 4.0).max(screen.left() + 4.0)),
+        at.y.clamp(screen.top() + 4.0, (screen.bottom() - h).max(screen.top() + 4.0)),
     );
     let resp = crate::frame::area(egui::Id::new("sc_sbox")).fixed_pos(pos).order(egui::Order::Foreground).show(ctx, |ui| {
         crate::context_menu::menu_frame(ui, |ui| {
-            ui.set_width(W - 10.0);
+            ui.set_width(w - 10.0);
             // Pinned commands: a mini toolbar.
             if !app.sbox.pinned.is_empty() {
                 ui.horizontal_wrapped(|ui| {
@@ -188,7 +190,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
             let te = ui.add(
                 egui::TextEdit::singleline(&mut app.sbox.text)
                     .hint_text(crate::i18n::tr_label("Search commands"))
-                    .desired_width(W - 20.0)
+                    .desired_width(w - 20.0)
                     .id(egui::Id::new("sc_sbox_text")),
             );
             if std::mem::take(&mut app.sbox.focus) {
@@ -205,7 +207,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
                 ui.spacing_mut().item_spacing.y = 0.0;
                 for (i, (id, label, icon, place)) in list.iter().enumerate().take(80) {
                     let enabled = solidcraft_engine::find_command(id).is_some_and(|c| c.info(&app.session).enabled);
-                    let (r, resp) = ui.allocate_exact_size(vec2(W - 20.0, 26.0), Sense::click());
+                    let (r, resp) = ui.allocate_exact_size(vec2(w - 20.0, 26.0), Sense::click());
                     let lit = i == app.sbox.index || resp.hovered();
                     if lit {
                         ui.painter().rect_filled(r, 4.0, t.hover);
@@ -257,6 +259,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
             });
         });
     });
+    crate::scenario::publish_rect("ribbon:search_popup", resp.response.rect);
     if let Some(id) = pin {
         app.sbox.toggle_pin(id);
     }
@@ -327,7 +330,7 @@ mod tests {
         let mut app = SolveApp::new(solidcraft_engine::Session::default(), Default::default());
         assert_eq!(search(&app, "extr").first().map(|x| x.0), Some("solid.extrude"));
         assert_eq!(search(&app, "solid.fil").first().map(|x| x.0), Some("solid.fillet"));
-        assert!(search(&app, "constraints").iter().any(|x| x.0 == "sketch.constraint.parallel"), "by panel");
+        assert!(search(&app, "constrain").iter().any(|x| x.0 == "sketch.constraint.parallel"), "by panel");
         app.sbox.used("solid.shell");
         app.sbox.used("solid.revolve");
         let all = search(&app, "");

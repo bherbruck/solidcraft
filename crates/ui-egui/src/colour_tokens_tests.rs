@@ -75,16 +75,13 @@ const ALLOWED_LITERALS: &[(&str, usize, &str)] = &[
     ("dialogs_library.rs", 1, "a library appearance's swatch: the colour is the fact"),
     ("dialogs_assembly.rs", 1, "the interference fill, shaded from its token"),
     ("dialogs_motion.rs", 1, "a white outline"),
-    ("documents.rs", 4, "white hover overlays on document tabs"),
     ("frame.rs", 1, "the window shadow"),
     ("gizmo.rs", 2, "the gizmo's neutral grey ball"),
     ("icons.rs", 1, "the white tint that carries an icon image's opacity"),
-    ("home.rs", 4, "white ink on accent buttons, and thumbnail tints"),
+    ("home.rs", 2, "thumbnail tints"),
     ("ref_images.rs", 1, "a reference image's opacity tint"),
-    ("sketch_palette.rs", 1, "white text on the accent button"),
-    ("sketch_text.rs", 1, "white text on the selection chip"),
-    ("titlebar.rs", 4, "the window close button's red hover (the system's convention), white hovers and ink"),
-    ("toolbar.rs", 3, "white hover overlays and the version text"),
+    ("titlebar.rs", 2, "the window close button's red hover (the system's convention) and white ink"),
+    ("toolbar.rs", 1, "the version text"),
 ];
 
 const COLOUR_LITERALS: &[&str] = &[

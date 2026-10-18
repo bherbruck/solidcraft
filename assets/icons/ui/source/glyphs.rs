@@ -89,10 +89,6 @@ pub(crate) fn pin_icon(p: &egui::Painter, r: Rect, on: bool, col: Color32) {
     p.line_segment([at(0.0, -2.0), at(0.0, 7.0)], stroke);
 }
 
-pub(crate) fn caret(p: &egui::Painter, c: egui::Pos2, col: Color32) {
-    p.add(egui::Shape::convex_polygon(vec![pos2(c.x - 3.5, c.y - 2.0), pos2(c.x + 3.5, c.y - 2.0), pos2(c.x, c.y + 2.5)], col, Stroke::NONE));
-}
-
 pub(crate) fn brand_mark(p: &egui::Painter, c: Pos2) {
     let s = 20.0 / 412.217;
     let m = |pts: &[(f32, f32)]| -> Vec<egui::Pos2> { pts.iter().map(|&(x, y)| pos2(c.x + (x - 178.5) * s, c.y + (y - 206.1) * s)).collect() };
@@ -100,7 +96,9 @@ pub(crate) fn brand_mark(p: &egui::Painter, c: Pos2) {
     let face = |col: Color32, pts: &[(f32, f32)]| {
         p.add(egui::Shape::convex_polygon(m(pts), col, Stroke::NONE));
     };
-    let [light, mid, dark, edge_col] = crate::theme::Tokens::get().logo;
+    // The faces are separated by gaps that show the application bar, not by white lines.
+    let [light, mid, dark, _] = crate::theme::Tokens::get().logo;
+    let edge_col = crate::theme::Tokens::get().app_bar;
     face(light, &[(3.5, 105.9), (177.0, 5.8), (263.4, 55.6), (263.8, 156.0), (177.0, 406.4)]);
     face(light, &[(177.0, 206.1), (263.8, 156.0), (350.5, 206.2), (350.5, 306.3), (177.0, 406.4)]);
     face(mid, &[(3.5, 105.9), (177.0, 206.1), (177.0, 406.4)]);

@@ -153,7 +153,7 @@ pub fn stops(app: &SolveApp, command: &str, params: &Value) -> Vec<Pos2> {
     let mut out = Vec::new();
     if let Some(spec) = solidcraft_engine::find_command(command) {
         let button = crate::scenario::handle_at(&format!("toolbar:{}", spec.id))
-            .or_else(|| crate::scenario::handle_at(&format!("panel:{}:{}", spec.tab, spec.panel)));
+            .or_else(|| crate::workspace::destination(spec).and_then(|(t, p)| crate::scenario::handle_at(&format!("panel:{t}:{p}"))));
         out.extend(button);
     }
     let Some(rect) = app.viewport.rect else { return out };

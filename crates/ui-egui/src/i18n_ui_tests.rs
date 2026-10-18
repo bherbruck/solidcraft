@@ -76,7 +76,8 @@ fn window_chrome_renders_in_the_active_language() {
         // The browser heading is on screen from the start; the selection filter lives in the
         // SELECT panel, which is not the one shown by default.
         assert!(h.widget(browser).is_some(), "{lang}: the browser heading must show {browser:?}");
-        let select = scenario::handle_at("panel:SOLID:SELECT").expect("the SELECT panel is on the SOLID tab");
+        h.step(&json!({"click":{"handle":"tab:VIEW"}})).unwrap();
+        let select = scenario::handle_at("panel:VIEW:SELECT").expect("the selection filter is on VIEW");
         h.step(&json!({"click": [select.x, select.y]})).unwrap();
         h.frames(2);
         assert!(h.widget(filter).is_some(), "{lang}: the selection filter must show {filter:?}");
@@ -213,10 +214,10 @@ fn translated_dialog_buttons_do_not_wrap() {
 }
 
 #[test]
-fn long_panel_label_wraps_centred_and_its_button_is_centred() {
+fn finish_exit_label_and_its_button_are_centred() {
     fn label_rows(shape: &egui::Shape) -> Option<Vec<egui::Rect>> {
         match shape {
-            egui::Shape::Text(text) if text.galley.job.text == "SKIZZE BEENDEN" => {
+            egui::Shape::Text(text) if text.galley.job.text == "Beenden" => {
                 Some(text.galley.rows.iter().map(|row| row.rect().translate(text.pos.to_vec2())).collect())
             }
             egui::Shape::Vec(shapes) => shapes.iter().find_map(label_rows),
@@ -247,11 +248,10 @@ fn long_panel_label_wraps_centred_and_its_button_is_centred() {
     out.textures_delta.clear();
     let mut out = h.ctx.run_ui(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ui| h.app.ui(ui));
     let rows = out.shapes.iter().find_map(|shape| label_rows(&shape.shape)).expect("the Finish Sketch panel label is drawn");
-    assert_eq!(rows.len(), 2, "the label wider than its one-button panel wraps: {rows:?}");
-    assert!(rows[0].width() != rows[1].width(), "the lines differ in width: {rows:?}");
-    assert!((rows[0].center().x - rows[1].center().x).abs() < 1.0, "each line is centred: {rows:?}");
+    assert_eq!(rows.len(), 1, "the translated Exit section label fits one row: {rows:?}");
+    assert!((rows[0].center().x - label.x).abs() < 1.0, "the label is centred: {rows:?}");
     let hover = crate::theme::Tokens::get().hover;
     let lr = out.shapes.iter().find_map(|shape| hover_rect(&shape.shape, hover, label)).expect("the hovered label is highlighted");
-    assert!(rows.iter().all(|row| lr.contains_rect(*row)), "the highlight holds both lines: {lr:?} {rows:?}");
+    assert!(rows.iter().all(|row| lr.contains_rect(*row)), "the highlight holds the label: {lr:?} {rows:?}");
     out.textures_delta.clear();
 }

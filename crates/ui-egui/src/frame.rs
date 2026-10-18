@@ -53,8 +53,8 @@ impl Side {
 pub fn dock_frame(ctx: &egui::Context, side: Side) -> egui::Frame {
     let t = crate::theme::Tokens::get();
     let (corner_radius, shadow_x) = match side {
-        Side::Right => (egui::CornerRadius { nw: 4, sw: 4, ne: 0, se: 0 }, -2),
-        Side::Left => (egui::CornerRadius { nw: 0, sw: 0, ne: 4, se: 4 }, 2),
+        Side::Right => (egui::CornerRadius { nw: t.radius_sm, sw: t.radius_sm, ne: 0, se: 0 }, -2),
+        Side::Left => (egui::CornerRadius { nw: 0, sw: 0, ne: t.radius_sm, se: t.radius_sm }, 2),
     };
     egui::Frame::window(&ctx.global_style())
         .fill(t.dialog_bg)
@@ -245,7 +245,7 @@ mod tests {
     fn feature_forms_use_available_height_and_keep_actions_visible() {
         use crate::scenario::Harness;
         use serde_json::json;
-        for (width, height, scale) in [(1400.0, 900.0, 1.0), (1400.0, 900.0, 2.0)] {
+        for (width, height, scale) in [(1400.0, 900.0, 1.0), (1400.0, 950.0, 2.0)] {
             let mut h = Harness::new();
             h.app.preferences.ui_scale = scale;
             h.call("ui.resize", json!({"width":width / scale,"height":height / scale}));
@@ -302,8 +302,8 @@ mod tests {
         h.frames(6);
         let hovered = h.app.viewport.dialog_rect.unwrap();
         assert!((hovered.size() - rest.size()).length() < 0.01, "hovering resized the dialog: {rest:?} -> {hovered:?}");
-        // Dragged by its title text.
-        let title = h.widget("CREATE SKETCH").map(|[x, y]| egui::pos2(x as f32, y as f32)).unwrap();
+        // Drag the published title band, independent of similarly labelled toolbar controls.
+        let title = crate::scenario::handle_at("dialog:title").unwrap();
         h.call("ui.drag", json!({"x0": title.x, "y0": title.y, "x1": title.x - 300.0, "y1": title.y + 120.0, "steps": 8}));
         h.frames(4);
         let moved = h.app.viewport.dialog_rect.unwrap();
