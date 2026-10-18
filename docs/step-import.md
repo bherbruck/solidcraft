@@ -19,9 +19,9 @@ positions refresh those queries; selection, visibility and locking are read live
 
 Hover picking pauses while the mouse moves the view and resumes when navigation stops.
 A 3D mouse moving the view leaves it on: the pointer hand is free, so preselection and
-clicks keep working while the other hand turns the view. Picking uses the cached body
-bounds directly in model order, so finding each body's bounds does not scan the assembly
-again.
+clicks keep working while the other hand turns the view. Picking uses the current camera
+and the cached body bounds directly in model order, so finding each body's bounds does not
+scan the assembly again.
 
 Hovering an assembly's Browser row retains its whole-body highlight buffers during
 rotation, panning and zoom; the GPU transforms those buffers with the camera. The

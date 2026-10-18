@@ -4718,6 +4718,90 @@ mod tests {
         }
     }
 
+    fn device_face_app(gpu: bool) -> SolveApp {
+        let mut app = hover_app(gpu);
+        app.session = solidcraft_engine::Session::default();
+        app.session.execute("solid.box", &json!({"length":40,"width":40,"height":40,"corner":[-20,-20,-20]})).unwrap();
+        app.ui.show_origin = false;
+        app.cam.target = Vec3::ZERO;
+        app.cam.distance = 110.0;
+        app.cam.yaw = 0.5;
+        app.cam.pitch = 0.5;
+        app
+    }
+
+    fn device_hover_frame(app: &mut SolveApp, ctx: &egui::Context, events: Vec<egui::Event>) {
+        use crate::space_mouse::{DeviceMotion, Motion};
+        let before = app.cam;
+        app.viewport.device_motion = Some(DeviceMotion { motion: Motion { translation: [0.0; 3], rotation: [0.0, 0.0, 0.1] }, seconds: 0.016 });
+        hover_frame(app, ctx, events);
+        assert_ne!(app.cam, before, "the device must keep moving the camera");
+        assert!(app.viewport.device_motion.is_none());
+    }
+
+    #[test]
+    fn device_navigation_keeps_face_hover_current_for_a_stationary_or_moving_pointer() {
+        for gpu in [false, true] {
+            let ctx = egui::Context::default();
+            let mut app = device_face_app(gpu);
+            hover_frame(&mut app, &ctx, vec![]);
+            let p = projection(&app, app.viewport.rect.unwrap()).to_screen(Vec3::ZERO).unwrap();
+            hover_frame(&mut app, &ctx, vec![egui::Event::PointerMoved(p)]);
+            for offset in [0.0, 15.0, -15.0, 0.0] {
+                let at = p + vec2(offset, 0.0);
+                let mut key = app.viewport.last_pick.as_ref().unwrap().0;
+                for events in [vec![egui::Event::PointerMoved(at)], vec![], vec![]] {
+                    device_hover_frame(&mut app, &ctx, events);
+                    let proj = projection(&app, app.viewport.rect.unwrap());
+                    let (expected, _) = candidate(&app, &pick(&app, &proj, at)).unwrap();
+                    assert!(matches!(expected, Hit::Face { .. }));
+                    assert_eq!(app.viewport.hover.as_ref(), Some(&expected), "hover must use the current camera and pointer");
+                    let next = app.viewport.last_pick.as_ref().unwrap().0;
+                    assert_ne!(next, key, "a moving camera must invalidate cached picking");
+                    key = next;
+                }
+            }
+            hover_frame(&mut app, &ctx, vec![]);
+            assert!(matches!(app.viewport.hover, Some(Hit::Face { .. })));
+        }
+    }
+
+    #[test]
+    fn device_navigation_allows_face_clicks_and_preserves_modifier_selection() {
+        for gpu in [false, true] {
+            for (modifiers, add) in [(egui::Modifiers::NONE, false), (egui::Modifiers::SHIFT, true), (egui::Modifiers::CTRL, true)] {
+                let ctx = egui::Context::default();
+                let mut app = device_face_app(gpu);
+                let existing = Sel::Body { name: "Body1".into() };
+                app.session.selection = vec![existing.clone()];
+                hover_frame(&mut app, &ctx, vec![]);
+                let p = projection(&app, app.viewport.rect.unwrap()).to_screen(Vec3::ZERO).unwrap();
+                device_hover_frame(&mut app, &ctx, vec![egui::Event::PointerMoved(p - vec2(15.0, 0.0))]);
+                assert_eq!(app.session.selection, vec![existing.clone()], "device motion alone must retain selection");
+                let at = p + vec2(15.0, 0.0);
+                device_hover_frame(
+                    &mut app,
+                    &ctx,
+                    vec![
+                        egui::Event::ModifiersChanged(modifiers),
+                        egui::Event::PointerMoved(at),
+                        egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers },
+                    ],
+                );
+                device_hover_frame(
+                    &mut app,
+                    &ctx,
+                    vec![egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers }],
+                );
+                let proj = projection(&app, app.viewport.rect.unwrap());
+                let (_, selected) = candidate(&app, &pick(&app, &proj, at)).unwrap();
+                assert!(matches!(selected, Sel::Face { .. }));
+                let expected = if add { vec![existing, selected] } else { vec![selected] };
+                assert_eq!(app.session.selection, expected, "the click must select the face under the current camera");
+            }
+        }
+    }
+
     /// Two-handed use: while a 3D mouse turns the view, the pointer still preselects what is
     /// under it in the view as it is now, and a click picks it (it neither does nothing nor
     /// clears the selection).
