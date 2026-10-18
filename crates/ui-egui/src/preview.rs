@@ -351,8 +351,17 @@ fn spawn(pv: &mut PreviewState, key: u64, scratch: Session, cmds: Vec<(String, V
 /// kernel can't do yet), the tool body is still shown, with the error.
 pub fn compute(s: &Session, cmds: &[(String, Value)], colors: Colors) -> Job {
     if cmds.iter().any(|(command, params)| {
-        matches!(command.as_str(), "sketch.redefine" | "sketch.mirror" | "sketch.pattern.rectangular" | "sketch.pattern.circular" | "sketch.offset")
-            || command == "construct.plane.along_path"
+        matches!(
+            command.as_str(),
+            "sketch.redefine"
+                | "sketch.mirror"
+                | "sketch.pattern.rectangular"
+                | "sketch.pattern.circular"
+                | "sketch.offset"
+                | "sketch.move"
+                | "edit.paste.point_to_point"
+                | "objects.move.point_to_point"
+        ) || command == "construct.plane.along_path"
             || params.get("command").and_then(Value::as_str) == Some("construct.plane.along_path")
     }) {
         let preview = s.preview_visible_world(cmds).map_err(|error| error.to_string())?;
@@ -608,15 +617,23 @@ pub fn build(before: &ModelState, after: &ModelState, c: Colors) -> Built {
         .iter()
         .filter_map(|sketch| {
             let old = before.sketch(sketch.feature);
-            let old_curves = old.into_iter().flat_map(|s| s.sketch.curves.iter().map(|c| c.id.as_str())).collect::<std::collections::HashSet<_>>();
-            let old_points = old.into_iter().flat_map(|s| s.sketch.points.iter().map(|p| p.id.as_str())).collect::<std::collections::HashSet<_>>();
+            let old_curves =
+                old.into_iter().flat_map(|s| s.sketch.curves.iter().map(|c| (c.id.as_str(), c))).collect::<std::collections::HashMap<_, _>>();
+            let old_points =
+                old.into_iter().flat_map(|s| s.sketch.points.iter().map(|p| (p.id.as_str(), p.pos))).collect::<std::collections::HashMap<_, _>>();
             let indices = sketch
                 .sketch
                 .curves
                 .iter()
                 .enumerate()
                 .filter_map(|(index, curve)| {
-                    let unchanged = old_curves.contains(curve.id.as_str());
+                    let unchanged = old_curves.get(curve.id.as_str()).is_some_and(|previous| {
+                        previous.kind == curve.kind
+                            && curve.kind.point_ids().iter().all(|&i| {
+                                let point = sketch.sketch.points.get(i);
+                                point.is_some_and(|p| old_points.get(p.id.as_str()) == Some(&p.pos))
+                            })
+                    }) && old.is_some_and(|s| s.plane == sketch.plane);
                     if unchanged { None } else { Some(index) }
                 })
                 .collect::<Vec<_>>();
@@ -625,7 +642,7 @@ pub fn build(before: &ModelState, after: &ModelState, c: Colors) -> Built {
                 .points
                 .iter()
                 .enumerate()
-                .filter_map(|(i, p)| if old_points.contains(p.id.as_str()) { None } else { Some(i) })
+                .filter_map(|(i, p)| if old_points.get(p.id.as_str()) == Some(&p.pos) { None } else { Some(i) })
                 .collect::<Vec<_>>();
             if indices.is_empty() && points.is_empty() { None } else { Some(SketchPreview { sketch: sketch.clone(), curves: indices, points }) }
         })
@@ -751,7 +768,11 @@ pub fn point_triangle_dist(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> f64 {
 
 /// The same computed sketch preview is drawn over both native GPU and CPU viewports.
 pub fn paint_sketches(app: &SolveApp, painter: &egui::Painter, proj: &crate::viewport::Proj) {
-    if !app.dialog.as_ref().is_some_and(|d| matches!(d.kind, crate::dialogs::Kind::SketchModify(_)) && d.previews()) {
+    if !app
+        .dialog
+        .as_ref()
+        .is_some_and(|d| matches!(d.kind, crate::dialogs::Kind::SketchModify(_) | crate::dialogs::Kind::PointTransfer(_)) && d.previews())
+    {
         return;
     }
     let stroke = egui::Stroke::new(2.5, Tokens::get().preview_sketch);

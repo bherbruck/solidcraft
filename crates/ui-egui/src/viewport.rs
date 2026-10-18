@@ -2477,6 +2477,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
                         let (origin, direction) = proj.ray(p);
                         if let Some(point) = sketch.plane.intersect_ray(origin, direction) {
                             crate::sketch_modify_ui::pick_position(&mut dialog, &app.session, point);
+                            crate::dialogs_point_transfer::pick_position(&mut dialog, &app.session, point);
                         }
                     }
                     app.dialog = Some(dialog);

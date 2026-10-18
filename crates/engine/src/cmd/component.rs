@@ -310,7 +310,7 @@ fn move_sketches(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(json!({"sketches": ids, "component": to}))
 }
 
-fn copy_occurrence(s: &mut Session, p: &Value) -> Result<Value> {
+pub(super) fn copy_occurrence(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "occurrence.copy";
     let selected = if p.get("occurrence").is_some() {
         let o = occurrence(s, p, cmd)?;
@@ -398,7 +398,7 @@ pub(super) fn occurrence_path(s: &Session, p: &Value, id: u64, cmd: &str) -> Res
     Ok(path)
 }
 
-fn move_occurrence(s: &mut Session, p: &Value) -> Result<Value> {
+pub(super) fn move_occurrence(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "occurrence.move";
     let id = occurrence(s, p, cmd)?;
     let o = s.doc.occurrences.iter().find(|o| o.id == id).cloned().ok_or_else(|| bad(cmd, "occurrence"))?;

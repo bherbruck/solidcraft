@@ -3,8 +3,8 @@
 //!
 //! In a sketch they copy the selected sketch geometry (`sketch.copy`) and paste it at the cursor
 //! (`sketch.paste` with `at`); Cut copies the sketch geometry and deletes it (`sketch.cut`), or offset from the original when the cursor is not over the
-//! viewport. Outside a sketch they copy the selected timeline features and paste them at the
-//! history marker (`timeline.copy` / `timeline.paste`).
+//! viewport. Outside a sketch they copy selected bodies or a component placement for anchored
+//! paste, or selected timeline features at the history marker (`timeline.copy` / `timeline.paste`).
 //!
 //! The window system turns Ctrl+C / Ctrl+V into clipboard events, not key presses, and only sends
 //! the paste event while the system clipboard holds text. So a copy also puts a short line of
@@ -40,17 +40,39 @@ fn sketch_selection(app: &SolveApp) -> Vec<String> {
         .collect()
 }
 
+fn objects_selected(app: &SolveApp) -> bool {
+    app.session.selection.iter().any(|s| match s {
+        Sel::Body { .. } | Sel::Occurrence { .. } => true,
+        Sel::Face { body, .. } | Sel::Edge { body, .. } | Sel::Vertex { body, .. } => !body.is_empty(),
+        _ => false,
+    })
+}
+
 /// Is there something Copy would copy?
 pub fn can_copy(app: &SolveApp) -> bool {
-    if app.session.active_sketch.is_some() { !sketch_selection(app).is_empty() } else { !crate::timeline::selected_feature_ids(app).is_empty() }
+    if app.session.active_sketch.is_some() {
+        !sketch_selection(app).is_empty()
+    } else {
+        !crate::timeline::selected_feature_ids(app).is_empty() || objects_selected(app)
+    }
 }
 
 /// Is there something Paste would paste here?
 pub fn can_paste(app: &SolveApp) -> bool {
-    if app.session.active_sketch.is_some() { app.session.sketch_clipboard.is_some() } else { !app.session.clipboard.is_empty() }
+    if app.session.active_sketch.is_some() {
+        app.session.sketch_clipboard.is_some()
+    } else {
+        !app.session.clipboard.is_empty() || !app.session.object_clipboard.is_empty()
+    }
 }
 
-/// Copy the selection: sketch geometry in a sketch, otherwise timeline features.
+pub fn copy_objects(app: &mut SolveApp, params: Value) -> bool {
+    let Ok(_) = app.run("objects.copy", params) else { return false };
+    leave_text("SolidCraft bodies or component placement".into());
+    true
+}
+
+/// Copy selected sketch geometry, timeline features, bodies or one component placement.
 pub fn copy(app: &mut SolveApp) -> bool {
     if app.session.active_sketch.is_some() {
         let entities = sketch_selection(app);
@@ -68,6 +90,9 @@ pub fn copy(app: &mut SolveApp) -> bool {
     }
     let features = crate::timeline::selected_feature_ids(app);
     if features.is_empty() {
+        if objects_selected(app) {
+            return copy_objects(app, json!({}));
+        }
         app.set_status("Select sketch geometry or timeline features to copy", true);
         return false;
     }
@@ -125,6 +150,10 @@ pub fn paste(app: &mut SolveApp, at: Option<Pos2>) -> bool {
         app.set_status(format!("Pasted {n} sketch entities (selected: drag them, or press M to move them)"), false);
         return true;
     }
+    if !app.session.object_clipboard.is_empty() {
+        app.start("edit.paste.point_to_point");
+        return app.dialog.is_some();
+    }
     if app.session.clipboard.is_empty() {
         app.set_status("Nothing to paste: copy timeline features first", true);
         return false;
@@ -136,15 +165,21 @@ pub fn paste(app: &mut SolveApp, at: Option<Pos2>) -> bool {
 /// clipboard text a menu's Copy left. Called by the global shortcuts when no text field has the
 /// keyboard.
 pub fn handle(app: &mut SolveApp, ctx: &egui::Context) {
-    let (copies, cuts, pastes, pointer) = ctx.input(|i| {
+    let (copies, cuts, pastes, point_paste, pointer) = ctx.input(|i| {
         let mut copies = 0;
         let mut cuts = 0;
         let mut pastes = 0;
+        let mut point_paste = false;
+        let point_key = i.events.iter().any(|event| matches!(event, egui::Event::Key { key: egui::Key::V, pressed: true, modifiers, .. } if modifiers.command && modifiers.shift && !modifiers.alt));
         for e in &i.events {
             match e {
                 egui::Event::Copy => copies += 1,
                 egui::Event::Cut => cuts += 1,
-                egui::Event::Paste(_) => pastes += 1,
+                egui::Event::Paste(_) => {
+                    if i.modifiers.shift {
+                        point_paste |= !point_key;
+                    } else { pastes += 1; }
+                }
                 egui::Event::Key { key: egui::Key::C, pressed: true, modifiers, .. } if modifiers.command && !modifiers.shift && !modifiers.alt => {
                     copies += 1
                 }
@@ -157,7 +192,7 @@ pub fn handle(app: &mut SolveApp, ctx: &egui::Context) {
                 _ => {}
             }
         }
-        (copies, cuts, pastes, i.pointer.latest_pos())
+        (copies, cuts, pastes, point_paste, i.pointer.latest_pos())
     });
     if copies > 0 {
         copy(app);
@@ -165,7 +200,9 @@ pub fn handle(app: &mut SolveApp, ctx: &egui::Context) {
     if cuts > 0 {
         cut(app);
     }
-    if pastes > 0 {
+    if point_paste {
+        crate::keymap::press(app, "Ctrl+Shift+V");
+    } else if pastes > 0 {
         paste(app, pointer);
     }
     flush(ctx);

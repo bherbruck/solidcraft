@@ -25,7 +25,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .enabled(in_sketch)
         .params("entities?: [curve or point ids] (default: the selected sketch geometry): copies them as sketch.copy does, then deletes them (one undo step)"),
     CommandSpec::new("sketch.paste", "Paste Sketch Entities", paste).icon("paste").enabled(in_sketch).params(
-        "at?: [x, y] (sketch point the copy's centre goes to) | translate?: [x, y]; without either, offset from the original in its own sketch and at the same coordinates in another; sketch?: target (default: the active sketch)",
+        "from: [x,y], to: [x,y] (source anchor and destination) | at?: [x, y] (sketch point the copy's centre goes to) | translate?: [x, y]; without a position, offset from the original in its own sketch and at the same coordinates in another; sketch?: target (default: the active sketch)",
     ),
 ];
 
@@ -240,7 +240,7 @@ fn paste_step(extent: f64) -> f64 {
     [1.0, 2.0, 5.0, 10.0].iter().map(|k| k * mag).find(|x| *x >= want - 1e-9).unwrap_or(want)
 }
 
-fn paste(s: &mut Session, p: &Value) -> Result<Value> {
+pub(super) fn paste(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "sketch.paste";
     // `p["sketch"] = …` below panics on anything but an object.
     if !(p.is_object() || p.is_null()) {
@@ -248,8 +248,11 @@ fn paste(s: &mut Session, p: &Value) -> Result<Value> {
     }
     let Some(clip) = s.sketch_clipboard.clone() else { return Err(bad(cmd, "nothing copied (sketch.copy first)")) };
     let target = target_sketch(s, p, cmd)?;
-    let positioned = p.get("at").is_some() || p.get("translate").is_some();
-    let t = if let Some(v) = p.get("at") {
+    let anchors = super::point_transfer::sketch_translation(p, cmd)?;
+    let positioned = anchors.is_some() || p.get("at").is_some() || p.get("translate").is_some();
+    let t = if let Some(delta) = anchors {
+        delta
+    } else if let Some(v) = p.get("at") {
         vec2(v).ok_or_else(|| bad(cmd, "`at` must be [x, y]"))? - clip.center
     } else if let Some(v) = p.get("translate") {
         vec2(v).ok_or_else(|| bad(cmd, "`translate` must be [x, y]"))?

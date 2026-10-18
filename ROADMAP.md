@@ -80,6 +80,10 @@ completed drawings publish atomically. The browser still exports synchronously.
 
 ## Interactive modelling
 
+- Point-to-point sketch Move/Copy and clipboard paste expose explicit source and destination
+  anchors, with live previews and one-step undo. Clipboard paste retains internal sketch
+  constraints and dimensions; bodies and exact component placements support anchored move
+  and copy too. See [Point-to-point move and paste](docs/point-to-point.md).
 - Thread resolves a suggested metric size when a cylindrical face is picked. Diameter and
   pitch selectors expose the existing metric designation parameter; custom designations stay
   editable, and Automatic size returns to the face's suggestion. Cosmetic/modelled and

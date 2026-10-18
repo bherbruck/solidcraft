@@ -35,6 +35,7 @@ fn copy(s: &mut Session, p: &Value) -> Result<Value> {
     let copied: Vec<solidcraft_doc::Feature> = s.doc.features.iter().filter(|f| ids.contains(&f.id)).cloned().collect();
     let names: Vec<String> = copied.iter().map(|f| f.name.clone()).collect();
     s.clipboard = copied;
+    s.object_clipboard.clear();
     Ok(json!({"copied": names}))
 }
 
@@ -51,7 +52,7 @@ fn explicit_planes(p: &mut PlaneRef) {
     }
 }
 
-fn paste(s: &mut Session, p: &Value) -> Result<Value> {
+pub(super) fn paste(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "timeline.paste";
     if s.clipboard.is_empty() {
         return Err(bad(cmd, "nothing copied (timeline.copy first)"));

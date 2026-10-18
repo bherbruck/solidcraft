@@ -285,6 +285,7 @@ pub enum Kind {
     /// Sketch-space modify tools: scale and offset, and later fillet, chamfer, the patterns,
     /// mirror and move (`sketch_modify_ui`).
     SketchModify(crate::sketch_modify_ui::Mod),
+    PointTransfer(crate::dialogs_point_transfer::Transfer),
 }
 
 /// The Single hole placement's input: places on planar faces. A pick on or near a sketch point
@@ -641,7 +642,8 @@ impl Dialog {
                     .or_else(|| crate::dialogs_parts::start(app, id))
                     .or_else(|| crate::sketch_text::start(app, id))
                     .or_else(|| crate::sketch_text_move::start(app, id))
-                    .or_else(|| crate::sketch_modify_ui::start(app, id))?;
+                    .or_else(|| crate::sketch_modify_ui::start(app, id))
+                    .or_else(|| crate::dialogs_point_transfer::start(app, id))?;
                 Dialog::new(kind, inputs)
             }
         };
@@ -656,7 +658,12 @@ impl Dialog {
         // Pre-selection: what is selected now becomes the input (first input that takes it); a
         // face or edge stands for its body where bodies are wanted. (Edit Text's selection is the
         // text it edits, not its path.)
-        let preselection: &[Sel] = if matches!(d.kind, Kind::Text(_)) { &[] } else { &s.selection };
+        let preselection: &[Sel] =
+            if matches!(d.kind, Kind::Text(_) | Kind::PointTransfer(crate::dialogs_point_transfer::Transfer { paste: true, .. })) {
+                &[]
+            } else {
+                &s.selection
+            };
         for sel in preselection {
             let as_body = match sel {
                 Sel::Face { body, .. } | Sel::Edge { body, .. } | Sel::Vertex { body, .. } => Some(Sel::Body { name: body.to_string() }),
@@ -676,7 +683,9 @@ impl Dialog {
                 _ => true,
             };
             let takes = |i: &SelInput| {
-                fits(i.accept, sel) && (i.multi || i.items.is_empty()) && (planar_ok || i.accept & FACES != 0 || !matches!(sel, Sel::Face { .. }))
+                (fits(i.accept, sel) || (matches!(d.kind, Kind::PointTransfer(_)) && i.label == "Objects" && matches!(sel, Sel::Occurrence { .. })))
+                    && (i.multi || i.items.is_empty())
+                    && (planar_ok || i.accept & FACES != 0 || !matches!(sel, Sel::Face { .. }))
             };
             if let Some(inp) = d.inputs.iter_mut().find(|i| takes(i)) {
                 // Fillets and chamfers take an edge with its tangent chain, as a pick does.
@@ -778,6 +787,7 @@ impl Dialog {
             Kind::SketchModify(k) => return k.previews(),
             Kind::Plastic(k) => return k.previews(),
             Kind::Part(_) => return true,
+            Kind::PointTransfer(_) => return true,
             _ => {}
         }
         matches!(
@@ -1442,6 +1452,13 @@ fn title(k: &Kind) -> &'static str {
         Kind::Text(_) => "EDIT TEXT",
         Kind::TextMove(_) => "MOVE/COPY TEXT",
         Kind::SketchModify(k) => k.title(),
+        Kind::PointTransfer(t) => {
+            if t.paste {
+                "Point to Point Paste"
+            } else {
+                "Point to Point Move/Copy"
+            }
+        }
     }
 }
 
@@ -1573,6 +1590,10 @@ fn object_type_row(d: &mut Dialog, ui: &mut egui::Ui) {
 /// Rows above the selection inputs: the pattern type and object type, the Hole placement (one
 /// face point, or sketch points).
 fn placement_row(d: &mut Dialog, ui: &mut egui::Ui) {
+    if matches!(d.kind, Kind::SketchModify(crate::sketch_modify_ui::Mod::Move { .. })) {
+        crate::sketch_modify_ui::type_row(d, ui);
+        return;
+    }
     if matches!(d.kind, Kind::Mirror) {
         object_type_row(d, ui);
         return;
@@ -1648,11 +1669,13 @@ fn selection_label(s: &Session, item: &Sel) -> String {
         Sel::Face { body, index, .. } => format!("{body} · face {index}"),
         Sel::Edge { body, index, .. } => format!("{body} · edge {index}"),
         Sel::Feature { id } => s.doc.feature(*id).map(|f| f.name.clone()).unwrap_or_else(|| format!("Feature {id}")),
+        Sel::Occurrence { path } => s.occurrence_placement(path).map(|p| p.name).unwrap_or_default(),
         Sel::Vertex { body, point } if body.is_empty() => {
             let state = s.world_state();
             let p = s.active_sketch.and_then(|id| state.sketch(id)).map(|sk| sk.plane.to_local(*point)).unwrap_or_default();
             format!("({:.2}, {:.2}) mm", p.x, p.y)
         }
+        Sel::Vertex { body, point } => format!("{body} · ({:.2}, {:.2}, {:.2}) mm", point.x, point.y, point.z),
         _ => format!("{item:?}"),
     }
 }
@@ -3000,6 +3023,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
                     Kind::Sheet(k) => enter |= crate::dialogs_sheet::rows(app, ui, k, &mut d.inputs),
                     Kind::Surface(k) => enter |= crate::dialogs_surface::rows(ui, k),
                     Kind::SketchModify(k) => enter |= crate::sketch_modify_ui::rows(ui, k),
+                    Kind::PointTransfer(t) => crate::dialogs_point_transfer::rows(ui, t),
                     Kind::SaveMesh(k) => enter |= crate::dialogs_save_mesh::rows(app, ui, k),
                     Kind::ViewDxf { dashed, tolerance } => crate::dialogs_view_dxf::rows(app, ui, dashed, tolerance),
                     Kind::Plastic(k) => enter |= crate::dialogs_plastic::rows(app, ui, k, &d.inputs),
@@ -4297,6 +4321,7 @@ fn dialog_commands(app: &SolveApp, d: &Dialog) -> Result<Vec<(String, Value)>, S
         Kind::Sheet(k) => return crate::dialogs_sheet::commands(app, k, &d.inputs, &d.extra),
         Kind::Surface(k) => return crate::dialogs_surface::commands(app, k, &d.inputs, &d.extra),
         Kind::SketchModify(k) => return crate::sketch_modify_ui::commands(app, k, &d.inputs, &d.extra),
+        Kind::PointTransfer(t) => return crate::dialogs_point_transfer::commands(app, d, t),
         Kind::SaveMesh(k) => return crate::dialogs_save_mesh::commands(k, &d.inputs),
         Kind::ViewDxf { .. } => return Ok(Vec::new()),
         Kind::Plastic(k) => return crate::dialogs_plastic::commands(app, k, &d.inputs, &d.extra),

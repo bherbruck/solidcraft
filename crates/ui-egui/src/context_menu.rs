@@ -405,6 +405,7 @@ fn viewport_items(app: &SolveApp) -> Vec<Item> {
         v.push(Item::sep());
         v.push(cmd(app, "edit.undo", "Undo").on(!app.session.undo.is_empty()));
         v.push(cmd(app, "edit.redo", "Redo").on(!app.session.redo.is_empty()));
+        v.push(cmd(app, "edit.paste.point_to_point", "Point to Point Paste"));
         return v;
     }
     // A sketch curve or point in the viewport gets the sketch's own menu, the one its browser row
@@ -501,6 +502,9 @@ fn body_items(app: &SolveApp, bodies: &[String], browser: bool) -> Vec<Item> {
     let items = json!(bodies.iter().map(|b| json!({"type": "body", "name": b})).collect::<Vec<_>>());
     let mut v = vec![
         act("ui.moveBodies", "Move/Copy", "move").key("M").with(json!({ "bodies": names })).on(!locked),
+        act("ui.pointMove", "Point to Point Move/Copy", "move").with(json!({"objects": items})).on(!locked),
+        act("ui.copyObjects", "Copy", "copy").with(json!({"objects": items})).key("Ctrl+C"),
+        cmd(app, "edit.paste.point_to_point", "Point to Point Paste"),
         cmd(app, "component.from_bodies", "Create Components from Bodies").with(json!({ "bodies": names })),
         Item::sep(),
         act("ui.material", "Physical Material", "").with(json!({ "bodies": names })),
@@ -629,6 +633,12 @@ fn occurrence_items(app: &SolveApp, path: &[u64]) -> Vec<Item> {
                 item.params = Some(json!({"occurrence": placement.occurrence, "path": path}));
                 item.enabled = !placement.grounded && app.session.held_by_rigid_group(placement.occurrence).is_none();
             }
+            "ui.pointMove" | "ui.copyObjects" => {
+                item.params = Some(json!({"objects": [{"type": "occurrence", "path": path}]}));
+                if item.id == "ui.pointMove" {
+                    item.enabled = !placement.grounded && app.session.held_by_rigid_group(placement.occurrence).is_none();
+                }
+            }
             "ui.properties" => item.params = Some(json!({"occurrence": placement.occurrence, "path": path})),
             "occurrence.copy" => item.params = Some(json!({"occurrence": placement.occurrence, "translate": [10,10,0]})),
             "component.create" => item.params = Some(json!({"parent": placement.component, "parent_path": path})),
@@ -676,6 +686,10 @@ fn component_items(app: &SolveApp, id: u64) -> Vec<Item> {
                 .on(!grounded && occ.is_some() && app.session.held_by_rigid_group(oid).is_none()),
         );
         v.push(cmd(app, "component.capture_position", "Capture Position").on(!app.session.pending_moves.is_empty()));
+        let objects = json!([{"type": "occurrence", "path": app.session.doc.first_path(id)}]);
+        v.push(act("ui.pointMove", "Point to Point Move/Copy", "move").with(json!({"objects": objects})).on(!grounded && occ.is_some()));
+        v.push(act("ui.copyObjects", "Copy", "copy").with(json!({"objects": objects})).on(occ.is_some()));
+        v.push(cmd(app, "edit.paste.point_to_point", "Point to Point Paste"));
         v.push(cmd(app, "component.revert_position", "Revert Position").on(!app.session.pending_moves.is_empty()));
         // An imported assembly moves as one until its rigid group is released.
         if !app.session.contents_joints(id).is_empty() {
@@ -769,6 +783,7 @@ fn sketch_entity_items(app: &SolveApp) -> Vec<Item> {
         v.push(cmd(app, "sketch.dimension", "Sketch Dimension"));
         v.push(Item::sep());
         v.push(act("ui.paste", "Paste", "").key("Ctrl+V").on(app.session.sketch_clipboard.is_some()));
+        v.push(cmd(app, "edit.paste.point_to_point", "Point to Point Paste").key("Ctrl+Shift+V"));
         return v;
     }
     let ents: Vec<String> = curves.iter().chain(points.iter()).cloned().collect();
@@ -787,6 +802,7 @@ fn sketch_entity_items(app: &SolveApp) -> Vec<Item> {
     v.push(act("ui.cut", "Cut", "").key("Ctrl+X"));
     v.push(act("ui.copy", "Copy", "").key("Ctrl+C"));
     v.push(act("ui.paste", "Paste", "").key("Ctrl+V").on(app.session.sketch_clipboard.is_some()));
+    v.push(cmd(app, "edit.paste.point_to_point", "Point to Point Paste").key("Ctrl+Shift+V"));
     if !curves.is_empty() {
         v.push(cmd(app, "sketch.construction", "Normal / Construction").with(json!({ "curves": curves })));
     }
@@ -884,6 +900,11 @@ pub fn run_item(app: &mut SolveApp, item: &Item, at: Pos2) {
         "ui.delete" => delete(app),
         "ui.finishSketch" => app.finish_sketch(),
         "ui.copy" => drop(crate::edit_clipboard::copy(app)),
+        "ui.copyObjects" => drop(crate::edit_clipboard::copy_objects(app, p)),
+        "ui.pointMove" => {
+            let _ = app.run("select.set", json!({"items": p.get("objects")}));
+            app.start("objects.move.point_to_point");
+        }
         "ui.cut" => drop(crate::edit_clipboard::cut(app)),
         "ui.paste" => drop(crate::edit_clipboard::paste(app, Some(at))),
         "ui.editSketchPattern" => {

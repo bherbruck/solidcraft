@@ -414,7 +414,7 @@ pub(super) fn add_feature(s: &mut Session, p: &Value, kind: FeatureKind) -> Resu
 }
 
 /// `add_feature`; `world` is false when `kind` is already in the active component's frame.
-fn add_feature_in(s: &mut Session, p: &Value, kind: FeatureKind, world: bool) -> Result<Value> {
+pub(super) fn add_feature_in(s: &mut Session, p: &Value, kind: FeatureKind, world: bool) -> Result<Value> {
     let name = str_(p, "name");
     // The bodies before the feature, to say which ones it changed or removed.
     let before = s.model.state();

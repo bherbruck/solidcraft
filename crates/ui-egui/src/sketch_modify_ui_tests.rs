@@ -276,7 +276,7 @@ fn move_inputs(h: &Harness) -> Vec<SelInput> {
 /// A fresh Move window's values, with one field replaced. Functional record update (`..base`)
 /// is a struct feature, so an enum variant has to spell every field out.
 fn moved(x: &str, y: &str, angle: &str) -> Mod {
-    Mod::Move { x: x.into(), y: y.into(), angle: angle.into(), copy: false }
+    Mod::Move { x: x.into(), y: y.into(), angle: angle.into(), copy: false, point_to_point: false }
 }
 
 #[test]
@@ -311,7 +311,7 @@ fn the_context_menu_item_fills_the_window_from_the_selection() {
 fn the_typed_distances_and_angle_reach_the_command() {
     let h = rectangle();
     let inputs = move_inputs(&h);
-    let k = Mod::Move { x: "10 mm".into(), y: "-4 mm".into(), angle: "90 deg".into(), copy: false };
+    let k = Mod::Move { x: "10 mm".into(), y: "-4 mm".into(), angle: "90 deg".into(), copy: false, point_to_point: false };
     let out = commands(&h.app, &k, &inputs, &serde_json::Map::new()).unwrap();
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].0, "sketch.move");
@@ -327,7 +327,7 @@ fn an_expression_and_a_bare_angle_are_evaluated() {
     let mut h = rectangle();
     h.app.run("parameters.add", json!({"name": "step", "expression": "7 mm", "unit": "mm"})).unwrap();
     let inputs = move_inputs(&h);
-    let k = Mod::Move { x: "step * 2".into(), y: String::new(), angle: "45".into(), copy: false };
+    let k = Mod::Move { x: "step * 2".into(), y: String::new(), angle: "45".into(), copy: false, point_to_point: false };
     let out = commands(&h.app, &k, &inputs, &serde_json::Map::new()).unwrap();
     assert_eq!(out[0].1["translate"], json!([14.0, 0.0]));
     assert!((out[0].1["angle"].as_f64().unwrap() - 45.0).abs() < 1e-9, "{}", out[0].1["angle"]);
@@ -353,7 +353,7 @@ fn the_window_moves_the_rectangle_and_the_copy_row_leaves_the_original_behind() 
     {
         let d = h.app.dialog.as_mut().unwrap();
         d.inputs[0].items = picks;
-        d.kind = Kind::SketchModify(Mod::Move { x: "30 mm".into(), y: "0 mm".into(), angle: "0 deg".into(), copy: true });
+        d.kind = Kind::SketchModify(Mod::Move { x: "30 mm".into(), y: "0 mm".into(), angle: "0 deg".into(), copy: true, point_to_point: false });
     }
     // A frame with the picks in place: the canvas value box takes focus on the frame after a
     // pick, and Enter only applies once it has had it.
@@ -387,7 +387,7 @@ fn a_plain_move_takes_the_geometry_with_it() {
     {
         let d = h.app.dialog.as_mut().unwrap();
         d.inputs[0].items = picks;
-        d.kind = Kind::SketchModify(Mod::Move { x: "0 mm".into(), y: "5 mm".into(), angle: "0 deg".into(), copy: false });
+        d.kind = Kind::SketchModify(Mod::Move { x: "0 mm".into(), y: "5 mm".into(), angle: "0 deg".into(), copy: false, point_to_point: false });
     }
     // A frame with the picks in place: the canvas value box takes focus on the frame after a
     // pick, and Enter only applies once it has had it.

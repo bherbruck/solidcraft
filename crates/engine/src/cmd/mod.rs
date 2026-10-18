@@ -56,6 +56,7 @@ pub(crate) use measure_sel::measure_items;
 mod kernel_heal_tests;
 mod parameters;
 mod plastic;
+mod point_transfer;
 mod render;
 #[cfg(test)]
 mod script_tests;
@@ -263,6 +264,7 @@ pub fn command_specs() -> Vec<&'static CommandSpec> {
     v.extend(delete::COMMANDS.iter());
     v.extend(edit::COMMANDS.iter());
     v.extend(clipboard::COMMANDS.iter());
+    v.extend(point_transfer::COMMANDS.iter());
     v.extend(sketch_clipboard::COMMANDS.iter());
     v.extend(script::COMMANDS.iter());
     v.extend(parameters::COMMANDS.iter());

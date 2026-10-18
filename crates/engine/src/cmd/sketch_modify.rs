@@ -78,7 +78,7 @@ pub static COMMANDS: &[CommandSpec] = &[
         .at("SKETCH", "MODIFY")
         .icon("sketch_move")
         .enabled(in_sketch)
-        .params(concat!("entities: [ids], translate?: [dx,dy], angle?: deg, center?: [x,y], copy?: bool; picking a text outline or linked point transforms its whole text source once, and copies remain editable text", created_doc!())),
+        .params(concat!("entities: [ids], from: [x,y], to: [x,y] | translate?: [dx,dy], angle?: deg, center?: [x,y], copy?: bool; from/to is a pure translation and cannot be combined with translate, angle or center; picking a text outline or linked point transforms its whole text source once, and copies remain editable text", created_doc!())),
     CommandSpec::new("sketch.mirror", "Mirror", mirror)
         .at("SKETCH", "PATTERN")
         .icon("sketch_mirror")
@@ -1769,7 +1769,17 @@ fn transform_in_place(sk: &mut Sketch, cs: &[usize], ps: &[usize], f: &dyn Fn(Ve
 
 fn move_copy(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "sketch.move";
-    let t = if p.get("translate").is_some() { req_vec2(cmd, p, "translate")? } else { Vec2::ZERO };
+    let anchors = super::point_transfer::sketch_translation(p, cmd)?;
+    if anchors.is_some() && (p.get("angle").is_some() || p.get("center").is_some()) {
+        return Err(bad(cmd, "from/to cannot be combined with angle or center"));
+    }
+    let t = if let Some(delta) = anchors {
+        delta
+    } else if p.get("translate").is_some() {
+        req_vec2(cmd, p, "translate")?
+    } else {
+        Vec2::ZERO
+    };
     let ang = if p.get("angle").is_some() { num(p, "angle").ok_or_else(|| bad(cmd, "`angle` must be finite"))? } else { 0.0 }.to_radians();
     let copy = bool_(p, "copy").unwrap_or(false);
     let (out, info) = edit(s, p, cmd, false, |sk, _| {
