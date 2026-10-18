@@ -51,6 +51,10 @@ pub(crate) struct RawWheel {
     pan: egui::Vec2,
     /// Bare horizontal input in points (thumb wheel: always pans sideways).
     mouse_pan: egui::Vec2,
+    /// Bracketed two-finger scroll with Shift held, in points (orbits, #2112).
+    orbit: egui::Vec2,
+    /// Vertical scroll with the zoom modifier (Cmd on macOS, Ctrl elsewhere) held, in points.
+    modifier_zoom: f32,
 }
 
 /// Route wheel points to the vertical axis, matching egui's scroll modifiers.
@@ -71,13 +75,13 @@ pub(crate) fn route_wheel_vertical(points: egui::Vec2, modifiers: egui::Modifier
 /// `gesture` tracks an ongoing bracketed trackpad scroll (`Start` … `End`):
 /// moves inside one pan, bare `Move` input is a mouse (vertical zooms,
 /// horizontal pans). Only point input brackets; line/page input always zooms.
+/// Modifiers switch a two-finger scroll without lifting the fingers (#2112):
+/// Shift orbits, the zoom modifier (Cmd on macOS, Ctrl elsewhere) zooms.
 pub(crate) fn immediate_wheel(input: &egui::InputState, options: egui::InputOptions, page_height: f32, gesture: &mut bool) -> RawWheel {
-    let mut out = RawWheel { zoom: 0.0, point_zoom: 0.0, pan: egui::Vec2::ZERO, mouse_pan: egui::Vec2::ZERO };
+    let mut out =
+        RawWheel { zoom: 0.0, point_zoom: 0.0, pan: egui::Vec2::ZERO, mouse_pan: egui::Vec2::ZERO, orbit: egui::Vec2::ZERO, modifier_zoom: 0.0 };
     for event in &input.events {
         let egui::Event::MouseWheel { unit, delta, modifiers, phase } = event else { continue };
-        if modifiers.matches_any(options.zoom_modifier) {
-            continue;
-        }
         let point = matches!(unit, egui::MouseWheelUnit::Point);
         match phase {
             egui::TouchPhase::Start => {
@@ -99,7 +103,11 @@ pub(crate) fn immediate_wheel(input: &egui::InputState, options: egui::InputOpti
             egui::MouseWheelUnit::Line => *delta * options.line_scroll_speed,
             egui::MouseWheelUnit::Page => *delta * page_height,
         };
-        if point && *gesture {
+        if modifiers.matches_any(options.zoom_modifier) {
+            out.modifier_zoom += points.y;
+        } else if point && *gesture && modifiers.shift {
+            out.orbit += points;
+        } else if point && *gesture {
             out.pan += points;
             // Legacy path only (ignored while panning is on).
             out.point_zoom += route_wheel_vertical(points, *modifiers, options);
@@ -312,7 +320,7 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
         raw.zoom + if trackpad_pan { 0.0 } else { raw.point_zoom }
     } else {
         scroll
-    };
+    } + raw.modifier_zoom;
     // Pinch-to-zoom (trackpad): direct manipulation, never smoothed.
     let pinch = ui.input(pinch_factor);
     let h = rect.height().max(1.0) as f64;
@@ -359,6 +367,13 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
             app.cancel_view_animation();
             app.cam.pan(f64::from(pan.x), f64::from(pan.y), h);
         }
+    }
+    // Shift + two-finger scroll orbits with the fingers, like a drag (#2112).
+    let scroll_orbit = inside && caps.orbit && raw.orbit != egui::Vec2::ZERO;
+    if scroll_orbit {
+        app.viewport.orbit_snap = None;
+        app.cancel_view_animation();
+        orbit_drag(app, rect, f64::from(raw.orbit.x), f64::from(raw.orbit.y), hover, false, true);
     }
     // A left press with the preset's keys (Alias: Shift+Alt) navigates until the button is let
     // go (kept through the release frame, so the end of the drag doesn't select either).
@@ -478,7 +493,8 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
             }
         }
     }
-    if !dragging && motion.is_none() {
+    // A Shift scroll keeps its cursor pivot until the fingers lift.
+    if !dragging && motion.is_none() && !(scroll_orbit || (app.viewport.trackpad_gesture && mods.shift)) {
         app.viewport.orbit_pivot = None;
     }
     if app.viewport.spin {
@@ -496,7 +512,7 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
                 i.stable_dt,
             )
         });
-        if pressed || key || dragging || motion.is_some() || !caps.orbit {
+        if pressed || key || dragging || motion.is_some() || scroll_orbit || !caps.orbit {
             app.viewport.spin = false;
         } else {
             app.cam.orbit(f64::from(dt.min(0.1)) * 30.0, 0.0);

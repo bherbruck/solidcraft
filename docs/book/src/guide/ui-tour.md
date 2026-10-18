@@ -28,6 +28,9 @@
   preset in Preferences switches to SolidWorks, Inventor, Alias, Blender, Tinkercad, OpenSCAD or Touchpad style). On a
   trackpad, pinch zooms and two-finger scroll pans (Navigation › Two-finger scroll pans;
   off: scroll zooms like the wheel); mouse wheels zoom and the thumb wheel pans sideways.
+  In every preset, hold **Shift** during a two-finger scroll to orbit and **Cmd** (Ctrl on
+  Windows and Linux) to zoom; the scroll switches as you press or release the key, without
+  lifting your fingers.
   Shift+middle orbits freely
   in the default and Inventor presets. In every preset, Ctrl+left drag (Cmd on macOS) that starts
   on empty space orbits; a Ctrl+click still adds to the selection. Shift+right-drag snaps to the nearest standard or

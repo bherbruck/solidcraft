@@ -5275,6 +5275,44 @@ mod tests {
         assert_eq!(h.app.cam, after);
     }
 
+    /// #2112: Shift switches a two-finger scroll to orbit and Cmd/Ctrl to zoom, mid-gesture,
+    /// without lifting the fingers; letting go of the key pans again. Every preset.
+    #[test]
+    fn trackpad_scroll_modifiers_orbit_and_zoom() {
+        for nav in ["fusion", crate::prefs::TOUCHPAD_NAV] {
+            let mut h = crate::scenario::Harness::new();
+            h.app.preferences.nav = nav.to_string();
+            h.app.preferences.smooth_wheel_zoom = false;
+            h.call("ui.move", json!({"x":800,"y":500}));
+            let scroll = |modifiers, phase| egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: vec2(30.0, 20.0), modifiers, phase };
+            h.app.synthetic.push(scroll(egui::Modifiers::NONE, egui::TouchPhase::Start));
+            h.frame();
+            // Shift: orbit, without zooming.
+            let before = h.app.cam;
+            h.app.synthetic.push(scroll(egui::Modifiers::SHIFT, egui::TouchPhase::Move));
+            h.frame();
+            assert!((h.app.cam.yaw - before.yaw).abs() > 1e-6, "{nav}: Shift + scroll must orbit");
+            assert!((h.app.cam.half_height() - before.half_height()).abs() < 1e-9, "{nav}: Shift + scroll must not zoom");
+            // Cmd (Ctrl elsewhere): zoom, without turning.
+            let before = h.app.cam;
+            h.app.synthetic.push(scroll(egui::Modifiers::COMMAND, egui::TouchPhase::Move));
+            h.frame();
+            assert!(h.app.cam.half_height() < before.half_height(), "{nav}: Cmd + scroll must zoom");
+            assert_eq!((h.app.cam.yaw, h.app.cam.pitch), (before.yaw, before.pitch), "{nav}: Cmd + scroll must not orbit");
+            // No key: back to the preset's plain scroll, without turning.
+            let before = h.app.cam;
+            h.app.synthetic.push(scroll(egui::Modifiers::NONE, egui::TouchPhase::Move));
+            h.frame();
+            assert_eq!((h.app.cam.yaw, h.app.cam.pitch), (before.yaw, before.pitch), "{nav}: plain scroll must not orbit");
+            assert_ne!(h.app.cam, before, "{nav}: plain scroll still moves the view");
+            h.app.synthetic.push(scroll(egui::Modifiers::NONE, egui::TouchPhase::End));
+            h.frame();
+            let after = h.app.cam;
+            h.frames(30);
+            assert_eq!(h.app.cam, after, "{nav}: the view must not drift once input stops");
+        }
+    }
+
     #[test]
     fn trackpad_two_finger_scroll_pans_without_zooming() {
         let mut h = crate::scenario::Harness::new();
