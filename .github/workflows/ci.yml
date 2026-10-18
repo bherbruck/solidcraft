@@ -162,6 +162,9 @@ jobs:
           if [ "$EVENT_NAME" = pull_request ] && [ "$full" != true ]; then
             case " $packages " in *" solidcraft-cli "*) ;; *) oracle=false ;; esac
           fi
+          # The pull request fast lane: Windows and the reference tests run on main (and the nightly),
+          # not on every pull request push; a break there is fixed forward on main.
+          if [ "$EVENT_NAME" = pull_request ]; then windows=false; oracle=false; fi
           {
             echo "native=$native"
             echo "kernel=$kernel"
@@ -288,7 +291,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        # Pull requests test their affected crates in 2 shards; main and the nightly use 4.
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[1, 2]' || '[1, 2, 3, 4]') }}
     env:
       # Pictures (snapshots, screenshots, ui.render, the viewport's offscreen tests) are drawn on
       # the GPU. The runner has none: Mesa's lavapipe (software Vulkan) draws them, and a test that
@@ -313,6 +317,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ github.event_name == 'pull_request' && 2 || 4 }}
         run: |
           # Pull requests skip the heavy tests (default-filter in .config/nextest.toml).
           all=()
@@ -324,17 +329,7 @@ jobs:
           # Extract into ./target: tests that run a built binary (env!("CARGO_BIN_EXE_*")) have
           # the build job's path, which is the same checkout path here.
           cargo nextest run --archive-file tests.tar.zst --workspace-remap . --extract-to . --extract-overwrite \
-            --profile ci --partition "slice:$SHARD/4" --no-tests=pass "${all[@]}"
-      - name: Robustness goldens sample (pull requests that touch the kernel)
-        # Every 8th seed of tests/robustness/goldens.json (each seed is a test), a quarter per
-        # shard; pushes to main and the nightly run every seed in the step above.
-        if: github.event_name == 'pull_request' && needs.changes.outputs.kernel == 'true'
-        env:
-          SHARD: ${{ matrix.shard }}
-        run: |
-          cargo nextest run --archive-file tests.tar.zst --workspace-remap . --extract-to . --extract-overwrite \
-            --profile ci --ignore-default-filter --partition "slice:$SHARD/4" --no-tests=pass \
-            -E 'package(solidcraft-engine) & test(/^tests::robustness_goldens::seed_(00|08|16|24|32|40|48|56|64|72|80|88)$/)'
+            --profile ci --partition "slice:$SHARD/$SHARDS" --no-tests=pass "${all[@]}"
       - name: Upload test timings
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
