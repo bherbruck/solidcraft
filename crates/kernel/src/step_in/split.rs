@@ -34,17 +34,21 @@ fn coord(d: Dir, uv: (f64, f64)) -> f64 {
     }
 }
 
-/// The closed, non-periodic direction of a surface with its range.
-fn closed_dirs(s: &mt::Surface) -> Vec<(Dir, f64, f64)> {
+/// The closed, non-periodic direction of a surface with its range; with `periodic`, a revolved
+/// surface's turn around its axis too.
+fn closed_dirs(s: &mt::Surface, periodic: bool) -> Vec<(Dir, f64, f64)> {
     match s {
         mt::Surface::RevolutedCurve(p) => {
             let c = p.entity().entity_curve();
             let (t0, t1) = c.range_tuple();
+            let mut out = Vec::new();
             if c.front().distance(c.back()) < 1e-7 * (1.0 + c.front().to_homogeneous().truncate().magnitude()) {
-                vec![(Dir::U, t0, t1)]
-            } else {
-                vec![]
+                out.push((Dir::U, t0, t1));
             }
+            if periodic {
+                out.extend(turn_dir(s));
+            }
+            out
         }
         mt::Surface::BSplineSurface(_) | mt::Surface::NurbsSurface(_) => {
             let ((u0, u1), (v0, v1)) = match s {
@@ -74,6 +78,24 @@ fn closed_dirs(s: &mt::Surface) -> Vec<(Dir, f64, f64)> {
         }
         mt::Surface::Plane(_) => vec![],
     }
+}
+
+/// The parameter that turns a revolved surface around its axis, over one turn.
+fn turn_dir(s: &mt::Surface) -> Option<(Dir, f64, f64)> {
+    let mt::Surface::RevolutedCurve(p) = s else { return None };
+    let (t0, t1) = p.entity().entity_curve().range_tuple();
+    let tau = std::f64::consts::TAU;
+    let ts: Vec<f64> = (0..=4).map(|i| t0 + (t1 - t0) * f64::from(i) / 4.0).collect();
+    [Dir::V, Dir::U].into_iter().find_map(|d| {
+        let at = |w: f64, t: f64| match d {
+            Dir::V => s.subs(t, w),
+            Dir::U => s.subs(w, t),
+        };
+        let scale = ts.iter().map(|t| at(0.0, *t).to_homogeneous().truncate().magnitude()).fold(1.0, f64::max);
+        let closes = ts.iter().all(|t| at(0.0, *t).distance(at(tau, *t)) < scale * 1e-9);
+        let turns = ts.iter().any(|t| at(0.0, *t).distance(at(std::f64::consts::PI, *t)) > scale * 1e-6);
+        (closes && turns).then_some((d, 0.0, tau))
+    })
 }
 
 fn samples(c: &mt::Curve, n: usize) -> Vec<(f64, mt::Point3)> {
@@ -121,6 +143,16 @@ fn crossing(s: &mt::Surface, d: Dir, chain: &[mt::Edge], mid: f64, period: f64) 
 /// Iso-parameter edge curve `w = mid` from `q1` to `q2`.
 fn iso_curve(s: &mt::Surface, d: Dir, mid: f64, q1: mt::Point3, q2: mt::Point3, seam: &[mt::Point3]) -> R<mt::Curve> {
     match s {
+        // Across the turn of a cylinder or cone: a straight line along it.
+        mt::Surface::RevolutedCurve(_) if turn_dir(s).is_some_and(|t| t.0 == d) => {
+            let m = q1 + (q2 - q1) * 0.5;
+            let on = uv_of(s, m).is_some_and(|(u, v)| s.subs(u, v).distance(m) < 1e-7 * (1.0 + q1.distance(q2)));
+            if on && q1.distance(q2) > 1e-9 {
+                Ok(mt::Curve::Line(mt::Line(q1, q2)))
+            } else {
+                Err("a revolved face that is not straight along its axis".into())
+            }
+        }
         mt::Surface::RevolutedCurve(p) => {
             // A circle around the axis, turning opposite to the seam (which runs from the q2
             // side to the q1 side).
@@ -260,7 +292,7 @@ struct Plan {
     faces: (mt::Face, mt::Face),
 }
 
-fn plan(face: &mt::Face) -> R<Option<Plan>> {
+fn plan(face: &mt::Face, periodic: bool) -> R<Option<Plan>> {
     let s = face.surface();
     let wires = face.absolute_boundaries().clone();
     let mut uses: HashMap<mt::EdgeID, usize> = HashMap::new();
@@ -274,7 +306,7 @@ fn plan(face: &mt::Face) -> R<Option<Plan>> {
     // The closed direction whose boundary carries the seam.
     let seam_pts: Vec<mt::Point3> =
         wires.iter().flat_map(|w| w.edge_iter()).filter(|e| is_seam(e)).flat_map(|e| samples(&e.curve(), 4).into_iter().map(|x| x.1)).collect();
-    let Some((d, w0, w1)) = closed_dirs(&s).into_iter().find(|(d, w0, w1)| {
+    let Some((d, w0, w1)) = closed_dirs(&s, periodic).into_iter().find(|(d, w0, w1)| {
         let p = w1 - w0;
         seam_pts.iter().all(|q| uv_of(&s, *q).map(|uv| coord(*d, uv)).is_some_and(|w| (w - w0).abs().min((w - w1).abs()) < p * 1e-4))
     }) else {
@@ -456,13 +488,48 @@ fn recut(face: &mt::Face, cuts: &[(mt::Edge, (mt::Edge, mt::Edge))]) -> mt::Face
     f
 }
 
+/// A copy of `body` whose faces that run once round a cylinder or cone along a seam edge
+/// (as STEP files have them) are each cut in two along the line opposite the seam, the way the
+/// kernel builds such walls itself; the boolean cannot always intersect the whole ones. `None`
+/// when the body has no such face, or one can't be cut.
+pub(crate) fn split_seams(body: &crate::Body) -> Option<crate::Body> {
+    let seamed = |f: &mt::Face| {
+        let mut seen = std::collections::HashSet::new();
+        f.absolute_boundaries().iter().flat_map(|w| w.edge_iter()).any(|e| !seen.insert(e.id()))
+    };
+    if !body.solid.face_iter().any(seamed) {
+        return None;
+    }
+    let mut shells: Vec<mt::Shell> = Vec::new();
+    for sh in body.solid.boundaries() {
+        let mut faces: Vec<mt::Face> = sh.face_iter().cloned().collect();
+        let n = faces.len();
+        for i in 0..n {
+            let Some(face) = faces.get(i).cloned() else { continue };
+            if !seamed(&face) {
+                continue;
+            }
+            let p = crate::guard("seam split", || plan(&face, true).map_err(crate::KernelError::Failed)).ok()??;
+            faces = faces.iter().map(|f| recut(f, &p.cuts)).collect();
+            if let Some(slot) = faces.get_mut(i) {
+                *slot = p.faces.0;
+            }
+            faces.push(p.faces.1);
+        }
+        shells.push(faces.into());
+    }
+    let solid = mt::Solid::try_new(shells).ok()?;
+    let b = crate::Body::new(solid).ok()?;
+    b.validity().is_empty().then_some(b)
+}
+
 /// Split every band face of a shell (see the module docs). Faces that cannot be split stay as
 /// they are and are reported.
 pub(crate) fn split_bands(mut faces: Vec<mt::Face>, origin: &mut Vec<u64>, warnings: &mut Vec<String>) -> Vec<mt::Face> {
     let n = faces.len();
     for i in 0..n {
         let Some(face) = faces.get(i).cloned() else { continue };
-        match crate::guard("step band split", || plan(&face).map_err(crate::KernelError::Failed)) {
+        match crate::guard("step band split", || plan(&face, false).map_err(crate::KernelError::Failed)) {
             Ok(Some(p)) => {
                 faces = faces.iter().map(|f| recut(f, &p.cuts)).collect();
                 if let Some(slot) = faces.get_mut(i) {
