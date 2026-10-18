@@ -81,9 +81,12 @@ completed drawings publish atomically. The browser still exports synchronously.
 ## Interactive modelling
 
 - Thread resolves a suggested metric size when a cylindrical face is picked. Diameter and
-  pitch selectors expose the existing metric designation parameter; custom designations stay
-  editable, and Automatic size returns to the face's suggestion. Cosmetic/modelled and
-  full/partial-length options remain available. This does not add tolerance classes or
+  pitch are editable millimetre fields with optional menus of whole-millimetre sizes through
+  100 mm, fractional coarse sizes and intermediate pitches. Other dimensions can be typed
+  directly. New external threads snap to the nearest fitting preset, including M33 and the
+  sample flange's M44 hub; saved automatic features retain their sizing behavior. Automatic
+  size returns to the face's suggestion. Cosmetic/modelled and full/partial-length options
+  remain available. This does not add tolerance classes or
   left-hand threads.
 - New Body extrusion and face-offset previews show completed intermediate geometry while a
   drag continues, then catch up to the exact final value. Changes to the selected geometry,
