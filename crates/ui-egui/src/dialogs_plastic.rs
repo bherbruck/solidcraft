@@ -9,7 +9,7 @@ use solidcraft_engine::doc::plastic::PlasticRule;
 use solidcraft_engine::geom::Vec3;
 
 use crate::SolveApp;
-use crate::dialogs::{Kind, combo, face_sel, field, row_label};
+use crate::dialogs::{Kind, combo, face_sel, field, row_label, shown_expr};
 use crate::selection::{BODIES, FACES, PLANAR_FACES, SelInput};
 
 #[derive(Clone, Debug)]
@@ -140,10 +140,13 @@ pub fn start(app: &SolveApp, id: &str) -> Option<(Kind, Vec<SelInput>)> {
     Some((Kind::Plastic(pl), inputs))
 }
 
-/// A value row whose empty value means "from the rule" (or another default).
-fn opt_field(ui: &mut egui::Ui, label: &str, v: &mut String, hint: &str) -> bool {
+/// A value row whose empty value means "from the rule" (or another default). `unit` leads the
+/// hint ("mm, from the rule") so the empty field names the unit a typed number takes.
+fn opt_field(ui: &mut egui::Ui, label: &str, v: &mut String, unit: &str, hint: &str) -> bool {
     row_label(ui, label);
+    let hint = format!("{unit}, {}", crate::i18n::tr_label(hint));
     let r = ui.add(egui::TextEdit::singleline(v).hint_text(hint));
+    crate::dialogs::publish_row(&r);
     crate::params_dialog::complete(ui, &r, v);
     ui.end_row();
     r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))
@@ -182,10 +185,10 @@ pub fn rows(app: &mut SolveApp, ui: &mut egui::Ui, k: &mut Pl, inputs: &[SelInpu
         Pl::Boss { diameter, height, hole_diameter, hole_depth, draft, fillet, ribs, rib_thickness, rib_length, rib_offset } => {
             enter |= value_row(ui, "Diameter", diameter);
             enter |= value_row(ui, "Height", height);
-            enter |= opt_field(ui, "Hole Diameter", hole_diameter, "no hole");
-            enter |= opt_field(ui, "Hole Depth", hole_depth, "to the face");
-            enter |= opt_field(ui, "Draft Angle", draft, "from the rule");
-            enter |= opt_field(ui, "Root Fillet", fillet, "none");
+            enter |= opt_field(ui, "Hole Diameter", hole_diameter, "mm", "no hole");
+            enter |= opt_field(ui, "Hole Depth", hole_depth, "mm", "to the face");
+            enter |= opt_field(ui, "Draft Angle", draft, "deg", "from the rule");
+            enter |= opt_field(ui, "Root Fillet", fillet, "mm", "none");
             enter |= value_row(ui, "Ribs", ribs);
             if app.session.doc.eval(ribs, ValueKind::Unitless).is_ok_and(|n| n >= 1.0) {
                 enter |= value_row(ui, "  Rib Thickness", rib_thickness);
@@ -207,7 +210,7 @@ pub fn rows(app: &mut SolveApp, ui: &mut egui::Ui, k: &mut Pl, inputs: &[SelInpu
             enter |= value_row(ui, "Width", width);
             enter |= value_row(ui, "Height", height);
             if *groove {
-                enter |= opt_field(ui, "Clearance", gap, "from the rule");
+                enter |= opt_field(ui, "Clearance", gap, "mm", "from the rule");
             }
         }
         Pl::SnapFit { hook, length, thickness, width, catch_depth, catch_length } => {
@@ -235,8 +238,8 @@ pub fn rows(app: &mut SolveApp, ui: &mut egui::Ui, k: &mut Pl, inputs: &[SelInpu
                 enter |= value_row(ui, "Length", length);
             }
             enter |= value_row(ui, "Height", height);
-            enter |= opt_field(ui, "Draft Angle", draft, "from the rule");
-            enter |= opt_field(ui, "Wall Thickness", thickness, "solid");
+            enter |= opt_field(ui, "Draft Angle", draft, "deg", "from the rule");
+            enter |= opt_field(ui, "Wall Thickness", thickness, "mm", "solid");
         }
         Pl::Rules { pick, name, values, active, loaded } => {
             let rules = app.session.doc.plastic_rules();
@@ -452,16 +455,16 @@ pub fn for_feature(app: &SolveApp, kind: &FeatureKind) -> Option<(Kind, Vec<SelI
                 rib_offset: ro,
             } = &mut b
             {
-                *d = diameter.to_string();
-                *h = height.to_string();
-                *hd = s(hole_diameter);
-                *hp = s(hole_depth);
-                *dr = s(draft);
-                *f = s(fillet);
+                *d = shown_expr(diameter, ValueKind::Length);
+                *h = shown_expr(height, ValueKind::Length);
+                *hd = shown_expr(&s(hole_diameter), ValueKind::Length);
+                *hp = shown_expr(&s(hole_depth), ValueKind::Length);
+                *dr = shown_expr(&s(draft), ValueKind::Angle);
+                *f = shown_expr(&s(fillet), ValueKind::Length);
                 *r = ribs.as_deref().map(str::to_string).unwrap_or_else(|| "0".into());
                 for (slot, v) in [(rt, rib_thickness), (rl, rib_length), (ro, rib_offset)] {
                     if let Some(v) = v {
-                        *slot = v.to_string();
+                        *slot = shown_expr(v, ValueKind::Length);
                     }
                 }
             }
@@ -471,7 +474,17 @@ pub fn for_feature(app: &SolveApp, kind: &FeatureKind) -> Option<(Kind, Vec<SelI
             if let Some(b) = body {
                 extra.insert("body".into(), json!(b));
             }
-            (Pl::Lip { groove: *groove, width: width.to_string(), height: height.to_string(), gap: s(gap), outside: *outside }, "plastic.lip", face.0)
+            (
+                Pl::Lip {
+                    groove: *groove,
+                    width: shown_expr(width, ValueKind::Length),
+                    height: shown_expr(height, ValueKind::Length),
+                    gap: shown_expr(&s(gap), ValueKind::Length),
+                    outside: *outside,
+                },
+                "plastic.lip",
+                face.0,
+            )
         }
         FeatureKind::SnapFit { position, direction, hook, length, thickness, width, catch_depth, catch_length, body } => {
             extra.insert("direction".into(), pt(direction.0));
@@ -484,11 +497,11 @@ pub fn for_feature(app: &SolveApp, kind: &FeatureKind) -> Option<(Kind, Vec<SelI
             }
             let f = Pl::SnapFit {
                 hook: h.unwrap_or(0),
-                length: length.to_string(),
-                thickness: thickness.to_string(),
-                width: width.to_string(),
-                catch_depth: catch_depth.to_string(),
-                catch_length: catch_length.to_string(),
+                length: shown_expr(length, ValueKind::Length),
+                thickness: shown_expr(thickness, ValueKind::Length),
+                width: shown_expr(width, ValueKind::Length),
+                catch_depth: shown_expr(catch_depth, ValueKind::Length),
+                catch_length: shown_expr(catch_length, ValueKind::Length),
             };
             (f, "plastic.snap_fit", position.0)
         }
@@ -502,11 +515,11 @@ pub fn for_feature(app: &SolveApp, kind: &FeatureKind) -> Option<(Kind, Vec<SelI
             }
             let r = Pl::Rest {
                 round: length.is_none(),
-                width: width.to_string(),
-                length: length.as_deref().map(str::to_string).unwrap_or_else(|| "15 mm".into()),
-                height: height.to_string(),
-                draft: s(draft),
-                thickness: s(thickness),
+                width: shown_expr(width, ValueKind::Length),
+                length: length.as_deref().map(|l| shown_expr(l, ValueKind::Length)).unwrap_or_else(|| "15 mm".into()),
+                height: shown_expr(height, ValueKind::Length),
+                draft: shown_expr(&s(draft), ValueKind::Angle),
+                thickness: shown_expr(&s(thickness), ValueKind::Length),
             };
             (r, "plastic.rest", position.0)
         }

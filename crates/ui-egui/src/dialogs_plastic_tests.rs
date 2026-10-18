@@ -102,3 +102,57 @@ fn plastic_rules_manage_and_assign() {
     assert_eq!(c[0].1["rule"], "ABS (1.5mm)");
     run_all(&mut app, c);
 }
+
+/// Features stored with bare numbers (as the old Plastic Enclosure sample did) edit with their
+/// units written out, and re-applying keeps the values (#1936).
+#[test]
+fn bare_numbers_show_their_units() {
+    let mut app = app_with(&[
+        ("solid.box", json!({"length": 80, "width": 50, "height": 30})),
+        ("solid.shell", json!({"faces": [[40, 25, 30]], "thickness": 2})),
+        ("plastic.lip", json!({"face": [1, 25, 30], "width": 1, "height": 2})),
+        (
+            "plastic.snap_fit",
+            json!({"position": [40, 44, 2], "hook": [0, -1, 0], "length": 14, "thickness": 1.5, "width": 6, "catch_depth": 1, "catch_length": 2}),
+        ),
+        (
+            "plastic.boss",
+            json!({"position": [10, 10, 2], "diameter": 7, "height": 12, "hole_diameter": 2.5, "draft": 1, "ribs": 4, "rib_thickness": 1, "rib_length": 3, "rib_offset": 1}),
+        ),
+    ]);
+    let ids: Vec<_> = app.session.doc.features.iter().rev().take(3).map(|f| f.id).collect();
+    let (boss, snap, lip) = (ids[0], ids[1], ids[2]);
+    let d = edit_dialog(&app, lip, None).unwrap();
+    let before = apply_commands(&app, &d).unwrap();
+    assert!(matches!(&d.kind, Kind::Plastic(Pl::Lip { width, height, .. }) if width == "1 mm" && height == "2 mm"));
+    let d = edit_dialog(&app, snap, None).unwrap();
+    assert!(matches!(&d.kind, Kind::Plastic(Pl::SnapFit { length, thickness, width, catch_depth, catch_length, .. })
+        if length == "14 mm" && thickness == "1.5 mm" && width == "6 mm" && catch_depth == "1 mm" && catch_length == "2 mm"));
+    let d = edit_dialog(&app, boss, None).unwrap();
+    assert!(matches!(&d.kind, Kind::Plastic(Pl::Boss { diameter, height, hole_diameter, draft, ribs, rib_thickness, rib_length, rib_offset, .. })
+        if diameter == "7 mm" && height == "12 mm" && hole_diameter == "2.5 mm" && draft == "1 deg" && ribs == "4"
+            && rib_thickness == "1 mm" && rib_length == "3 mm" && rib_offset == "1 mm"));
+    let c = apply_commands(&app, &d).unwrap();
+    assert_eq!(c[0].1["params"]["diameter"], "7 mm");
+    assert_eq!(c[0].1["params"]["draft"], "1 deg");
+    assert_eq!(c[0].1["params"]["ribs"], "4");
+    // Re-applying the dialog redefines the features in place (no new ones, no errors).
+    let count = |app: &SolveApp| app.session.doc.features.len();
+    let n = count(&app);
+    run_all(&mut app, c);
+    run_all(&mut app, before);
+    assert_eq!(count(&app), n);
+}
+
+/// `shown_expr` adds the unit only to a bare number of a length or an angle.
+#[test]
+fn shown_expr_adds_units_to_bare_numbers() {
+    use crate::dialogs::shown_expr;
+    assert_eq!(shown_expr("2", ValueKind::Length), "2 mm");
+    assert_eq!(shown_expr("-1.5", ValueKind::Length), "-1.5 mm");
+    assert_eq!(shown_expr("5", ValueKind::Angle), "5 deg");
+    assert_eq!(shown_expr("4", ValueKind::Unitless), "4");
+    assert_eq!(shown_expr("2 mm", ValueKind::Length), "2 mm");
+    assert_eq!(shown_expr("w * 2", ValueKind::Length), "w * 2");
+    assert_eq!(shown_expr("", ValueKind::Length), "");
+}

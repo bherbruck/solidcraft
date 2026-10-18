@@ -89,11 +89,11 @@ fn enclosure() -> Value {
     json!({"commands": [
         {"command": "solid.box", "params": {"length": 80, "width": 50, "height": 30, "body_name": "Enclosure"}},
         {"command": "solid.shell", "params": {"faces": [[40, 25, 30]], "thickness": 2}},
-        {"command": "plastic.lip", "params": {"face": [1, 25, 30], "width": 1, "height": 2}},
-        {"command": "plastic.snap_fit", "params": {"position": [40, 44, 2], "hook": [0, -1, 0], "length": 14, "thickness": 1.5, "width": 6, "catch_depth": 1, "catch_length": 2}},
-        {"command": "plastic.boss", "params": {"position": [10, 10, 2], "diameter": 7, "height": 12, "hole_diameter": 2.5}},
-        {"command": "plastic.boss", "params": {"position": [70, 40, 2], "diameter": 7, "height": 12, "hole_diameter": 2.5}},
-        {"command": "plastic.rest", "params": {"position": [40, 25, 2], "width": 16, "length": 24, "height": 3}},
+        {"command": "plastic.lip", "params": {"face": [1, 25, 30], "width": "1 mm", "height": "2 mm"}},
+        {"command": "plastic.snap_fit", "params": {"position": [40, 44, 2], "hook": [0, -1, 0], "length": "14 mm", "thickness": "1.5 mm", "width": "6 mm", "catch_depth": "1 mm", "catch_length": "2 mm"}},
+        {"command": "plastic.boss", "params": {"position": [10, 10, 2], "diameter": "7 mm", "height": "12 mm", "hole_diameter": "2.5 mm"}},
+        {"command": "plastic.boss", "params": {"position": [70, 40, 2], "diameter": "7 mm", "height": "12 mm", "hole_diameter": "2.5 mm"}},
+        {"command": "plastic.rest", "params": {"position": [40, 25, 2], "width": "16 mm", "length": "24 mm", "height": "3 mm"}},
     ]})
 }
 
