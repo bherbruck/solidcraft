@@ -55,17 +55,17 @@ fn circle_given_by_its_centre_takes_that_round_end() {
     for z in [6.0, 16.0] {
         assert!(near(place(&s, "Knob", Vec3::new(0.0, 0.0, z)), Vec3::new(0.0, 0.0, z)), "{:?}", place(&s, "Knob", Vec3::new(0.0, 0.0, z)));
     }
-    // The top end's centre: its axis points up, out of the knob.
+    // The top end's centre: its axis points up, out of the knob. It is kept by the knob's wall
+    // and the face its end opens onto, so it follows them.
     run(&mut s, "joint.origin", json!({"occurrence": "Knob", "circle": [0, 0, 16], "name": "Top"}));
-    let top = s.doc.assembly.origins.iter().find(|o| o.name == "Top").map(|o| o.origin.snap.clone());
-    assert!(
-        matches!(top, Some(solidcraft_doc::joints::Snap::Point { point, z: Some(z) }) if near(point, Vec3::new(0.0, 0.0, 16.0)) && near(z, Vec3::Z)),
-        "{top:?}"
-    );
-    // Off the axis is still refused, and so is a coupling size (it follows a face).
+    let top = s.doc.assembly.origins.iter().find(|o| o.name == "Top").map(|o| o.origin.clone()).unwrap();
+    assert!(matches!(&top.snap, solidcraft_doc::joints::Snap::CircleCenter { face: Some(_), end: Some(_), .. }), "{top:?}");
+    let m = solidcraft_doc::joints::resolve_origin(&s.doc, &s.model.state(), &top).unwrap();
+    assert!(near(Vec3::new(m[3][0], m[3][1], m[3][2]), Vec3::new(0.0, 0.0, 16.0)) && near(Vec3::new(m[2][0], m[2][1], m[2][2]), Vec3::Z), "{m:?}");
+    // Off the axis is still refused; a coupling size given by a centre is that round face's
+    // radius (it follows the face).
     assert!(s.execute("joint.origin", &json!({"occurrence": "Knob", "circle": [3, 0, 6]})).is_err());
-    let e = s.execute("joint.screw", &json!({"joint": "J", "pitch": {"occurrence": "Knob", "circle": [0, 0, 6]}})).unwrap_err();
-    assert!(e.to_string().contains("not its centre"), "{e}");
+    run(&mut s, "joint.screw", json!({"joint": "J", "pitch": {"occurrence": "Knob", "circle": [0, 0, 6]}}));
 }
 
 #[test]

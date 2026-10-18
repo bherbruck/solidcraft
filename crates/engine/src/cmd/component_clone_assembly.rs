@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use solidcraft_doc::Document;
 use solidcraft_doc::joints::cam::CamProfile;
-use solidcraft_doc::joints::{Assembly, Coupling, JointOrigin, Size, Snap};
+use solidcraft_doc::joints::{Assembly, Coupling, JointOrigin, Size};
 
 use crate::{EngineError, Result};
 
@@ -26,12 +26,7 @@ fn add_references(count: &mut usize, more: usize) -> Result<()> {
 }
 
 fn finite_origin(origin: &JointOrigin) -> Result<()> {
-    let finite = match &origin.snap {
-        Snap::Frame { origin, z, x } => origin.is_finite() && z.is_finite() && x.is_none_or(|x| x.is_finite()),
-        Snap::FaceCenter { pick, .. } | Snap::CircleCenter { pick, .. } => pick.is_finite(),
-        Snap::Point { point, z } => point.is_finite() && z.is_none_or(|z| z.is_finite()),
-    };
-    if !finite {
+    if !origin.snap.is_finite() {
         return Err(invalid("joint origin contains non-finite geometry"));
     }
     Ok(())
@@ -61,7 +56,7 @@ fn budget(assembly: &Assembly) -> Result<()> {
     for origin in &assembly.origins {
         finite_origin(&origin.origin)?;
         text(&origin.name)?;
-        if let Snap::FaceCenter { face: Some(face), .. } | Snap::CircleCenter { face: Some(face), .. } = &origin.origin.snap {
+        for face in origin.origin.snap.face_names() {
             text(face)?;
         }
     }
@@ -77,7 +72,7 @@ fn budget(assembly: &Assembly) -> Result<()> {
         }
         for origin in [&joint.a, &joint.b] {
             finite_origin(origin)?;
-            if let Snap::FaceCenter { face: Some(face), .. } | Snap::CircleCenter { face: Some(face), .. } = &origin.snap {
+            for face in origin.snap.face_names() {
                 text(face)?;
             }
         }
@@ -234,9 +229,8 @@ fn origin(
 ) -> Option<JointOrigin> {
     let mut out = origin.clone();
     out.occurrence = *occurrences.get(&origin.occurrence)?;
-    match &mut out.snap {
-        Snap::FaceCenter { face: Some(face), .. } | Snap::CircleCenter { face: Some(face), .. } => *face = face_name(face, features, bodies)?,
-        _ => {}
+    for face in out.snap.face_names_mut() {
+        *face = face_name(face, features, bodies)?;
     }
     Some(out)
 }

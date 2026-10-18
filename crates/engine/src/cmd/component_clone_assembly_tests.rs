@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic)]
 use super::*;
-use solidcraft_doc::joints::{Coupling, Joint, JointKind, MotionLink, NamedOrigin, Size};
+use solidcraft_doc::joints::{Coupling, Joint, JointKind, MotionLink, NamedOrigin, Size, Snap, XRef};
 use solidcraft_doc::motion::{ContactSet, ExplodedView, MotionStudy, StudyKey};
 use solidcraft_doc::{IDENTITY, Occurrence};
 use solidcraft_geom::Vec3;
@@ -35,11 +35,18 @@ fn documents() -> (Document, Document) {
     source.assembly.origins = vec![
         NamedOrigin {
             name: "Typed origin".into(),
-            origin: JointOrigin { occurrence: 1, snap: Snap::FaceCenter { pick: Vec3::new(1.0, 2.0, 3.0), face: Some("F1:start@F10.2".into()) } },
+            origin: JointOrigin {
+                occurrence: 1,
+                snap: Snap::FaceCenter {
+                    pick: Vec3::new(1.0, 2.0, 3.0),
+                    face: Some("F1:start@F10.2".into()),
+                    x: Some(XRef::Face { face: "F10:side".into(), pick: None }),
+                },
+            },
         },
         NamedOrigin {
             name: "Foreign geometry".into(),
-            origin: JointOrigin { occurrence: 1, snap: Snap::CircleCenter { pick: Vec3::ZERO, face: Some("F99:end".into()) } },
+            origin: JointOrigin { occurrence: 1, snap: Snap::CircleCenter { pick: Vec3::ZERO, face: Some("F99:end".into()), end: None, x: None } },
         },
         NamedOrigin { name: "Outside".into(), origin: at(9) },
     ];
@@ -79,7 +86,9 @@ fn internal_relationships_receive_independent_ids_and_remapped_typed_references(
     assert_eq!(a.joints[4].limits, source.assembly.joints[0].limits);
     assert_eq!(a.joints[4].name, "Joint1 (copy)");
     assert_eq!(a.origins.len(), 4);
-    assert!(matches!(&a.origins[3].origin.snap, Snap::FaceCenter { face: Some(face), .. } if face == "F11:start@F110.2"));
+    // Its x reference's face is the copy's too.
+    assert!(matches!(&a.origins[3].origin.snap, Snap::FaceCenter { face: Some(face), x: Some(XRef::Face { face: x, .. }), .. }
+        if face == "F11:start@F110.2" && x == "F110:side"));
     assert_eq!((a.links[2].a, a.links[2].b, a.links[2].ratio), (5, 6, -2.0));
     assert_eq!(a.contact_sets[2].id, 7);
     assert_eq!(a.contact_sets[2].occurrences, vec![101, 102]);
@@ -103,7 +112,12 @@ fn internal_relationships_receive_independent_ids_and_remapped_typed_references(
 #[test]
 fn copied_gears_take_their_picked_faces_along() {
     let (mut source, _) = documents();
-    let circle = |face: &str| Size::Circle(JointOrigin { occurrence: 1, snap: Snap::CircleCenter { pick: Vec3::X, face: Some(face.into()) } });
+    let circle = |face: &str| {
+        Size::Circle(JointOrigin {
+            occurrence: 1,
+            snap: Snap::CircleCenter { pick: Vec3::X, face: Some(face.into()), end: Some("F1:top".into()), x: None },
+        })
+    };
     let gear = |ra| Coupling::Gear { ra, rb: Size::Length(5.0), internal: false, reverse: false };
     source.assembly.links = vec![
         MotionLink { a: 1, ia: 0, b: 2, ib: 0, ratio: -2.0, offset: 0.0, coupling: Some(gear(circle("F1:side"))), lift: Vec::new() },
@@ -116,7 +130,10 @@ fn copied_gears_take_their_picked_faces_along() {
             .unwrap();
     let copied = destination.assembly.links.get(2).and_then(|l| l.coupling.clone());
     let Some(Coupling::Gear { ra: Size::Circle(o), .. }) = copied else { panic!("{:?}", destination.assembly.links) };
-    assert!(o.occurrence == 101 && matches!(&o.snap, Snap::CircleCenter { face: Some(f), .. } if f == "F11:side"), "{o:?}");
+    assert!(
+        o.occurrence == 101 && matches!(&o.snap, Snap::CircleCenter { face: Some(f), end: Some(e), .. } if f == "F11:side" && e == "F11:top"),
+        "{o:?}"
+    );
     assert_eq!(destination.assembly.links.len(), 3, "the gear on foreign geometry stays behind");
     assert!(report.iter().any(|m| m.contains("motion link")), "{report:?}");
 }
