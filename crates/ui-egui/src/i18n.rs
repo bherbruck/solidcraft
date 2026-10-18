@@ -37,6 +37,7 @@ static GERMAN: Catalog = Catalog::new("de", "Deutsch", include_str!(concat!(env!
 static SPANISH: Catalog = Catalog::new("es", "Español (España)", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/es.json")));
 static FRENCH: Catalog = Catalog::new("fr", "Français", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/fr.json")));
 static GALICIAN: Catalog = Catalog::new("gl", "Galego", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/gl.json")));
+static ITALIAN: Catalog = Catalog::new("it", "Italiano", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/it.json")));
 static JAPANESE: Catalog = Catalog::new("ja", "日本語", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/ja.json")));
 static KOREAN: Catalog = Catalog::new("ko", "한국어", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/locales/ko.json")));
 static PORTUGUESE_BR: Catalog =
@@ -55,6 +56,7 @@ pub const LOCALES: &[&Catalog] = &[
     &SPANISH,
     &FRENCH,
     &GALICIAN,
+    &ITALIAN,
     &JAPANESE,
     &KOREAN,
     &PORTUGUESE_BR,
@@ -244,7 +246,7 @@ mod tests {
     /// are kept partial so a new label doesn't need more translations), so their gaps fall back
     /// to English and are reported by `cargo xtask i18n` without failing the build, while
     /// nothing in the complete catalogs may regress.
-    const COMPLETE: &[&str] = &["ja", "zh"];
+    const COMPLETE: &[&str] = &["ja", "zh", "it"];
 
     /// `text()` falls back to English silently, so a message a complete locale never received is
     /// shown in English inside an otherwise translated UI, with nothing in the build to say so.
@@ -585,6 +587,25 @@ mod tests {
         assert_eq!(gl.format("dialog.selected_count", &[("count", "2")]), "↖ 2 seleccionados");
         assert_eq!(gl.label("Fillet"), "Arredondamento");
         assert_eq!(gl.label("NonExistentKey"), "NonExistentKey");
+    }
+
+    #[test]
+    fn italian_catalog_is_registered_and_translates_cad_labels() {
+        let it = Locale::for_language("it");
+        assert_eq!(it.name(), "Italiano");
+        assert!(is_supported("it"));
+        assert_eq!(it.text("ui.preferences"), "Preferenze");
+        assert_eq!(it.label("Extrude"), "Estrudi");
+        assert_eq!(it.label("Fillet"), "Raccordo");
+        assert_eq!(it.label("Chamfer"), "Smusso");
+        assert_eq!(it.label("CREATE SKETCH"), "CREA SCHIZZO");
+        assert_eq!(it.label("Motion Study"), "Studio del movimento");
+        assert_eq!(it.format("document.save_changes", &[("name", "Parte")]), "Salvare le modifiche a Parte?");
+        assert_eq!(it.dynamic("Sketch1"), "Schizzo1");
+        assert_eq!(it.dynamic("Body2"), "Corpo2");
+        assert_eq!(it.dynamic("Component12"), "Componente12");
+        assert_eq!(it.dynamic("Units: mm"), "Unità: mm");
+        assert_eq!(it.dynamic("4 degrees of freedom"), "4 gradi di libertà");
     }
 
     #[test]
