@@ -213,6 +213,28 @@ pub fn delete_faces(body: &Body, faces: &[usize]) -> Result<Body> {
             }
             let pos = |v: &mt::Vertex| moved.get(&v.id()).copied().unwrap_or_else(|| from_p3(v.point()));
             let gap = |e: &mt::Edge| efaces.get(&e.id()).is_some_and(|fs| fs.iter().any(|x| del.contains(x)));
+            // A face that only loses whole loops (a hole's rim, a pocket's opening) and has no
+            // corner moving keeps its own surface: rebuilding a plane from its outer boundary
+            // fails when imported edges are not exactly on one plane.
+            let mut stays = f.vertex_iter().all(|v| !moved.contains_key(&v.id()));
+            let mut kept: Vec<mt::Wire> = Vec::new();
+            for w in f.absolute_boundaries() {
+                let gaps = w.edge_iter().filter(|e| gap(e)).count();
+                if gaps == 0 {
+                    kept.push(w.clone());
+                } else if gaps != w.len() {
+                    stays = false;
+                }
+            }
+            if stays && !kept.is_empty() {
+                let mut face = mt::Face::try_new(kept, f.surface()).map_err(|e| fail(format!("face {fi} cannot close: {e}")))?;
+                if !f.orientation() {
+                    face.invert();
+                }
+                rec.face(&face, f);
+                out.push(face);
+                continue;
+            }
             let mut wires: Vec<mt::Wire> = Vec::new();
             for w in f.boundaries() {
                 let edges: Vec<mt::Edge> = w.edge_iter().cloned().collect();
@@ -357,6 +379,38 @@ mod tests {
         assert_eq!(restored.unmeshed_faces(), 0);
         assert!((volume(&restored) - 6250.0).abs() < 1e-6);
         assert!(restored.contains(Vec3::new(0.1, 0.1, 0.1)));
+    }
+
+    #[test]
+    fn delete_pocket_keeps_an_imported_face_around_it() {
+        use truck_modeling as mt;
+        // A shallow round pocket in the top of a plate whose top edges bow 5e-5 mm off the
+        // plane, as the edges of an imported part do: within the planar test, but too far for a
+        // plane rebuilt from them. The top only loses its inner loop, so it keeps its surface.
+        let plate = box_solid(Vec3::ZERO, Vec3::new(100.0, 100.0, 10.0)).unwrap();
+        let tool = cylinder(Vec3::new(50.0, 50.0, 9.5), Vec3::Z, 7.5, 2.0).unwrap();
+        let pocketed = boolean(&plate, &tool, BoolOp::Cut).unwrap().unwrap();
+        let pocket = faces_where(&pocketed, |p| (p.x - 50.0).hypot(p.y - 50.0) < 7.5 + 1e-3 && p.z > 9.5 - 1e-6);
+        assert!(!pocket.is_empty());
+        let mut bowed = 0;
+        for e in pocketed.solid.edge_iter() {
+            let (a, b) = (e.front().point(), e.back().point());
+            if let mt::Curve::Line(_) = e.curve()
+                && (a.z - 10.0).abs() < 1e-9
+                && (b.z - 10.0).abs() < 1e-9
+            {
+                let lift = mt::Vector3::new(0.0, 0.0, 1e-4);
+                let mid = mt::Point3::new((a.x + b.x) / 2.0, (a.y + b.y) / 2.0, 10.0) + lift;
+                let c = if e.orientation() { vec![a, mid, b] } else { vec![b, mid, a] };
+                e.set_curve(mt::Curve::BSplineCurve(mt::BSplineCurve::new(mt::KnotVec::bezier_knot(2), c)));
+                bowed += 1;
+            }
+        }
+        assert_eq!(bowed, 4);
+        let filled = delete_faces(&pocketed, &pocket).unwrap();
+        assert_eq!(filled.face_count(), 6);
+        assert_eq!(filled.unmeshed_faces(), 0);
+        assert!((volume(&filled) - 100000.0).abs() < 1e-3, "{}", volume(&filled));
     }
 
     #[test]
