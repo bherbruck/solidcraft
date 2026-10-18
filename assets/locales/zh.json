@@ -420,6 +420,7 @@
   "cmd.inspect_curvature_map": "曲率图分析",
   "cmd.inspect_draft": "拔模分析",
   "cmd.inspect_environment_map": "环境贴图分析",
+  "cmd.inspect_hole_stacks": "查找孔组",
   "cmd.inspect_interference": "干涉",
   "cmd.inspect_isocurve": "等参线分析",
   "cmd.inspect_minimum_radius": "最小半径分析",

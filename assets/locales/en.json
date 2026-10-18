@@ -420,6 +420,7 @@
   "cmd.inspect_curvature_map": "Curvature Map Analysis",
   "cmd.inspect_draft": "Draft Analysis",
   "cmd.inspect_environment_map": "Environment Map Analysis",
+  "cmd.inspect_hole_stacks": "Find Hole Stacks",
   "cmd.inspect_interference": "Interference",
   "cmd.inspect_isocurve": "Isocurve Analysis",
   "cmd.inspect_minimum_radius": "Minimum Radius Analysis",

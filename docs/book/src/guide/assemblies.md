@@ -239,3 +239,31 @@ measures the complete assembly. Volumes are summed, including overlapping bodies
 measuring their union. The same workflow is available through `component.properties` and
 `occurrence.properties`; see
 [placement and measurement details](https://github.com/bherbruck/solidcraft/blob/main/docs/assembly-properties.md).
+
+## Hole stacks
+
+Parts held together by rivets, bolts or pins have holes that line up through two or more
+touching layers. **Find Hole Stacks** (`inspect.hole_stacks`) lists them:
+
+```json
+{"command": "inspect.hole_stacks", "params": {"diameters": [[4, 6.5]], "touching": 0.05}}
+```
+
+Each stack has its `axis` (a unit vector pointing from `start` into the stack: down for a
+vertical stack, so `start` is on the top face), its `start` and `end` points on that axis,
+`grip_mm` (the clamped thickness from `start` to `end`) and its `layers`, outermost first:
+the `body`, the hole's diameter `d_mm` and its extent `t: [t0, t1]` in mm from `start`. A
+layer through an obround slot carries `slot: {length_mm, along}`, the slot's overall length
+and the direction of its length. Holes in no stack are listed under `lone` with their
+body, diameter, entry point `at`, axis and `depth_mm`.
+
+Round holes count whether their wall is an exact cylinder or a B-spline (holes in refolded or
+imported parts). Holes are on one axis when their axes are at most `axis_tolerance` apart
+(default 0.1 mm), either way round; a round hole lines up with a slot when its axis passes
+through the slot's centre line. Slots that no round hole passes through line up when they
+share a centre line, and their stack's axis runs through the middle of the length they share.
+Layers belong to one stack when the gap between them is at most `touching` (default 0.05 mm).
+`bodies` limits the search to some bodies, `diameters` to holes and slot widths in the given
+ranges, and `slots: false` leaves slots out. Standard parts already placed (a washer's hole)
+are left out unless named in `bodies`. The command only reads the design.
+

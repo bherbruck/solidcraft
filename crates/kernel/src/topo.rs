@@ -22,7 +22,7 @@ pub struct TopoCounts {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Surf {
+pub(crate) enum Surf {
     Plane { n: Vec3, d: f64 },
     Cylinder { axis: Vec3, p: Vec3, r: f64 },
     Sphere { c: Vec3, r: f64 },
@@ -40,7 +40,7 @@ impl Surf {
             Surf::Other(_) => "other",
         }
     }
-    fn same(&self, o: &Surf, tol: f64) -> bool {
+    pub(crate) fn same(&self, o: &Surf, tol: f64) -> bool {
         match (*self, *o) {
             (Surf::Plane { n, d }, Surf::Plane { n: n2, d: d2 }) => n.dot(n2) > 1.0 - 1e-9 && (d - d2).abs() < tol,
             (Surf::Cylinder { axis, p, r }, Surf::Cylinder { axis: a2, p: p2, r: r2 }) => {
@@ -331,7 +331,7 @@ fn fit_sphere(pts: &[Vec3]) -> Option<(Vec3, f64)> {
     (r2 > 0.0 && r2.is_finite()).then(|| (c + m, r2.sqrt()))
 }
 
-fn classify_faces(b: &Body, mesh: &Mesh, nf: usize, tol: f64) -> Vec<Surf> {
+pub(crate) fn classify_faces(b: &Body, mesh: &Mesh, nf: usize, tol: f64) -> Vec<Surf> {
     let mut pts: Vec<Vec<Vec3>> = vec![Vec::new(); nf];
     let mut nrm: Vec<Vec<Vec3>> = vec![Vec::new(); nf];
     for (t, f) in mesh.triangles.iter().zip(&mesh.tri_face) {
