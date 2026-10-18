@@ -217,6 +217,34 @@ impl Harness {
         }
     }
 
+    /// One frame in which the platform drops `files`, the pointer last seen at `at` (a drop
+    /// itself carries no position with winit 0.30).
+    pub fn drop_files(&mut self, at: egui::Pos2, files: Vec<egui::DroppedFileHandle>) {
+        self.drag_files(at, Vec::new(), files);
+    }
+
+    /// One frame in which files are dragged over the window (`hovered`) or dropped, the pointer
+    /// last seen at `at`.
+    pub fn drag_files(&mut self, at: egui::Pos2, hovered: Vec<egui::HoveredFile>, dropped: Vec<egui::DroppedFileHandle>) {
+        self.time += 1.0 / 60.0;
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, self.size)),
+            time: Some(self.time),
+            focused: true,
+            events: vec![egui::Event::PointerMoved(at)],
+            hovered_files: hovered,
+            dropped_files: dropped,
+            ..Default::default()
+        };
+        let app = &mut self.app;
+        let mut out = self.ctx.run_ui(raw, |ui| {
+            app.logic(ui.ctx());
+            app.ui(ui);
+        });
+        out.textures_delta.clear();
+        self.output = out.platform_output;
+    }
+
     /// Frames until the queued input is used up (and the view has settled).
     pub fn settle(&mut self) {
         for _ in 0..2000 {

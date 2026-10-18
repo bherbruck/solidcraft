@@ -47,6 +47,42 @@ when you send a message or press **Connect**.
   endpoint's agent also keeps it as its default model. An agent that reports no models shows no
   drop-down.
 
+## Files and pictures
+
+A message can carry up to eight files, to show the agent what you mean: a concept picture, a
+sketch, a brief, a part to fit around.
+
+- **+** next to **Send** has **Choose a file…** (a file dialog for the types below) and **Paste a
+  picture** (the picture on the clipboard).
+- **Drop files on the chat.** Files dropped on the panel (or its folded strip) attach to the
+  next message, and the app doesn't open them too. While files are dragged over the chat, it says
+  so. The window gives no position while something is dragged, so the drop is the chat's when the
+  pointer was last seen over the chat; **+** always works.
+- The files show as chips above the text box: a picture's thumbnail, the name, and × to take the
+  file off. A picture is read off the window thread, so a large one never stops the window: its
+  chip shows a spinner meanwhile, and **Send** waits for it. **Send** sends files with no text.
+- **Pictures** (PNG, JPEG, GIF, WebP) go to the agent as they are when they are at most 2048 px
+  on the long side and 3.75 MB (a picture's base64 then stays under 5 MB, so eight still fit in a
+  prompt). Otherwise they are scaled down to 2048 px and re-encoded: as PNG when that fits, as
+  JPEG when the picture has no transparency, halved until it fits; a GIF goes as its first frame.
+  BMP and TIFF go as PNG. HEIC can't be read: export it as JPEG or PNG first. An agent that takes
+  no pictures gets none, and the message says which were left out.
+- **Text files** (UTF-8, up to 256 KB: Markdown, plain text, JSON, CSV, YAML, TOML, XML, SVG…)
+  go in the message's text, whole as far as the message's 100,000-character cap allows: past it
+  a file is cut (and says how much is missing) or named only.
+- **CAD files** (STEP, IGES, FreeCAD, Rhino, STL, 3MF, OBJ, glTF) are imported into the design
+  at once, as components of their own. A file joins the message once its import is in (its chip
+  shows a spinner meanwhile, and **Send** waits), and the message tells the agent it was added; a
+  failed import says why and the agent is told nothing of it. Taking a part's chip off the message
+  leaves the part in the design (Undo removes it).
+- Every file is named in the message, and listed under it in the conversation. A file that
+  can't be attached says why.
+
+Files stay with their message: one queued while the agent works keeps its files, and one sent
+again after a sign-in sends them again. When several queued messages go as one prompt, their
+files go with it, at most eight; the rest are named in the chat and not sent. **New chat**
+clears the files waiting on the chips too.
+
 ## Typing while the agent works
 
 The input stays enabled during a turn. **Enter** queues the message: it shows in the conversation
@@ -60,9 +96,9 @@ messages go as one prompt, in order, when the turn ends normally.
 - **Stop** (the square next to the input, or **Esc** in the input) stops the agent and keeps
   the queue: the bubbles wait for **Send**.
 - **New chat** (the header button, **Ctrl+Shift+L** / **Cmd+Shift+L** with the chat focused)
-  stops what runs, clears the conversation and the queue and starts a fresh session on the same
-  agent, keeping the agent and its mode. It asks first when a message is running or queued. The
-  design's undo history is untouched.
+  stops what runs, clears the conversation, the queue and the files on the chips, and starts a
+  fresh session on the same agent, keeping the agent and its mode. It asks first when a message
+  is running or queued, or files are waiting. The design's undo history is untouched.
 
 ## Agents
 

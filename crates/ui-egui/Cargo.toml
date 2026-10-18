@@ -17,7 +17,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 web-time = { workspace = true }
-image = { workspace = true, features = ["jpeg", "ico"] }
+# gif, webp, bmp, tiff: pictures attached to an agent chat message (GIF and WebP go as they are,
+# BMP and TIFF as PNG).
+image = { workspace = true, features = ["jpeg", "ico", "gif", "webp", "bmp", "tiff"] }
 ttf-parser = { workspace = true }
 semver = { workspace = true }
 # Updates: the downloaded package's SHA-256 (against the release's SHA256SUMS.txt), its optional
@@ -32,6 +34,11 @@ tiny-skia = { workspace = true }
 # Updates: the folder the Windows installer recorded, so an install outside Program Files is still
 # updated by its installer (MIT; already in the tree as a build dependency).
 winreg = "0.56"
+
+# Pictures pasted into the agent chat; already in the tree, with the same features, through
+# egui-winit's clipboard.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+arboard = { version = "3.6", default-features = false, features = ["image-data"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 # The offscreen viewport render test opens a device without a window.

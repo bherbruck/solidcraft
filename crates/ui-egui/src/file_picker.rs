@@ -46,6 +46,21 @@ impl SolveApp {
         self.begin_picker(future, Box::new(complete));
     }
 
+    /// Ask for one file of a kind (`label`, `extensions`), with the host's dialog for it, or the
+    /// Open dialog where the host has none. (The agent chat asks for its files; the web build has
+    /// no chat.)
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub(crate) fn pick_file(&mut self, label: &str, extensions: &[&str], complete: impl FnOnce(&mut SolveApp, Option<String>) + 'static) {
+        if self.file_picker_busy() {
+            return;
+        }
+        let future = match self.services.pick_file.as_ref() {
+            Some(pick) => Some(pick(label, extensions)),
+            None => self.services.pick_open.as_ref().map(|pick| pick(extensions)),
+        };
+        self.begin_picker(future, Box::new(complete));
+    }
+
     pub(crate) fn pick_save(&mut self, name: &str, extensions: &[&str], complete: impl FnOnce(&mut SolveApp, Option<String>) + 'static) {
         if self.file_picker_busy() {
             return;

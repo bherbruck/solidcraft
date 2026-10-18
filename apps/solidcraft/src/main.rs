@@ -116,6 +116,7 @@ fn services(cc: &eframe::CreationContext<'_>) -> Services {
     let parent = rfd::AsyncFileDialog::new().set_parent(cc);
     let open_parent = parent.clone();
     let program_parent = parent.clone();
+    let file_parent = parent.clone();
     Services {
         pick_open: Some(Box::new(move |first: &[&str]| {
             // The file type the command reads comes first, so the picker opens on it (#1801).
@@ -164,6 +165,21 @@ fn services(cc: &eframe::CreationContext<'_>) -> Services {
                 .add_filter("Sketch drawings (DXF, SVG)", &["dxf", "DXF", "svg", "SVG"])
                 .add_filter("All files", &["*"])
                 .pick_file();
+            Box::pin(async move { future.await.map(|p| p.path().to_string_lossy().into_owned()) })
+        })),
+        // One kind of file (the agent chat's attachments): only the types it names, as given and in
+        // lower and upper case (Linux dialogs match case; macOS allows just the listed types).
+        pick_file: Some(Box::new(move |label: &str, exts: &[&str]| {
+            let mut all: Vec<String> = Vec::new();
+            for e in exts {
+                for v in [e.to_string(), e.to_ascii_lowercase(), e.to_ascii_uppercase()] {
+                    if !all.contains(&v) {
+                        all.push(v);
+                    }
+                }
+            }
+            let all: Vec<&str> = all.iter().map(String::as_str).collect();
+            let future = file_parent.clone().add_filter(label, &all).pick_file();
             Box::pin(async move { future.await.map(|p| p.path().to_string_lossy().into_owned()) })
         })),
         pick_program: Some(Box::new(move || {

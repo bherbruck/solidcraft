@@ -191,6 +191,11 @@ impl Drop for LanguageScope {
     }
 }
 
+/// This thread's language, to carry into a worker thread with [`scope`].
+pub fn language() -> &'static str {
+    CURRENT.with(|current| current.get().0.id)
+}
+
 pub fn tr(id: &str) -> &str {
     CURRENT.with(|current| current.get().text(id))
 }

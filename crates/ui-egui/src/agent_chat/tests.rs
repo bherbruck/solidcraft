@@ -26,18 +26,20 @@ fn streamed_text_joins_and_tool_updates_change_their_call() {
 #[test]
 fn a_sign_in_request_keeps_the_question_for_after_the_login() {
     let mut c = chat();
-    c.last = Some(("make a cube".into(), false));
+    c.last = Some(("make a cube".into(), false, vec![attach::Attachment::imported("motor.step".into())]));
     c.state = Some(State::Busy);
     assert!(c.on_event(Event::TurnEnded { reason: "auth".into() }).is_some());
     c.on_event(Event::AuthRequired { methods: vec![] });
     assert_eq!(c.state(), State::NeedsAuth);
-    assert_eq!(c.queued, Some(("make a cube".into(), false)));
+    let (text, image, files) = c.queued.clone().expect("queued for after the login");
+    assert_eq!((text.as_str(), image), ("make a cube", false));
+    assert_eq!(files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["motor.step"], "its files go again too");
 }
 
 #[test]
 fn a_plan_update_replaces_the_turns_plan() {
     let mut c = chat();
-    c.push(Item::User { text: "go".into(), image: false });
+    c.push(Item::User { text: "go".into(), image: false, files: Vec::new() });
     c.on_event(Event::Plan(vec![("a".into(), "pending".into())]));
     c.on_event(Event::Text { thought: false, text: "working".into() });
     c.on_event(Event::Plan(vec![("a".into(), "completed".into())]));
@@ -66,7 +68,7 @@ fn app_in_a_turn() -> (SolveApp, Sender<ControlRequest>) {
     let (tx, rx) = channel();
     app.agent_chat.tools_rx = Some(rx);
     app.agent_chat.state = Some(State::Busy);
-    start_turn(&mut app, "two boxes".into(), false);
+    start_turn(&mut app, "two boxes".into(), false, Vec::new());
     (app, tx)
 }
 
@@ -313,11 +315,16 @@ use std::sync::Mutex;
 struct Script {
     calls: Arc<Mutex<Vec<String>>>,
     events: Arc<Mutex<Vec<Event>>>,
+    /// Every prompt in full (its text and pictures).
+    prompts: Arc<Mutex<Vec<Vec<PromptPart>>>>,
 }
 
 impl Script {
     fn calls(&self) -> Vec<String> {
         self.calls.lock().unwrap().clone()
+    }
+    fn prompts(&self) -> Vec<Vec<PromptPart>> {
+        self.prompts.lock().unwrap().clone()
     }
     fn report(&self, e: Event) {
         self.events.lock().unwrap().push(e);
@@ -331,6 +338,7 @@ impl ChatBackend for Script {
     fn prompt(&mut self, parts: &[PromptPart]) {
         let text = parts.iter().find_map(|p| if let PromptPart::Text(t) = p { Some(t.clone()) } else { None }).unwrap_or_default();
         self.calls.lock().unwrap().push(format!("prompt: {text}"));
+        self.prompts.lock().unwrap().push(parts.to_vec());
     }
     fn cancel(&mut self) {
         self.calls.lock().unwrap().push("cancel".into());
@@ -755,6 +763,500 @@ done
     }
     disconnect(&mut app);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ---- Files attached to a message ----
+
+/// A folder of files to attach: a picture and a text file.
+fn attachable(tag: &str) -> std::path::PathBuf {
+    let d = std::env::temp_dir().join(format!("solidcraft-chat-files-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    image::RgbaImage::from_pixel(40, 30, image::Rgba([250, 250, 250, 255])).save(d.join("target.png")).unwrap();
+    std::fs::write(d.join("brief.md"), "wall 2 mm, Pi 5 inside\n").unwrap();
+    d
+}
+
+fn at(d: &std::path::Path, f: &str) -> String {
+    d.join(f).to_string_lossy().to_string()
+}
+
+/// Wait for the files read off the window thread to join the message.
+fn settle_files(app: &mut SolveApp, ctx: &egui::Context) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while !app.agent_chat.loading.is_empty() && std::time::Instant::now() < deadline {
+        take_loaded(app, ctx);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    take_loaded(app, ctx);
+}
+
+/// The same with the whole app running frames.
+fn settle_chat(h: &mut crate::scenario::Harness) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while !h.app.agent_chat.loading.is_empty() && std::time::Instant::now() < deadline {
+        h.frames(1);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    h.frames(2);
+}
+
+fn text_of(parts: &[PromptPart]) -> String {
+    parts.iter().filter_map(|p| if let PromptPart::Text(t) = p { Some(t.clone()) } else { None }).collect()
+}
+
+fn pictures_in(parts: &[PromptPart]) -> usize {
+    parts.iter().filter(|p| matches!(p, PromptPart::Image { .. })).count()
+}
+
+/// Files attached to a message go with it: the pictures as images, the text files in its text,
+/// and every file by name; the message lists them in the conversation.
+#[test]
+fn a_message_carries_its_files() {
+    let d = attachable("carry");
+    let (mut app, script, ctx) = app_with_script();
+    app.agent_chat.images = true;
+    control(&mut app, &ctx, &json!({"attach": at(&d, "target.png")})).unwrap();
+    control(&mut app, &ctx, &json!({"attach": at(&d, "brief.md")})).unwrap();
+    settle_files(&mut app, &ctx);
+    assert_eq!(status(&app)["attachments"], json!(["target.png", "brief.md"]));
+    assert!(control(&mut app, &ctx, &json!({"attach": at(&d, "missing.png")})).is_err());
+    send(&mut app, &ctx, "make the case like this".into());
+    let sent = script.prompts();
+    assert_eq!(sent.len(), 1);
+    let text = text_of(&sent[0]);
+    assert!(text.starts_with("make the case like this"), "{text}");
+    assert!(text.contains("Attached pictures: target.png.") && text.contains("wall 2 mm, Pi 5 inside"), "{text}");
+    assert_eq!(sent[0].iter().filter(|p| matches!(p, PromptPart::Image { mime, .. } if mime == "image/png")).count(), 1);
+    assert!(app.agent_chat.attachments.is_empty(), "the files went with the message");
+    assert_eq!(status(&app)["items"][0]["files"], json!(["target.png", "brief.md"]));
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Review of #1744: a picture was decoded on the window thread, so a large one froze the window.
+/// It is read off it now: the message waits for it (Send waits too), the files keep the order they
+/// were attached in, and a refused picture says why later, in the app's language.
+#[test]
+fn pictures_are_read_off_the_window_thread() {
+    let d = attachable("worker");
+    std::fs::write(d.join("fake.png"), b"not a picture at all").unwrap();
+    let (mut app, script, ctx) = app_with_script();
+    app.agent_chat.images = true;
+    control(&mut app, &ctx, &json!({"attach": at(&d, "target.png")})).unwrap();
+    control(&mut app, &ctx, &json!({"attach": at(&d, "brief.md")})).unwrap();
+    assert_eq!(status(&app)["loading"], json!(["target.png"]), "the picture is still being read");
+    send(&mut app, &ctx, "like this".into());
+    assert!(script.prompts().is_empty(), "Send waits for the files");
+    assert_eq!(app.agent_chat.input, "like this", "and keeps the words");
+    settle_files(&mut app, &ctx);
+    assert_eq!(status(&app)["attachments"], json!(["target.png", "brief.md"]), "in the order they were attached");
+    let words = std::mem::take(&mut app.agent_chat.input);
+    send(&mut app, &ctx, words);
+    assert_eq!(script.prompts().len(), 1);
+    {
+        let _ja = crate::i18n::scope("ja");
+        control(&mut app, &ctx, &json!({"attach": at(&d, "fake.png")})).unwrap();
+    }
+    settle_files(&mut app, &ctx);
+    assert!(
+        matches!(app.agent_chat.items.last(), Some(Item::Notice { text, error: true }) if text == "fake.png: 読み込めない画像です"),
+        "a refused picture says why, in the language it was attached in"
+    );
+    assert!(app.agent_chat.attachments.is_empty());
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Review of #1744: the prompt cap applied to the typed text only, so eight 256 KB text files
+/// took a message to about 2 MB. The whole message stays within it now, every file still named.
+#[test]
+fn a_message_with_large_text_files_stays_within_the_prompt_cap() {
+    let d = attachable("cap");
+    let (mut app, script, ctx) = app_with_script();
+    for i in 0..attach::MAX_FILES {
+        let path = d.join(format!("notes{i}.txt"));
+        std::fs::write(&path, "y".repeat(250 * 1024)).unwrap();
+        control(&mut app, &ctx, &json!({"attach": path.to_string_lossy()})).unwrap();
+    }
+    send(&mut app, &ctx, "read these".into());
+    let text = text_of(&script.prompts()[0]);
+    assert!(text.chars().count() <= MAX_PROMPT, "{} characters", text.chars().count());
+    assert!((0..attach::MAX_FILES).all(|i| text.contains(&format!("`notes{i}.txt`"))), "every file is named");
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// A message sent before the agent is ready keeps its files until it goes; an agent that takes
+/// no pictures gets none, and the message says which were left out. Files alone make a message,
+/// and its undo step is named after the first file.
+#[test]
+fn files_wait_with_their_message_and_pictures_skip_an_agent_that_takes_none() {
+    let d = attachable("wait");
+    let (mut app, script, ctx) = app_with_script();
+    app.agent_chat.state = Some(State::Starting);
+    attach_path(&mut app, &at(&d, "target.png")).unwrap();
+    settle_files(&mut app, &ctx);
+    send(&mut app, &ctx, "  ".into());
+    assert!(script.prompts().is_empty(), "not sent before the agent is ready");
+    assert_eq!(status(&app)["items"][0]["user"], "", "no words, just the file");
+    script.report(Event::Ready { agent: "Test".into(), images: false });
+    poll(&mut app, &ctx);
+    let sent = script.prompts();
+    assert_eq!(sent.len(), 1, "sent once the agent is ready");
+    assert_eq!(pictures_in(&sent[0]), 0, "no pictures to an agent that takes none");
+    assert!(text_of(&sent[0]).contains("not sent"), "{}", text_of(&sent[0]));
+    assert_eq!(app.agent_chat.turn.as_ref().map(|t| t.label.as_str()), Some("target.png"));
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+#[test]
+fn at_most_eight_files_on_a_message() {
+    let d = attachable("cap");
+    let mut app = SolveApp::new(solidcraft_engine::Session::default(), crate::Services::default());
+    for _ in 0..attach::MAX_FILES {
+        attach_path(&mut app, &at(&d, "brief.md")).unwrap();
+    }
+    assert!(attach_path(&mut app, &at(&d, "brief.md")).unwrap_err().contains('8'));
+    assert!(attach_rgba(&mut app, 2, 2, &[9; 16]).is_err());
+    assert_eq!(app.agent_chat.attachments.len(), attach::MAX_FILES);
+    let ctx = egui::Context::default();
+    assert!(control(&mut app, &ctx, &json!({"remove_file": 8})).is_err(), "no ninth file to take off");
+    control(&mut app, &ctx, &json!({"remove_file": 0})).unwrap();
+    assert_eq!(app.agent_chat.attachments.len(), attach::MAX_FILES - 1);
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// While the agent works, a message queues with its files: the queue shows them, Stop keeps
+/// them, and they go with the queue.
+#[test]
+fn a_queued_message_keeps_its_files_through_stop_and_sends_them() {
+    let d = attachable("queue");
+    let (mut app, script, ctx) = app_with_script();
+    app.agent_chat.images = true;
+    send(&mut app, &ctx, "make a box".into());
+    attach_path(&mut app, &at(&d, "target.png")).unwrap();
+    settle_files(&mut app, &ctx);
+    send(&mut app, &ctx, "like this".into());
+    attach_path(&mut app, &at(&d, "brief.md")).unwrap();
+    send(&mut app, &ctx, String::new());
+    assert!(app.agent_chat.attachments.is_empty(), "the files moved to the queue");
+    assert_eq!(status(&app)["pending"][0]["files"], json!(["target.png"]));
+    assert_eq!(status(&app)["pending"][1]["files"], json!(["brief.md"]));
+    cancel(&mut app);
+    ended(&script, "cancelled");
+    poll(&mut app, &ctx);
+    assert_eq!(app.agent_chat.pending.len(), 2, "Stop keeps the queue and its files");
+    send_now(&mut app, &ctx);
+    let sent = script.prompts();
+    let last = sent.last().expect("the queue went");
+    let text = text_of(last);
+    assert!(text.starts_with("like this") && !text.contains("\n\n\n\n"), "a message of files alone adds no empty paragraph: {text:?}");
+    assert!(text.contains("Attached pictures: target.png.") && text.contains("wall 2 mm"), "{text}");
+    assert_eq!(pictures_in(last), 1);
+    assert_eq!(status(&app)["items"].as_array().and_then(|i| i.last()).map(|i| i["files"].clone()), Some(json!(["target.png", "brief.md"])));
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Queued messages go as one prompt with at most eight files; the rest are named, not sent.
+#[test]
+fn the_queue_sends_at_most_eight_files_and_names_the_rest() {
+    let d = attachable("queue-cap");
+    let (mut app, script, ctx) = app_with_script();
+    send(&mut app, &ctx, "first".into());
+    for n in 0..3 {
+        for _ in 0..4 {
+            attach_path(&mut app, &at(&d, "brief.md")).unwrap();
+        }
+        send(&mut app, &ctx, format!("batch {n}"));
+    }
+    ended(&script, "");
+    poll(&mut app, &ctx);
+    let sent = script.prompts();
+    assert_eq!(sent.len(), 2);
+    assert_eq!(text_of(&sent[1]).matches("Attached file `brief.md`").count(), attach::MAX_FILES);
+    let told = app.agent_chat.items.iter().any(|i| matches!(i, Item::Notice { text, .. } if text.contains("brief.md") && text.contains('8')));
+    assert!(told, "the files left out are named");
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// New chat clears the files waiting on the chips too, and asks first when there are some.
+#[test]
+fn new_chat_clears_the_files_waiting_and_asks_first() {
+    let d = attachable("new");
+    let (mut app, _script, _ctx) = app_with_script();
+    assert!(!new_chat_needs_confirm(&app));
+    attach_path(&mut app, &at(&d, "brief.md")).unwrap();
+    assert!(new_chat_needs_confirm(&app), "files would be lost");
+    new_chat(&mut app);
+    assert!(app.agent_chat.attachments.is_empty());
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// A harness with the chat open at its narrowest and nothing to look for.
+fn narrow_chat() -> crate::scenario::Harness {
+    let mut h = crate::scenario::Harness::new();
+    h.app.preferences.agent_chat_width = panel::MIN_WIDTH;
+    h.app.agent_chat.open = true;
+    h.app.agent_chat.detection = Some(Default::default());
+    h
+}
+
+/// Every chip and the text box sit inside the panel.
+fn assert_inside_the_panel(chips: usize) {
+    use crate::scenario::rect_of;
+    let panel = rect_of("agent_chat:panel").expect("the panel");
+    let mut rects: Vec<(String, egui::Rect)> =
+        (0..chips).map(|i| (format!("file:{i}"), rect_of(&format!("agent_chat:file:{i}")).expect("a chip"))).collect();
+    rects.push(("input".into(), rect_of("agent_chat:input").expect("the text box")));
+    for (name, r) in rects {
+        assert!(r.left() >= panel.left() && r.right() <= panel.right(), "{name} {r:?} in {panel:?}");
+    }
+}
+
+/// Files for the next message show as chips above the text box (a picture's thumbnail, the name,
+/// a × that takes it off), inside the chat, and Send sends files with no text.
+#[test]
+fn attached_files_show_as_chips_that_can_be_taken_off_and_sent_alone() {
+    use crate::scenario::handle_at;
+    let d = attachable("chips");
+    let mut h = narrow_chat();
+    let script = Script::default();
+    h.app.agent_chat.backend = Some(Box::new(script.clone()));
+    h.app.agent_chat.state = Some(State::Ready);
+    h.app.agent_chat.images = true;
+    h.frames(2);
+    h.call("ui.agent_chat", json!({"attach": at(&d, "target.png")}));
+    h.call("ui.agent_chat", json!({"attach": at(&d, "brief.md")}));
+    settle_chat(&mut h);
+    assert!(handle_at("agent_chat:file:0").is_some() && handle_at("agent_chat:file:1").is_some(), "a chip per file");
+    assert_inside_the_panel(2);
+    let x = handle_at("agent_chat:file_remove:0").expect("a × on the chip");
+    h.call("ui.click", json!({"x": x.x, "y": x.y}));
+    h.frames(2);
+    assert_eq!(status(&h.app)["attachments"], json!(["brief.md"]));
+    let send = handle_at("agent_chat:send").expect("Send");
+    h.call("ui.click", json!({"x": send.x, "y": send.y}));
+    h.frames(2);
+    assert_eq!(script.prompts().len(), 1, "files alone make a message");
+    assert!(h.app.agent_chat.attachments.is_empty() && handle_at("agent_chat:file:0").is_none());
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Review of #1744: chips' thumbnails were cached by the picture's address, so a new picture at a
+/// freed address could show an old one. Each file has an id of its own, never reused, and the
+/// cache follows the files on the message.
+#[test]
+fn each_file_has_its_own_id_and_thumbnail() {
+    let d = attachable("ids");
+    image::RgbaImage::from_pixel(20, 20, image::Rgba([10, 200, 10, 255])).save(d.join("green.png")).unwrap();
+    let mut h = narrow_chat();
+    h.frames(2);
+    h.call("ui.agent_chat", json!({"attach": at(&d, "target.png")}));
+    h.call("ui.agent_chat", json!({"attach": at(&d, "green.png")}));
+    settle_chat(&mut h);
+    let first: Vec<u64> = h.app.agent_chat.attachments.iter().map(|f| f.id).collect();
+    assert!(first.len() == 2 && first[0] != first[1], "{first:?}");
+    let mut cached: Vec<u64> = h.app.agent_chat.thumbs.keys().copied().collect();
+    cached.sort_unstable();
+    assert_eq!(cached, first, "a thumbnail per file, by its id");
+    h.call("ui.agent_chat", json!({"remove_file": 0}));
+    h.call("ui.agent_chat", json!({"attach": at(&d, "target.png")}));
+    settle_chat(&mut h);
+    let now: Vec<u64> = h.app.agent_chat.attachments.iter().map(|f| f.id).collect();
+    assert!(!now.contains(&first[0]), "a removed file's id is not used again: {now:?}");
+    let mut cached: Vec<u64> = h.app.agent_chat.thumbs.keys().copied().collect();
+    cached.sort_unstable();
+    let mut want = now.clone();
+    want.sort_unstable();
+    assert_eq!(cached, want, "the cache follows the files on the message");
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// The + button: "Choose a file…" asks the app's file picker for the types that can be attached
+/// (not the design types Open shows) and attaches what it answers; "Paste a picture" attaches
+/// the clipboard's picture (here given as RGBA, as the system does).
+#[test]
+fn the_plus_button_attaches_a_chosen_file_or_a_pasted_picture() {
+    use crate::scenario::handle_at;
+    let d = attachable("plus");
+    let mut h = narrow_chat();
+    let chosen = at(&d, "brief.md");
+    let asked = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
+    let seen = asked.clone();
+    h.app.services.pick_file = Some(Box::new(move |_label: &str, exts: &[&str]| {
+        *seen.borrow_mut() = exts.iter().map(|e| e.to_string()).collect();
+        let p = chosen.clone();
+        Box::pin(async move { Some(p) })
+    }));
+    h.frames(2);
+    let plus = handle_at("agent_chat:add").expect("a + button");
+    h.call("ui.click", json!({"x": plus.x, "y": plus.y}));
+    h.frames(2);
+    let choose = handle_at("agent_chat:add_file").expect("Choose a file… in its menu");
+    assert!(handle_at("agent_chat:paste_picture").is_some(), "Paste a picture in its menu");
+    h.call("ui.click", json!({"x": choose.x, "y": choose.y}));
+    h.frames(4);
+    assert_eq!(status(&h.app)["attachments"], json!(["brief.md"]));
+    let exts = asked.borrow().clone();
+    for ext in ["png", "jpg", "gif", "webp", "svg", "md", "step", "stl"] {
+        assert!(exts.iter().any(|e| e == ext), "{ext} in {exts:?}");
+    }
+    assert!(!exts.iter().any(|e| e == "solidcraft"));
+    attach_rgba(&mut h.app, 4, 3, &[200; 48]).unwrap();
+    attach_rgba(&mut h.app, 4, 3, &[200; 47]).unwrap();
+    settle_chat(&mut h);
+    assert!(
+        h.app.agent_chat.items.iter().any(|i| matches!(i, Item::Notice { text, error: true } if text.starts_with("pasted picture 2.png:"))),
+        "not a picture: it says so once it has been read"
+    );
+    assert_eq!(status(&h.app)["attachments"], json!(["brief.md", "pasted picture 1.png"]));
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+#[derive(Debug)]
+struct DroppedPath(std::path::PathBuf);
+
+impl egui::DroppedFile for DroppedPath {
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        std::fs::read(&self.0).map_err(|e| e.to_string())
+    }
+}
+
+fn drop_files(h: &mut crate::scenario::Harness, at: egui::Pos2, files: &[std::path::PathBuf]) {
+    h.drop_files(at, files.iter().map(|p| Arc::new(DroppedPath(p.clone())) as egui::DroppedFileHandle).collect());
+}
+
+/// A tetrahedron, as a small ASCII STL.
+const TETRA_STL: &str = "solid t
+facet normal 0 0 -1
+ outer loop
+  vertex 0 0 0
+  vertex 0 10 0
+  vertex 10 0 0
+ endloop
+endfacet
+facet normal 0 -1 0
+ outer loop
+  vertex 0 0 0
+  vertex 10 0 0
+  vertex 0 0 10
+ endloop
+endfacet
+facet normal -1 0 0
+ outer loop
+  vertex 0 0 0
+  vertex 0 0 10
+  vertex 0 10 0
+ endloop
+endfacet
+facet normal 1 1 1
+ outer loop
+  vertex 10 0 0
+  vertex 0 10 0
+  vertex 0 0 10
+ endloop
+endfacet
+endsolid t
+";
+
+/// Review of #1744: a CAD file's import wasn't waited on, so a failed or queued-out import still
+/// told the agent "I added x to the design". The file joins the message once its import is in;
+/// a failed import says why and the agent is told nothing of it.
+#[test]
+fn a_cad_file_joins_the_message_once_its_import_is_in() {
+    let d = attachable("cad");
+    std::fs::write(d.join("block.stl"), TETRA_STL).unwrap();
+    std::fs::write(d.join("broken.stl"), [0u8, 1, 2]).unwrap();
+    let mut h = narrow_chat();
+    let script = Script::default();
+    h.app.agent_chat.backend = Some(Box::new(script.clone()));
+    h.app.agent_chat.state = Some(State::Ready);
+    h.frames(2);
+    attach_path(&mut h.app, &at(&d, "block.stl")).unwrap();
+    assert_eq!(status(&h.app)["loading"], json!(["block.stl"]), "importing, not yet on the message");
+    assert_eq!(status(&h.app)["attachments"], json!([]));
+    settle_chat(&mut h);
+    assert_eq!(status(&h.app)["attachments"], json!(["block.stl"]), "in, and on the message");
+    h.call("ui.agent_chat", json!({"attach": at(&d, "broken.stl")}));
+    settle_chat(&mut h);
+    assert!(
+        h.app.agent_chat.items.iter().any(|i| matches!(i, Item::Notice { text, error: true } if text.starts_with("broken.stl:"))),
+        "a failed import says why"
+    );
+    assert_eq!(status(&h.app)["attachments"], json!(["block.stl"]), "and is not on the message");
+    h.call("ui.agent_chat", json!({"send": "fit around this"}));
+    h.frames(2);
+    let text = text_of(&script.prompts()[0]);
+    assert!(text.contains("`block.stl` to the design") && !text.contains("broken.stl"), "{text}");
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Review of #1744: taking an imported part's chip off leaves the part in the design, and its ×
+/// says so; any other file's × just takes it off.
+#[test]
+fn an_imported_parts_chip_says_the_part_stays() {
+    assert_eq!(panel::remove_tip(&attach::Attachment::imported("motor.step".into())), tr("ui.agent_chat_remove_imported"));
+    assert!(tr("ui.agent_chat_remove_imported").contains("stays in the design"));
+    let picture = attach::from_rgba("a.png".into(), 2, 2, &[9; 16]).unwrap();
+    assert_eq!(panel::remove_tip(&picture), tr("ui.agent_chat_remove_file"));
+}
+
+/// Files dropped on the chat attach to the next message, and the app doesn't open them as well
+/// (while they are dragged over it, the chat says so); dropped on the 3D view they are not the
+/// chat's (the app handles them as before), nor when the chat is closed.
+#[test]
+fn files_dropped_on_the_chat_attach_and_the_app_does_not_open_them() {
+    use crate::scenario::rect_of;
+    let d = attachable("drop");
+    let mut h = narrow_chat();
+    h.call("ui.resize", json!({"width": 1600, "height": 1000}));
+    h.frames(3);
+    let panel = rect_of("agent_chat:panel").expect("docked");
+    // While files are dragged over the chat, it says they will attach; over the 3D view, not.
+    let hovered = || vec![egui::HoveredFile { path: Some(d.join("target.png")), mime: String::new() }];
+    h.drag_files(panel.center(), hovered(), Vec::new());
+    assert!(rect_of("agent_chat:drop_hint").is_some_and(|r| panel.contains(r.center())), "the hint over the chat");
+    h.drag_files(egui::pos2(300.0, 500.0), hovered(), Vec::new());
+    assert!(rect_of("agent_chat:drop_hint").is_none(), "no hint over the 3D view");
+    drop_files(&mut h, panel.center(), &[d.join("target.png"), d.join("brief.md")]);
+    settle_chat(&mut h);
+    assert_eq!(status(&h.app)["attachments"], json!(["target.png", "brief.md"]));
+    assert!(!h.app.file_load.busy(), "the app doesn't open them as well");
+    drop_files(&mut h, egui::pos2(300.0, 500.0), &[d.join("brief.md")]);
+    assert_eq!(status(&h.app)["attachments"].as_array().map(Vec::len), Some(2), "over the 3D view: not the chat's");
+    // Folded to its strip, a drop on the strip is the chat's too.
+    h.call("ui.agent_chat", json!({"minimized": true}));
+    h.frames(3);
+    let strip = h.app.agent_chat.drop_rect.expect("the strip takes drops");
+    assert!(strip.width() < 60.0, "{strip:?}");
+    drop_files(&mut h, strip.center(), &[d.join("brief.md")]);
+    assert_eq!(status(&h.app)["attachments"].as_array().map(Vec::len), Some(3));
+    // Closed: nothing is the chat's, wherever the pointer was.
+    h.app.agent_chat.open = false;
+    h.frames(2);
+    assert!(h.app.agent_chat.drop_rect.is_none());
+    drop_files(&mut h, strip.center(), &[d.join("brief.md")]);
+    assert_eq!(status(&h.app)["attachments"].as_array().map(Vec::len), Some(3));
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Many files and a long message in a narrow chat: the chips wrap onto more rows and the text box
+/// keeps to the chat (a row of chips wider than the chat would widen everything under it).
+#[test]
+fn chips_and_a_long_message_wrap_inside_a_narrow_chat() {
+    use crate::scenario::handle_at;
+    let d = attachable("wrap");
+    let mut h = narrow_chat();
+    for _ in 0..6 {
+        h.call("ui.agent_chat", json!({"attach": at(&d, "target.png")}));
+    }
+    h.app.agent_chat.input = "a separate design next to the robot body, the main version, with these measures for the second one".into();
+    settle_chat(&mut h);
+    assert_inside_the_panel(6);
+    let (first, second) = (handle_at("agent_chat:file:0").unwrap(), handle_at("agent_chat:file:1").unwrap());
+    assert!(second.y > first.y + 10.0, "at 280 px the second chip goes on the next row: {first:?} {second:?}");
+    let _ = std::fs::remove_dir_all(&d);
 }
 
 /// An agent's text is Markdown: a code block shows with its Copy button and a link is a button

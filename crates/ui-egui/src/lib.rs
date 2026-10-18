@@ -260,6 +260,10 @@ pub struct Services {
     /// the picker's first filter (`&[]`: designs, CAD files and meshes, #1801).
     pub pick_open: Option<Box<dyn Fn(&[&str]) -> FilePickerFuture>>,
     pub pick_save: Option<Box<dyn Fn(&str, &[&str]) -> FilePickerFuture>>,
+    /// Open a dialog for one file of a kind (its name, its extensions): on macOS a dialog allows
+    /// only the types it names, so the agent chat's files need a dialog of their own. `None`: the
+    /// Open dialog.
+    pub pick_file: Option<Box<dyn Fn(&str, &[&str]) -> FilePickerFuture>>,
     /// Open a dialog asking for a program (a slicer); `None` when the host has no such dialog.
     pub pick_program: Option<Box<dyn Fn() -> FilePickerFuture>>,
     pub show_in_folder: Option<Box<dyn Fn(&str)>>,
@@ -1273,6 +1277,8 @@ impl SolveApp {
         recovery_ui::tick(self);
         update::tick(self, ctx);
         if self.issue_report.draft.is_none() && self.file_picker.is_none() {
+            // Files dropped on the agent chat attach to its next message instead.
+            agent_chat::take_drops(self, ctx);
             for f in ctx.input(|i| i.raw.dropped_files.clone()) {
                 let p = f.path().to_string_lossy().to_string();
                 if !p.is_empty() {
