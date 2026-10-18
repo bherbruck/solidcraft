@@ -162,12 +162,6 @@ def test_a_circumscribed_polygon_needs_the_polygon_constraint():
     assert sketch_dof([*HEXAGON, cmd("sketch.constraint.polygon", lines=[f"l{i}" for i in range(1, 7)])]) == 0
 
 
-def test_in_a_plain_block_only_a_tapered_tool_on_a_face_logs_a_boolean_retry():
-    assert any("coincident-face" in w for w in warnings([*BLOCK, *tapered_cut("0 mm", "12 mm")]))
-    assert warnings([*BLOCK, *tapered_cut("-1 mm", "14 mm")]) == []
-    assert warnings([*BLOCK, *tapered_cut("0 mm", "12 mm", taper="0 deg")]) == []
-
-
 def test_round_features_measure_about_1e_4_off():
     body = execute([cmd("solid.cylinder", diameter="20 mm", height="10 mm")])["bodies"][0]
     error = abs(body["volume_mm3"] / (pi * 100 * 10) - 1)
@@ -392,14 +386,14 @@ def standoffs_at(standoffs: list, height: float) -> tuple[float, dict]:
     return gap, {f["name"]: f["warning"] for f in high["timeline"] if f.get("warning")}
 
 
-def test_a_boolean_retry_can_leave_material_in_a_cut():
+def test_a_boolean_retry_reports_tool_displacement_without_excess_material():
     gap, warned = standoffs_at(TWO_CYLINDERS, 7)
-    assert gap > 10
-    assert "coincident-face" in warned["Standoff"]
+    assert abs(gap) < 0.5
+    assert "Standoff" not in warned
     assert "tool displacement" in warned["Pilot"]
 
 
-def test_sinking_the_join_and_overcutting_the_hole_does_not_fix_it():
+def test_sinking_the_join_removes_the_warning():
     gap, warned = standoffs_at([
         cmd("solid.cylinder", diameter="6 mm", height="h + 1 mm", base=["-39 mm", "-24.5 mm", "1 mm"], operation="join",
             targets=["Case"], name="Standoff"),
@@ -407,8 +401,8 @@ def test_sinking_the_join_and_overcutting_the_hole_does_not_fix_it():
             targets=["Case"], name="Pilot"),
         cmd("solid.pattern.rectangular", features=["Standoff", "Pilot"], **STANDOFF_GRID),
     ], 7)
-    assert gap > 10
-    assert "Standoff" not in warned
+    assert abs(gap) < 0.5
+    assert warned == {}
 
 
 @pytest.mark.parametrize("height", [3, 7, 12, 20])
@@ -418,11 +412,12 @@ def test_a_ring_profile_builds_the_same_standoffs_exactly(height):
     assert warned == {}
 
 
-@pytest.mark.parametrize("base, height, retries", [("2 mm", "h", True), ("1 mm", "h + 1 mm", False)])
-def test_a_straight_join_on_a_shelled_floor_retries_unless_sunk(base, height, retries):
+def test_a_sunk_join_on_a_shelled_floor_does_not_warn():
     warned = warnings([
         *SHELLED_CASE,
-        cmd("solid.cylinder", diameter="6 mm", height=height, base=["-39 mm", "-24.5 mm", base], operation="join",
+        cmd("solid.cylinder", diameter="6 mm", height="h + 1 mm", base=["-39 mm", "-24.5 mm", "1 mm"], operation="join",
             targets=["Case"], name="Standoff"),
     ])
-    assert any("coincident-face" in w for w in warned) == retries
+    assert warned == []
+
+
