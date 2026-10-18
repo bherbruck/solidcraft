@@ -1768,7 +1768,7 @@ fn split_seg(seg: &Seg2, pts: &[Vec2], tol: f64) -> Option<Vec<Seg2>> {
 /// a face down over the one above less the one below. Every outline is split where any other
 /// meets it, so the faces share their edges. `None` when a slab is empty or a curve isn't a
 /// line or an arc.
-fn sew_stack(plane: &Plane, d: Vec3, pa: &Prism, pb: &Prism, tol: f64, history: &lineage::Context) -> Option<Result<Body>> {
+fn sew_stack(plane: &Plane, d: Vec3, pa: &Prism, pb: &Prism, tol: f64, coalesce: Coalesce, history: &lineage::Context) -> Option<Result<Body>> {
     let mut levels = vec![pa.lo, pa.hi, pb.lo, pb.hi];
     levels.sort_by(f64::total_cmp);
     levels.dedup_by(|x, y| (*x - *y).abs() < tol);
@@ -1784,18 +1784,48 @@ fn sew_stack(plane: &Plane, d: Vec3, pa: &Prism, pb: &Prism, tol: f64, history: 
         };
         slabs.push(s.oriented());
     }
-    sew_sections(plane, d, &levels, &slabs, tol, false, history)
+    sew_sections(plane, d, &levels, &slabs, tol, coalesce, history)
 }
 
-/// Sew the exact sections between successive levels, including empty gaps. With `coalesce`,
-/// walls over one segment through successive slabs are one face.
+/// Which walls a sewing joins across successive slabs: a wall over the very same segment in
+/// each of them becomes one face instead of one per slab.
+#[derive(Clone, Copy)]
+struct Coalesce {
+    /// Straight and free-form walls, and with them the generated support planes and the
+    /// planar regularization that reads them: a cut's walls, as before.
+    lines: bool,
+    /// Walls over a circular arc, for every operation. A planar wall left split slab by slab
+    /// is put back together by the coplanar healing after the boolean; a cylindrical one is
+    /// not, so it stays split for good. A later operation then reads a wall of one cylinder
+    /// as a face only one slab tall, and a blend along its top edge is refused as larger than
+    /// the faces beside it (#1986).
+    arcs: bool,
+}
+
+impl Coalesce {
+    /// Whether the wall over `s` is joined across the slabs it is the same in.
+    fn joins(self, s: &Seg2) -> bool {
+        if matches!(s, Seg2::Arc { .. }) { self.arcs } else { self.lines }
+    }
+
+    /// What a boolean of `a` and `b` may join: nothing where either operand carries authored
+    /// splits or face paint to keep, or is held back from regularization.
+    fn of(op: BoolOp, a: &Body, b: &Body) -> Self {
+        let free = |x: &Body| !x.regularization_protected && x.split_keep().is_empty() && x.paint().is_none_or(|p| p.faces.is_empty());
+        let free = free(a) && free(b);
+        Self { lines: free && op == BoolOp::Cut, arcs: free }
+    }
+}
+
+/// Sew the exact sections between successive levels, including empty gaps. The walls
+/// [`Coalesce`] names run through successive slabs as one face.
 fn sew_sections(
     plane: &Plane,
     d: Vec3,
     levels: &[f64],
     slabs: &[Section],
     tol: f64,
-    coalesce: bool,
+    coalesce: Coalesce,
     history: &lineage::Context,
 ) -> Option<Result<Body>> {
     if levels.len() != slabs.len() + 1
@@ -1921,7 +1951,7 @@ fn sew_connected_sections(
     levels: &[f64],
     slabs: &[Section],
     tol: f64,
-    coalesce: bool,
+    coalesce: Coalesce,
     history: &lineage::Context,
 ) -> Option<Result<(Body, lineage::Built)>> {
     use crate::sew::{EdgeSpec, FaceSpec, SurfSpec};
@@ -2067,7 +2097,8 @@ fn sew_connected_sections(
                         }
                         remaining = remaining.checked_sub(1)?;
                         let key = wall_key(&sg)?;
-                        let prior = if coalesce { last.get(&key).copied() } else { None };
+                        let joins = coalesce.joins(&sg);
+                        let prior = if joins { last.get(&key).copied() } else { None };
                         let run = match prior.map(|index| runs.get_mut(index).map(|run: &mut Run| (index, run))) {
                             Some(None) => return None,
                             Some(Some((index, run))) if run.1 == i => {
@@ -2078,7 +2109,7 @@ fn sew_connected_sections(
                             // a valid reason to reconstruct a larger wall.
                             Some(Some((_, run))) if run.1 == i + 1 => return None,
                             _ => {
-                                if coalesce {
+                                if joins {
                                     last.insert(key, runs.len());
                                 }
                                 runs.push((i, i + 1, sg, Vec::new()));
@@ -2133,7 +2164,7 @@ fn sew_connected_sections(
         faces.push(FaceSpec { loops: vec![lp3], surface, probe: Some((at(sg.point_at(0.5), (z0 + z1) / 2.0), outward)) });
         // Axis-aligned generated lines have a common oriented support frame
         // independent of axial stations or along-line endpoint interpolation.
-        let generated_plane = if coalesce
+        let generated_plane = if coalesce.lines
             && frame_is_orthonormal
             && let Seg2::Line { a, b } = sg
         {
@@ -2174,7 +2205,7 @@ fn sew_connected_sections(
     let sewn = crate::sew::sew_touching_with_sources(&faces, &sources).map(|(body, from)| (body, lineage::Built::Sewn { specs, faces: from }));
     // Generated walls joined on their common supports: the piece's history over the operands,
     // carried through the joining.
-    Some(if coalesce {
+    Some(if coalesce.lines {
         sewn.and_then(|(body, built)| {
             let body = history.attach(body.clone(), &[(&body, built)]).regularize_generated_planar_faces()?;
             Ok((body, lineage::Built::Traced))
@@ -2231,11 +2262,11 @@ fn simple_prism_indexed(a: &Body, b: &Body, op: BoolOp, [ia, ib]: [&LazyIndex; 2
     let (lo, hi) = if stacked {
         // Different sections (a boss hanging over a plate's edge): sewn slab by slab.
         if !alike(x) || !alike(y) {
-            return sew_stack(&plane, d, &pa, &pb, tol, &history).map(|r| r.map(Some));
+            return sew_stack(&plane, d, &pa, &pb, tol, Coalesce::of(op, a, b), &history).map(|r| r.map(Some));
         }
         // One outline end to end: also slab by slab, so the history follows each operand's
         // walls (one longer prism, whose walls are made from both).
-        if let Some(Ok(body)) = sew_stack(&plane, d, &pa, &pb, tol, &history)
+        if let Some(Ok(body)) = sew_stack(&plane, d, &pa, &pb, tol, Coalesce::of(op, a, b), &history)
             && body.history().is_some()
         {
             return Some(Ok(Some(body)));
@@ -2501,14 +2532,7 @@ fn stack_indexed(a: &Body, b: &Body, op: BoolOp, [ia, ib]: [&LazyIndex; 2], comm
         return None;
     }
     let history = lineage::Context::new(op, [a, b], [ia.get(), ib.get()], plane, tol, None);
-    let coalesce = op == BoolOp::Cut
-        && !a.regularization_protected
-        && !b.regularization_protected
-        && a.split_keep().is_empty()
-        && b.split_keep().is_empty()
-        && a.paint().is_none_or(|p| p.faces.is_empty())
-        && b.paint().is_none_or(|p| p.faces.is_empty());
-    sew_sections(&plane, d, &levels, &slabs, tol, coalesce, &history).map(|r| r.map(Some))
+    sew_sections(&plane, d, &levels, &slabs, tol, Coalesce::of(op, a, b), &history).map(|r| r.map(Some))
 }
 
 thread_local! {
@@ -2779,8 +2803,10 @@ mod planar_tests {
             let operand = crate::extrude(&Plane::XY, &[rectangle(Vec2::new(-1., -1.), Vec2::new(1., 1.))], 0., 1.).unwrap().pop().unwrap();
             let index = LazyIndex::new(&operand, 0);
             let history = lineage::Context::new(BoolOp::Cut, [&operand, &operand], [index.get(), index.get()], Plane::XY, 1e-7, None);
-            let old = sew_sections(&Plane::XY, Vec3::Z, &[0., 2., 20.], &slabs, 1e-7, false, &history).unwrap().unwrap();
-            let merged = sew_sections(&Plane::XY, Vec3::Z, &[0., 2., 20.], &slabs, 1e-7, true, &history).unwrap().unwrap();
+            let joined = Coalesce { lines: true, arcs: true };
+            let apart = Coalesce { lines: false, arcs: false };
+            let old = sew_sections(&Plane::XY, Vec3::Z, &[0., 2., 20.], &slabs, 1e-7, apart, &history).unwrap().unwrap();
+            let merged = sew_sections(&Plane::XY, Vec3::Z, &[0., 2., 20.], &slabs, 1e-7, joined, &history).unwrap().unwrap();
             let count = if curved { 2 } else { 4 };
             assert_eq!(old.face_count() - merged.face_count(), count);
             let marked: Vec<_> = merged.solid.face_iter().enumerate().filter(|(i, _)| merged.face_was_coalesced(*i)).collect();
