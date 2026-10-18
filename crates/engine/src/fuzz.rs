@@ -440,3 +440,50 @@ pub fn minimise(run: &Run) -> Run {
     }
     Run { seed: run.seed, steps, outcome, unsupported: Vec::new(), rejected: 0, boolean_fallbacks, boolean_reports_truncated }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+
+    #[allow(clippy::expect_used)]
+    fn seed_measures(seed: u64) -> Vec<solidcraft_kernel::BodyMeasure> {
+        let (run, s) = run_session(seed, 8, &mut |_| {});
+        assert_eq!(run.outcome.kind, "ok", "seed {seed}: {:?}", run.outcome);
+        s.model.state().bodies.iter().map(|b| solidcraft_kernel::measure(&b.body).expect("measure a valid seeded body")).collect()
+    }
+
+    /// Seed 34: a quarter cylinder R15 x 12.5, a spherical bite R2.5 centred
+    /// at (10, 12.5, 0), and an independent R2 x 5 blind drill with a 118° tip.
+    /// The circular-lens surface/volume integrals give these references
+    /// independently of the B-rep and its measurement tessellation (docs/robustness.md).
+    #[test]
+    fn a_spherical_bite_and_blind_drill_match_the_analytic_solid() {
+        let measured = seed_measures(34);
+        assert_eq!(measured.len(), 1);
+        let m = &measured[0];
+        for (name, got, want) in [("volume", m.volume, 2_134.404_133), ("area", m.area, 1_086.316_691)] {
+            // measure uses a chordal mesh with a 5e-5 relative chord tolerance.
+            assert!((got - want).abs() <= 5e-5 * want, "{name}: {got} versus analytic {want}");
+        }
+        assert_eq!(m.merged.face_types, BTreeMap::from([("cone".into(), 1), ("cylinder".into(), 2), ("plane".into(), 4), ("sphere".into(), 1)]));
+    }
+
+    /// Seed 67 leaves two disconnected bodies: the notched extrusion with its
+    /// bores and cylindrical boss, and a chamfered block with a patterned bore.
+    /// Redundant raw subdivisions must preserve their analytic surface inventory.
+    #[test]
+    fn a_patterned_bore_preserves_the_analytic_surfaces() {
+        let measured = seed_measures(67);
+        assert_eq!(measured.len(), 2);
+        assert_eq!(measured.iter().map(|m| m.shells).sum::<usize>(), 2);
+        let mut kinds = BTreeMap::new();
+        for m in &measured {
+            for (kind, count) in &m.merged.face_types {
+                *kinds.entry(kind.clone()).or_insert(0) += count;
+            }
+        }
+        assert_eq!(kinds, BTreeMap::from([("cone".into(), 1), ("cylinder".into(), 6), ("plane".into(), 22)]));
+    }
+}

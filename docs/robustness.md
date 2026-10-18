@@ -61,6 +61,29 @@ ROBUSTNESS_GOLDENS_BLESS="why it changed" cargo test --profile ci -p solidcraft-
 
 The changed seeds and the reason are added to the file's `notes`; say why in the pull request too.
 
+The generator feeds the current geometry's bounds and face/edge picks back into later
+commands. The same RNG seed can therefore generate different command coordinates or picks
+on different math libraries. The original inputs are retained, including near-contact cases.
+Platform snapshots track repeatability; they do not certify cross-platform geometric
+equivalence or resolve the numerical differences tracked in #924.
+
+### Independent measurement checks
+
+The seeded snapshots also have checks against geometric references. Seed 34 starts with a
+quarter cylinder of radius 15 and height 12.5 (`x,y >= 0`, `-12.5 <= z <= 0`), cuts it with a
+radius-2.5 sphere centred at (10, 12.5, 0), then drills an independent radius-2, depth-5 blind
+hole from (0, 7.5, -6.25) along +X, with a 118-degree tip.
+Subtracting the sphere/cylinder intersection and the drill gives **2134.404133 mm³** and
+**1086.316691 mm²**. The drill has tip height `2 / tan(59 degrees)`; the spherical bite is
+integrated over the intersection of the radius-15 disk and the sphere's projected radius-2.5
+disk. Integrating the lower spherical hemisphere and the removed cylinder-wall patch gives
+the surface reference. The test compares the chordal measurement with these independent
+references at 5e-5 relative error.
+
+Seed 67 checks the final two bodies' analytic surface inventory: 22 planar, six cylindrical
+and one conical face after merging redundant subdivisions. These checks supplement the
+snapshots' stricter repeatability comparisons of raw topology and tessellated measurements.
+
 ## Successful Boolean retries
 
 When an accepted Boolean result needs a retry that can make it differ from the
