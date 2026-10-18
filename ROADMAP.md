@@ -80,6 +80,9 @@ completed drawings publish atomically. The browser still exports synchronously.
 
 ## Interactive modelling
 
+- Modelled threads preview their cut before OK using the background worker on desktop.
+  Browser users apply the cut with OK to avoid blocking on every edit.
+
 - Thread resolves a suggested metric size when a cylindrical face is picked. Diameter and
   pitch selectors expose the existing metric designation parameter; custom designations stay
   editable, and Automatic size returns to the face's suggestion. Cosmetic/modelled and
