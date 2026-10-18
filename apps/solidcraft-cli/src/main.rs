@@ -121,6 +121,12 @@ fn main() -> ExitCode {
             println!("solidcraft-cli {}", env!("CARGO_PKG_VERSION"));
             Ok(())
         }
+        // Asked-for help is not an error: usage on stdout, exit 0.
+        Some("--help" | "-h" | "help") => {
+            use std::io::Write as _;
+            let _ = std::io::stdout().lock().write_all(USAGE.as_bytes());
+            Ok(())
+        }
         _ => Err(USAGE.to_string()),
     };
     match r {
