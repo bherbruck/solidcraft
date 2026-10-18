@@ -2258,6 +2258,14 @@ pub struct StandardPart {
     pub size: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub length: Option<f64>,
+    /// A part from a part library: a copy of its family, so it rebuilds and resizes without
+    /// the library file (none for the built-in families).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub definition: Option<crate::part_family::FastenerFamily>,
+    /// The article number the library lists for this size and length, its identity in a parts
+    /// list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub article: Option<String>,
 }
 
 /// A component whose contents come from another design file (Insert Design): where that file

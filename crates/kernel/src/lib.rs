@@ -48,6 +48,7 @@ pub mod fuzz;
 mod heal;
 mod helix;
 pub mod history;
+mod hole_walls;
 mod iges_in;
 mod iges_out;
 #[cfg(test)]
@@ -165,6 +166,7 @@ pub use fair::{
 };
 pub use fill::{PATCH_ANGLE_TOL_DEG, PatchReport, PatchSpec, patch_edges_crowned, patch_edges_report, patch_edges_with};
 pub use helix::{loft_to_point, sweep_helix, sweep_helix_mesh};
+pub use hole_walls::{HoleWall, hole_walls};
 pub use iges_in::{MAX_IGES_BYTES, iges_import, iges_to_step};
 pub use iges_out::iges_export_bodies;
 pub use lip::raise_band;

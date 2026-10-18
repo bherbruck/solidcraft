@@ -1,5 +1,6 @@
 //! Insert Part: the standard parts library (screws, bolts, nuts, washers, set screws, pins,
-//! bearings) by family, size and length, with the size's table values and a picture of the part.
+//! bearings, and the families of open part libraries) by family, size and length, with the
+//! size's table values and a picture of the part.
 //! Picking a hole (its wall or rim) seats the part in it with a rigid joint; without one the part
 //! goes at the origin. The live preview shows it placed.
 
@@ -21,6 +22,17 @@ pub struct Family {
     /// Size names and their table rows.
     pub sizes: Vec<(String, Value)>,
     pub lengths: Option<Vec<f64>>,
+}
+
+impl Family {
+    /// The lengths size `size` comes in: a library family lists them per size (each with the
+    /// grip it holds), a built-in one for the whole family.
+    pub fn lengths_of(&self, size: usize) -> Option<Vec<f64>> {
+        match self.sizes.get(size).and_then(|(_, row)| row.get("lengths")).and_then(Value::as_array) {
+            Some(ls) => Some(ls.iter().filter_map(|l| l.get("length").and_then(Value::as_f64)).collect()),
+            None => self.lengths.clone(),
+        }
+    }
 }
 
 /// The library as `parts.library` gives it.
@@ -81,7 +93,7 @@ pub fn insert_params(lib: &[Family], k: &Pt, hole: Option<&Sel>) -> Result<Value
     let f = lib.get(k.family).ok_or("the parts library is empty")?;
     let (size, _) = f.sizes.get(k.size).ok_or("pick a size")?;
     let mut p = json!({"family": f.id, "size": size});
-    if let Some(l) = k.length.and_then(|i| f.lengths.as_ref().and_then(|ls| ls.get(i))) {
+    if let Some(l) = k.length.and_then(|i| f.lengths_of(k.size).and_then(|ls| ls.get(i).copied())) {
         p["length"] = json!(l);
     }
     match hole {
@@ -141,9 +153,13 @@ pub fn rows(app: &mut SolveApp, ui: &mut egui::Ui, k: &mut Pt, inputs: &[SelInpu
     let Some(f) = lib.get(k.family) else { return false };
     let sizes: Vec<&str> = f.sizes.iter().map(|s| s.0.as_str()).collect();
     row_label(ui, "Size");
+    let before = k.size;
     combo(ui, "pt_size", &sizes, &mut k.size);
     ui.end_row();
-    if let Some(ls) = &f.lengths {
+    if k.size != before && f.sizes.get(before).is_some_and(|(_, row)| row.get("lengths").is_some()) {
+        k.length = None;
+    }
+    if let Some(ls) = &f.lengths_of(k.size) {
         let mut labels = vec!["Default".to_string()];
         labels.extend(ls.iter().map(|l| crate::prefs::show_mm(app, *l, 1)));
         let refs: Vec<&str> = labels.iter().map(String::as_str).collect();
@@ -185,7 +201,8 @@ pub fn rows(app: &mut SolveApp, ui: &mut egui::Ui, k: &mut Pt, inputs: &[SelInpu
     if let Some((_, row)) = f.sizes.get(k.size)
         && let Some(o) = row.as_object()
     {
-        for (key, v) in o.iter().filter(|(key, _)| key.as_str() != "size") {
+        // A library size's lengths are the Length row's choices already.
+        for (key, v) in o.iter().filter(|(key, _)| !matches!(key.as_str(), "size" | "lengths")) {
             row_label(ui, &key.replace('_', " "));
             ui.label(RichText::new(v.as_f64().map(|x| crate::prefs::show_mm(app, x, 1)).unwrap_or_else(|| v.to_string())).color(t.text_dim));
             ui.end_row();
@@ -247,5 +264,19 @@ mod tests {
         assert_eq!(p["name"], "Front bearing");
         assert!(p.get("length").is_none());
         assert!(insert_params(&[], &k, None).is_err());
+    }
+
+    /// A library family's lengths come from the picked size.
+    #[test]
+    fn library_sizes_carry_their_own_lengths() {
+        let l = families(&json!({"families": [
+            {"family": "rivet_dome", "name": "Rivet", "standard": "", "source": "example.rivets", "lengths": [6, 8, 12],
+             "sizes": [{"size": "4.0", "lengths": [{"length": 6, "grip": [1, 3]}, {"length": 8, "grip": [3, 5]}]},
+                       {"size": "4.8", "lengths": [{"length": 12, "grip": [6, 8]}]}]},
+        ]}));
+        assert_eq!(l[0].lengths_of(0), Some(vec![6.0, 8.0]));
+        assert_eq!(l[0].lengths_of(1), Some(vec![12.0]));
+        let k = Pt { family: 0, size: 1, length: Some(0), name: String::new(), picture: None, lib: None };
+        assert_eq!(insert_params(&l, &k, None).unwrap()["length"], json!(12.0));
     }
 }
