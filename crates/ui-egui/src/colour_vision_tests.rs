@@ -725,6 +725,7 @@ fn the_sections_messages_are_in_every_catalog() {
         ("de", include_str!("../../../assets/locales/de.json")),
         ("ja", include_str!("../../../assets/locales/ja.json")),
         ("ko", include_str!("../../../assets/locales/ko.json")),
+        ("pl", include_str!("../../../assets/locales/pl.json")),
         ("ru", include_str!("../../../assets/locales/ru.json")),
         ("zh", include_str!("../../../assets/locales/zh.json")),
     ] {
