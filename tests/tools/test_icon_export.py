@@ -84,7 +84,9 @@ class IconExportTest(unittest.TestCase):
                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             try:
                 url = 'http://127.0.0.1:%d' % port
-                for attempt in range(100):
+                # Up to a minute: CI machines can be busy enough that the server starts slowly.
+                deadline = time.monotonic() + 60
+                while time.monotonic() < deadline:
                     try:
                         with urllib.request.urlopen(url + '/api/review', timeout=1) as response:
                             base = json.load(response)

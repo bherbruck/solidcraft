@@ -61,8 +61,10 @@ use crate::web_offline;
 const PREFIX: &str = "/solidcraft/app/";
 /// Another copy of the app on the same origin.
 const ELSEWHERE: &str = "/solidcraft/elsewhere/";
-/// How long one launch may take (a real build compiles ~30 MB of wasm).
-const LAUNCH_TIMEOUT: Duration = Duration::from_secs(90);
+/// How long one launch may take (a real build compiles ~30 MB of wasm). Generous: the CI
+/// runners that take fork pull requests run several jobs per machine under gVisor, where one
+/// launch has taken over 90 s.
+const LAUNCH_TIMEOUT: Duration = Duration::from_secs(240);
 /// sw.js's NAVIGATE_TIMEOUT_MS, less a margin: a hung network is waited for at least this long.
 const SLOW_NETWORK_WAIT: Duration = Duration::from_secs(3);
 /// How long a file takes in Mode::SlowFiles.
@@ -193,15 +195,24 @@ pub fn run(root: &Path, site: Option<&str>, required: bool) -> Result<(), String
         let n = count.get() + 1;
         count.set(n);
         let t = Instant::now();
-        let r = cdp.call("Page.navigate", json!({ "url": format!("http://127.0.0.1:{}{at}?launch={n}", server.port) }))?;
-        if let Some(e) = r["errorText"].as_str().filter(|e| !e.is_empty()) {
-            return Err(format!("launch {n} (build {build}): the page didn't load: {e}"));
-        }
         let search = format!("?launch={n}");
-        wait_for(cdp, &state_js, &format!("launch {n} starts build {build}"), |s| {
-            s["search"] == search.as_str() && s["ready"] == "complete" && s["build"] == build && s["started"] == true
-        })?;
-        Ok(t.elapsed())
+        let what = format!("launch {n} starts build {build}");
+        // One retry: on a heavily loaded machine a launch can stall past the timeout. Loading the
+        // same page again must still start the same build.
+        for attempt in 1..=2 {
+            let r = cdp.call("Page.navigate", json!({ "url": format!("http://127.0.0.1:{}{at}?launch={n}", server.port) }))?;
+            if let Some(e) = r["errorText"].as_str().filter(|e| !e.is_empty()) {
+                return Err(format!("launch {n} (build {build}): the page didn't load: {e}"));
+            }
+            match wait_for(cdp, &state_js, &what, |s| {
+                s["search"] == search.as_str() && s["ready"] == "complete" && s["build"] == build && s["started"] == true
+            }) {
+                Ok(()) => return Ok(t.elapsed()),
+                Err(e) if attempt == 1 => println!("retry {e}"),
+                Err(e) => return Err(e),
+            }
+        }
+        unreachable!()
     };
     let launch = |cdp: &mut Cdp, build: &str| launch_at(cdp, PREFIX, build);
     // The page is controlled by the worker, which keeps exactly this build's files (and the mark
