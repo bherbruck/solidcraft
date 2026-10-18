@@ -1,4 +1,5 @@
-//! Modelled threads: the ISO metric profile cut along a helix, M3 to M20, outside and inside.
+//! Modelled threads: the ISO metric profile cut along a helix, inside and outside,
+//! including fine pitches on large shafts and the sample flange.
 
 use std::f64::consts::PI;
 
@@ -21,6 +22,75 @@ fn volume(s: &mut Session, b: &str) -> f64 {
 }
 
 const SIZES: [(f64, f64); 9] = [(3.0, 0.5), (4.0, 0.7), (5.0, 0.8), (6.0, 1.0), (8.0, 1.25), (10.0, 1.5), (12.0, 1.75), (16.0, 2.0), (20.0, 2.5)];
+
+/// Keep the original 48-station reproduction of the shell error even though new fine
+/// threads now use more stations. The same cut polygons must rebuild as a closed solid.
+#[test]
+fn faceted_flange_thread_preserves_thin_crest_boundaries() {
+    use crate::geom::{Plane, Vec2, Vec3};
+    use crate::kernel;
+
+    let mut s = Session::default();
+    let sample = crate::sample::samples().into_iter().find(|s| s.name == "Bolted Flange").unwrap();
+    s.run_script(&(sample.script)()).unwrap();
+    let state = s.model.state();
+    let body = &state.body("Flange").unwrap().body;
+    let face = Vec3::new(-19.034766861657907, -11.03075929038123, 19.574640342897094);
+    let cylinder = kernel::cylinder_face_at(body, face).unwrap();
+    let pitch = 1.5;
+    let height = pitch * 3f64.sqrt() / 2.0;
+    let root = 22.0 - 5.0 * height / 8.0;
+    let outer = 22.0 + 0.05 * pitch;
+    let half_width = (pitch / 4.0 + 2.0 * (outer - root) * (PI / 6.0).tan()) / 2.0;
+    let section = [Vec2::new(root, -pitch / 8.0), Vec2::new(outer, -half_width), Vec2::new(outer, half_width), Vec2::new(root, pitch / 8.0)];
+    let (start, end) = (cylinder.start - pitch, cylinder.end + pitch);
+    let base = cylinder.axis_point + cylinder.axis * start;
+    let plane = Plane { origin: base, x: cylinder.axis.cross(Vec3::new(1.0, 0.0, 0.0)).normalized().unwrap(), y: cylinder.axis };
+    let groove = kernel::sweep_helix_mesh(&plane, &section, base, cylinder.axis, pitch, (end - start) / pitch, 48).unwrap();
+    let cut = kernel::faceted_boolean(body, &groove, kernel::BoolOp::Cut, pitch * 0.005).unwrap().unwrap();
+    assert!(cut.validity().is_empty(), "{:?}", cut.validity());
+    let before = body.tessellate(0.001).unwrap().measure().volume;
+    let after = cut.tessellate(0.001).unwrap().measure().volume;
+    assert!(before - after > 700.0 && before - after < 1800.0, "removed {}", before - after);
+}
+
+#[test]
+fn modelled_full_length_m44_flange_thread() {
+    let mut s = Session::default();
+    let sample = crate::sample::samples().into_iter().find(|s| s.name == "Bolted Flange").unwrap();
+    s.run_script(&(sample.script)()).unwrap();
+    let before = volume(&mut s, "Flange");
+    run(
+        &mut s,
+        "solid.thread",
+        json!({
+            "face": [-19.034766861657907, -11.03075929038123, 19.574640342897094],
+            "designation": "M44x1.5", "modeled": true
+        }),
+    );
+    let state = s.model.state();
+    let body = &state.body("Flange").unwrap().body;
+    assert!(body.validity().is_empty(), "{:?}", body.validity());
+    let removed = before - volume(&mut s, "Flange");
+    assert!(removed > 700.0 && removed < 1800.0, "a full-length helical cut removes material: {removed}");
+}
+
+#[test]
+fn modelled_full_length_fine_threads_on_large_shafts() {
+    for (d, p, len) in [(44.0, 1.0, 5.0), (44.0, 1.5, 16.0), (100.0, 1.5, 6.0)] {
+        let mut s = Session::default();
+        run(&mut s, "solid.cylinder", json!({"radius":d / 2.0,"height":len,"body_name":"Shaft"}));
+        let before = volume(&mut s, "Shaft");
+        run(&mut s, "solid.thread", json!({"face":[d / 2.0,0,len / 2.0],"designation":format!("M{d}x{p}"),"modeled":true}));
+        let state = s.model.state();
+        let body = &state.body("Shaft").unwrap().body;
+        assert!(body.validity().is_empty(), "M{d}x{p}: {:?}", body.validity());
+        let root = d / 2.0 - 5.0 * p * 3f64.sqrt() / 16.0;
+        let want = per_turn(root, d / 2.0, |r| p / 4.0 + 2.0 * (r - root) * (PI / 6.0).tan()) * len / p;
+        let got = before - volume(&mut s, "Shaft");
+        assert!((got - want).abs() < want * 0.04, "M{d}x{p}: removed {got}, ISO profile {want}");
+    }
+}
 
 #[test]
 fn non_finite_thread_designations_are_refused_without_changing_the_design() {

@@ -89,6 +89,8 @@ completed drawings publish atomically. The browser still exports synchronously.
   drag continues, then catch up to the exact final value. Changes to the selected geometry,
   operation or feature still discard obsolete results. Distance arrows and their value boxes
   follow the current frame's input.
+- Large fine modelled threads use pitch-based helix resolution and tighter faceted
+  reconstruction fallbacks, preserving thin crests and closed shells on large shafts.
 
 ## Physical material data
 

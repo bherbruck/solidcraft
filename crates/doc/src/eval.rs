@@ -367,8 +367,19 @@ fn thread_groove(t: &ThreadInfo, radius: f64, open: (bool, bool)) -> Result<soli
     let base = t.axis_point + k * s0;
     let plane = Plane { origin: base, x: u, y: k };
     let section = [Vec2::new(r0, -w0), Vec2::new(r1, -w1), Vec2::new(r1, w1), Vec2::new(r0, w0)];
-    // Sections 7.5° apart: the chords sag 0.2% of the radius.
-    Ok(kernel::sweep_helix_mesh(&plane, &section, base, k, p, (s1 - s0) / p, 48)?)
+    // Keep radial chord error below 1% of the pitch, rather than a fixed fraction of the
+    // diameter. At 48 stations a large fine thread cuts too deeply; its outer tool facets
+    // can even dip under the shaft surface. The existing coarse sizes still use 48.
+    let outer = r0.abs().max(r1.abs());
+    if !outer.is_finite() {
+        return Err(DocError::Invalid("thread dimensions are too large".into()));
+    }
+    let angle = (1.0 - (p * 0.01 / outer).min(1.0)).acos();
+    let stations = (std::f64::consts::PI / angle).ceil().max(48.0);
+    if !stations.is_finite() || stations > 720.0 {
+        return Err(DocError::Invalid("the modelled thread is too fine for this diameter; use a cosmetic thread".into()));
+    }
+    Ok(kernel::sweep_helix_mesh(&plane, &section, base, k, p, (s1 - s0) / p, stations as usize)?)
 }
 
 /// A constant fillet of `edges`; with [`FilletFit::Reduce`](crate::FilletFit::Reduce), a radius too
