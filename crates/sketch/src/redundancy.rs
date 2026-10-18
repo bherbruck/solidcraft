@@ -123,7 +123,7 @@ pub(super) fn dependent_blocks(
 /// dimension (it constrains nothing) or an unknown index.
 pub fn constraint_residual(sk: &Sketch, ci: usize) -> Option<f64> {
     let c = sk.constraints.get(ci).filter(|c| !c.driven)?;
-    let fixed = Layout { pvar: vec![None; sk.points.len()], rvar: vec![None; sk.curves.len()], n: 0, points: 0 };
+    let fixed = Layout { pvar: vec![None; sk.points.len()], rvar: vec![None; sk.curves.len()], n: 0, points: 0, slide: Vec::new() };
     let on_curve = points_on_curves(sk);
     let b = match super::touch_point(sk, &c.kind, &on_curve) {
         Some(p) => Block::TangentAt(ci, &c.kind, p),

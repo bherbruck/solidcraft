@@ -36,6 +36,9 @@ const MAX_COMPONENT_VARS: usize = 4_000;
 const TOL: f64 = 1e-9;
 /// A solution is accepted when every residual is below this (mm).
 const ACCEPT: f64 = 1e-6;
+/// How much less it costs a solve to move a point held on a curve than any other point: such a
+/// point is placed relative to the curve, so it follows the curve rather than the curve it.
+const SLIDE_WEIGHT: f64 = 0.01;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -107,6 +110,9 @@ struct Layout {
     n: usize,
     /// The point coordinates' variables: `0..points`.
     points: usize,
+    /// Per variable: a coordinate of a point held on a curve (point on curve, midpoint), which
+    /// a solve slides along it before moving the curve (see [`SLIDE_WEIGHT`]).
+    slide: Vec<bool>,
 }
 
 impl Layout {
@@ -145,7 +151,7 @@ pub(crate) fn held_points(sk: &Sketch, hold: &Hold) -> Vec<bool> {
 
 fn layout(sk: &Sketch, hold: &Hold) -> Layout {
     let mut n = 0;
-    let pvar = held_points(sk, hold)
+    let pvar: Vec<Option<usize>> = held_points(sk, hold)
         .iter()
         .map(|f| {
             if *f {
@@ -169,7 +175,19 @@ fn layout(sk: &Sketch, hold: &Hold) -> Layout {
             _ => None,
         })
         .collect();
-    Layout { pvar, rvar, n, points }
+    let mut slide = vec![false; n];
+    for c in &sk.constraints {
+        if let ConstraintKind::PointOnCurve { p, .. } | ConstraintKind::Midpoint { p, .. } = c.kind
+            && let Some(Some(v)) = pvar.get(p)
+        {
+            for k in [*v, *v + 1] {
+                if let Some(s) = slide.get_mut(k) {
+                    *s = true;
+                }
+            }
+        }
+    }
+    Layout { pvar, rvar, n, points, slide }
 }
 
 /// Read-only view of the sketch with variable values substituted.
@@ -618,7 +636,7 @@ fn measure(s: &State, k: &ConstraintKind) -> Option<f64> {
 /// What a dimension measures on the sketch as it stands (mm, radians for angles); `None` for a
 /// constraint that is not a dimension.
 pub fn measure_dimension(sk: &Sketch, k: &ConstraintKind) -> Option<f64> {
-    let lay = Layout { pvar: vec![None; sk.points.len()], rvar: vec![None; sk.curves.len()], n: 0, points: 0 };
+    let lay = Layout { pvar: vec![None; sk.points.len()], rvar: vec![None; sk.curves.len()], n: 0, points: 0, slide: Vec::new() };
     measure(&State { sk, lay: &lay, x: &[] }, k).filter(|v| v.is_finite())
 }
 
@@ -954,13 +972,17 @@ fn lm_capped(
             }
         }
         let mut improved = false;
-        // Damping floor: variables the residuals barely see must not take huge steps.
-        let floor = (0..n).map(|i| a.get(i, i)).fold(0.0_f64, f64::max) * 1e-4;
+        // Damping by distance moved, not by JᵀJ's diagonal (Marquardt): of the steps that fit the
+        // residuals equally well it takes the shortest, so what the constraints leave free moves
+        // as little as it can. (Scaled by the diagonal, a variable the residuals see weakly is
+        // cheap to move: a point held on a line made the line's far end swing round instead of
+        // the point sliding along it.) A point held on a curve is cheaper still, so it slides
+        // rather than the curve's ends moving.
+        let weight: Vec<f64> = vars.iter().map(|&v| if lay.slide.get(v).copied().unwrap_or(false) { SLIDE_WEIGHT } else { 1.0 }).collect();
         for _ in 0..30 {
             let mut m = a.clone();
-            for i in 0..n {
-                let d = a.get(i, i);
-                m.add(i, i, lambda * (d.max(floor) + 1e-9) + 1e-12);
+            for (i, w) in weight.iter().enumerate() {
+                m.add(i, i, lambda * w + 1e-12);
             }
             let rhs: Vec<f64> = g.iter().map(|v| -v).collect();
             let Some(step) = lin_solve(m, rhs) else {
@@ -2201,7 +2223,7 @@ fn solve_inner(
         None => true,
     };
     // Driven dimensions measure the solved geometry.
-    let fixed_lay = Layout { pvar: vec![None; sk.points.len()], rvar: vec![None; sk.curves.len()], n: 0, points: 0 };
+    let fixed_lay = Layout { pvar: vec![None; sk.points.len()], rvar: vec![None; sk.curves.len()], n: 0, points: 0, slide: Vec::new() };
     let measured: Vec<Option<f64>> =
         sk.constraints.iter().map(|c| if c.driven { measure(&State { sk, lay: &fixed_lay, x: &[] }, &c.kind) } else { None }).collect();
     for (c, m) in sk.constraints.iter_mut().zip(measured) {
@@ -2265,7 +2287,7 @@ mod continuation_unit_tests {
         let a = sk.add_point(Vec2::new(0.0, 0.0), None).unwrap();
         let b = sk.add_point(Vec2::new(40.0, 0.0), None).unwrap();
         let c = sk.add_point(Vec2::new(20.0, 1e-6), None).unwrap();
-        let lay = Layout { pvar: vec![None; sk.points.len()], rvar: vec![None; sk.curves.len()], n: 0, points: 0 };
+        let lay = Layout { pvar: vec![None; sk.points.len()], rvar: vec![None; sk.curves.len()], n: 0, points: 0, slide: Vec::new() };
         let turn = Orient::Turn([a, b, c]);
         let state =
             |sk: &Sketch| (orientation(&State { sk, lay: &lay, x: &[] }, turn), reference_orientation(&State { sk, lay: &lay, x: &[] }, turn));
@@ -2285,7 +2307,7 @@ mod continuation_unit_tests {
         let q = sk.add_point(Vec2::new(10.0, 5.0), None).unwrap();
         let r = sk.add_point(Vec2::new(0.0, 10.0), None).unwrap();
         let l = sk.add_line(Vec2::new(-5.0, -5.0), Vec2::new(5.0, -5.0), None, None, None).unwrap();
-        let lay = Layout { pvar: vec![None; sk.points.len()], rvar: vec![None; sk.curves.len()], n: 0, points: 0 };
+        let lay = Layout { pvar: vec![None; sk.points.len()], rvar: vec![None; sk.curves.len()], n: 0, points: 0, slide: Vec::new() };
         let sign = |sk: &Sketch, o: Orient| orientation(&State { sk, lay: &lay, x: &[] }, o);
         let checks = [Orient::SideX(p, q, 10.0), Orient::SideY(p, q, 5.0), Orient::OfLine(q, l, 10.0), Orient::Turn([p, q, r])];
         let before: Vec<_> = checks.iter().map(|o| sign(&sk, *o)).collect();
