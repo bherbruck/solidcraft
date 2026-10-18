@@ -34,6 +34,10 @@ the model looks right in Render; textures, skins and animations are not imported
 mirrored nodes are baked into their meshes. Compressed meshes (Draco, meshopt) are refused with a
 message: save the file uncompressed first.
 
+A 3MF project saved by a slicer comes in too, also when it keeps its objects in model parts of
+their own inside the file (the 3MF Production extension): each object on the build plate becomes
+a mesh body, with its parts where the slicer placed them.
+
 **File → Save as mesh…** (also on the Mesh tab under Modify, and in the right-click menu of a
 body) saves the selected bodies as STL, 3MF or 3MF with face tags (below). With **Send to slicer** ticked, it writes the file to
 a temporary folder and opens it in the chosen slicer instead of asking for a file name. The slicer

@@ -461,6 +461,12 @@ outer
         survives("3MF", &mutations(&good, false, 0x3f), usize::MAX, |b| {
             crate::read_3mf(b).ok().map(|(objects, _)| objects.iter().map(|o| o.triangles.len()).sum())
         });
+        // Objects in another model part (production extension), as slicers save projects.
+        let production = crate::threemf::tests::production_package();
+        assert!(crate::read_3mf(&production).is_ok());
+        survives("3MF (production extension)", &mutations(&production, false, 0x2089), usize::MAX, |b| {
+            crate::read_3mf(b).ok().map(|(objects, _)| objects.iter().map(|o| o.triangles.len()).sum())
+        });
     }
 
     #[test]

@@ -6,10 +6,12 @@
 //! triangle, the B-rep face it lies on (`ft:face`, SolidCraft's face-tag namespace; spec:
 //! docs/formats/3mf-face-tags.md) and are written at full `f64`
 //! precision so the receiver gets the tessellation exactly. Reading: every build item becomes one mesh
-//! (components flattened with their transforms), converted to millimetres. Packages are
-//! untrusted: sizes, entry counts, mesh sizes and component nesting are capped.
+//! (components flattened with their transforms), converted to millimetres. Components and build
+//! items may name an object in another model part of the package (`p:path`, the 3MF Production
+//! extension, which slicers use for multi-part projects); those parts are read too. Packages are
+//! untrusted: sizes, entry counts, model parts, mesh sizes and component nesting are capped.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::io::{Cursor, Read, Write};
 
@@ -350,13 +352,21 @@ fn bad<T>(msg: impl Into<String>) -> Result<T> {
     Err(IoError::Invalid(format!("3MF: {}", msg.into())))
 }
 
+/// The name a part is looked up by: no leading `/`, in lower case (part names compare
+/// case-insensitively).
+fn part_key(name: &str) -> String {
+    name.replace('\\', "/").trim_start_matches('/').to_ascii_lowercase()
+}
+
 fn read_part(zip: &mut zip::ZipArchive<Cursor<&[u8]>>, name: &str) -> Result<Option<Vec<u8>>> {
-    let want = name.trim_start_matches('/').to_ascii_lowercase();
-    let Some(idx) = (0..zip.len()).find(|i| {
-        zip.name_for_index(*i).and_then(|n| n.ok()).is_some_and(|n| n.replace('\\', "/").trim_start_matches('/').to_ascii_lowercase() == want)
-    }) else {
+    let want = part_key(name);
+    let Some(idx) = (0..zip.len()).find(|i| zip.name_for_index(*i).and_then(|n| n.ok()).is_some_and(|n| part_key(&n) == want)) else {
         return Ok(None);
     };
+    read_entry(zip, idx, name).map(Some)
+}
+
+fn read_entry(zip: &mut zip::ZipArchive<Cursor<&[u8]>>, idx: usize, name: &str) -> Result<Vec<u8>> {
     let mut f = zip.by_index(idx).map_err(|e| IoError::Invalid(format!("3MF {name}: {e}")))?;
     if f.size() > MAX_PART {
         return bad(format!("{name} expands to {} bytes", f.size()));
@@ -366,7 +376,7 @@ fn read_part(zip: &mut zip::ZipArchive<Cursor<&[u8]>>, name: &str) -> Result<Opt
     if out.len() as u64 > MAX_PART {
         return bad(format!("{name} expands to more than 1 GB"));
     }
-    Ok(Some(out))
+    Ok(out)
 }
 
 fn attrs(e: &BytesStart) -> HashMap<String, String> {
@@ -401,6 +411,14 @@ fn parse_xf(s: Option<&String>) -> Result<Xf> {
     Ok(m)
 }
 
+/// `xf` with its translation, given in a model's `unit`, in millimetres.
+fn in_mm(mut xf: Xf, unit: f64) -> Xf {
+    for t in xf.iter_mut().skip(9) {
+        *t *= unit;
+    }
+    xf
+}
+
 fn apply(m: &Xf, p: Vec3) -> Vec3 {
     Vec3::new(p.x * m[0] + p.y * m[3] + p.z * m[6] + m[9], p.x * m[1] + p.y * m[4] + p.z * m[7] + m[10], p.x * m[2] + p.y * m[5] + p.z * m[8] + m[11])
 }
@@ -417,22 +435,37 @@ fn det(m: &Xf) -> f64 {
     m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6])
 }
 
+/// A component or build item: object `id` placed by `xf`, in model part `part` (its key, from
+/// `p:path`) or, without one, in the part that names it.
+struct Ref {
+    part: Option<String>,
+    id: u32,
+    xf: Xf,
+}
+
 #[derive(Default)]
 struct Object {
     name: String,
     positions: Vec<Vec3>,
     triangles: Vec<[u32; 3]>,
-    components: Vec<(u32, Xf)>,
+    components: Vec<Ref>,
     material: Option<(u32, usize)>,
 }
 
+/// One model part. Positions and translations are in millimetres (converted with the part's
+/// unit as it is read), so objects of parts in different units fit together.
 #[derive(Default)]
 struct Model {
     unit: f64,
     objects: HashMap<u32, Object>,
     materials: HashMap<u32, Vec<Option<[f32; 3]>>>,
-    build: Vec<(u32, Xf)>,
-    warnings: Vec<String>,
+    build: Vec<Ref>,
+}
+
+/// The model parts read from a package, by key, and the key of the root model.
+struct Package {
+    root: String,
+    parts: HashMap<String, Model>,
 }
 
 fn color(s: &str) -> Option<[f32; 3]> {
@@ -540,7 +573,7 @@ fn parse_model(xml: &[u8]) -> Result<Model> {
                     return bad("too many vertices");
                 }
                 let (Some(x), Some(y), Some(z)) = (num("x"), num("y"), num("z")) else { return bad("vertex without x, y, z") };
-                o.positions.push(Vec3::new(x, y, z));
+                o.positions.push(Vec3::new(x, y, z) * m.unit);
             }
             b"triangle" => {
                 let Some((_, o)) = cur.as_mut() else { return bad("triangle outside an object") };
@@ -552,22 +585,12 @@ fn parse_model(xml: &[u8]) -> Result<Model> {
             }
             b"component" => {
                 let Some((_, o)) = cur.as_mut() else { return bad("component outside an object") };
-                if a.keys().any(|k| k == "path") {
-                    m.warnings.push("components in other model parts (production extension) are not read".into());
-                    buf.clear();
-                    continue;
-                }
                 let target = id("objectid").ok_or_else(|| IoError::Invalid("3MF: component without objectid".into()))?;
-                o.components.push((target, parse_xf(a.get("transform"))?));
+                o.components.push(Ref { part: a.get("path").map(|p| part_key(p)), id: target, xf: in_mm(parse_xf(a.get("transform"))?, m.unit) });
             }
             b"item" => {
-                if a.keys().any(|k| k == "path") {
-                    m.warnings.push("build items in other model parts (production extension) are not read".into());
-                    buf.clear();
-                    continue;
-                }
                 let target = id("objectid").ok_or_else(|| IoError::Invalid("3MF: build item without objectid".into()))?;
-                m.build.push((target, parse_xf(a.get("transform"))?));
+                m.build.push(Ref { part: a.get("path").map(|p| part_key(p)), id: target, xf: in_mm(parse_xf(a.get("transform"))?, m.unit) });
             }
             _ => {}
         }
@@ -579,15 +602,58 @@ fn parse_model(xml: &[u8]) -> Result<Model> {
     Ok(m)
 }
 
-/// Append object `id` (and its components) placed by `xf` to `out`.
-fn flatten(m: &Model, id: u32, xf: &Xf, out: &mut MeshObject, stack: &mut Vec<u32>, total: &mut usize) -> Result<()> {
-    if stack.len() > MAX_COMPONENT_DEPTH || stack.contains(&id) {
+/// Queue the model parts `m` names that were not seen yet.
+fn queue_parts(m: &Model, seen: &mut HashSet<String>, pending: &mut Vec<String>) -> Result<()> {
+    for key in m.objects.values().flat_map(|o| &o.components).chain(&m.build).filter_map(|r| r.part.as_ref()) {
+        if !seen.contains(key) {
+            // A package holds no more parts than it has entries.
+            if seen.len() >= MAX_ENTRIES {
+                return bad(format!("objects name more than {MAX_ENTRIES} model parts"));
+            }
+            seen.insert(key.clone());
+            pending.push(key.clone());
+        }
+    }
+    Ok(())
+}
+
+/// An error reading model part `key`, saying which part it was.
+fn in_part(key: &str, e: IoError) -> IoError {
+    match e {
+        IoError::Invalid(msg) => {
+            let msg = msg.strip_prefix("3MF: ").or_else(|| msg.strip_prefix("3MF ")).unwrap_or(&msg);
+            IoError::Invalid(format!("3MF model part `{key}`: {msg}"))
+        }
+        e => e,
+    }
+}
+
+/// Append object `id` of model part `part` (and its components) placed by `xf` to `out`.
+fn flatten<'a>(
+    pkg: &'a Package,
+    part: &'a str,
+    id: u32,
+    xf: &Xf,
+    out: &mut MeshObject,
+    stack: &mut Vec<(&'a str, u32)>,
+    total: &mut usize,
+) -> Result<()> {
+    if stack.len() > MAX_COMPONENT_DEPTH || stack.contains(&(part, id)) {
         return bad("components nested too deeply or recursive");
     }
-    let o = m.objects.get(&id).ok_or_else(|| IoError::Invalid(format!("3MF: missing object {id}")))?;
-    *total = total.saturating_add(o.triangles.len());
+    let m = pkg.parts.get(part).ok_or_else(|| IoError::Invalid(format!("3MF: no model part `{part}`")))?;
+    let o = m.objects.get(&id).ok_or_else(|| {
+        IoError::Invalid(if part == pkg.root {
+            format!("3MF: missing object {id}")
+        } else {
+            format!("3MF: missing object {id} in model part `{part}`")
+        })
+    })?;
+    // Every placement costs at least one unit of the budget, so objects that only place other
+    // objects cannot fan out (hundreds of components per level, nested) into endless visits.
+    *total = total.saturating_add(o.triangles.len().max(1));
     if *total > MAX_ELEMENTS {
-        return bad("too many triangles after placing components");
+        return bad("too many triangles or placements after placing components");
     }
     let n = o.positions.len();
     // One object can be placed by thousands of build items and components, and each placement
@@ -608,7 +674,7 @@ fn flatten(m: &Model, id: u32, xf: &Xf, out: &mut MeshObject, stack: &mut Vec<u3
         let Some(p) = o.positions.get(*v as usize) else {
             return bad(format!("object {id}: triangle refers to a missing vertex"));
         };
-        out.positions.push(apply(xf, *p) * m.unit);
+        out.positions.push(apply(xf, *p));
     }
     // Vertices keep their relative order, so a mesh whose triangles use all of them is
     // numbered exactly as it was in the file.
@@ -627,9 +693,9 @@ fn flatten(m: &Model, id: u32, xf: &Xf, out: &mut MeshObject, stack: &mut Vec<u3
     if out.color.is_none() {
         out.color = o.material.and_then(|(g, i)| m.materials.get(&g).and_then(|g| g.get(i).copied().flatten()));
     }
-    stack.push(id);
-    for (c, cx) in &o.components {
-        flatten(m, *c, &compose(cx, xf), out, stack, total)?;
+    stack.push((part, id));
+    for c in &o.components {
+        flatten(pkg, c.part.as_deref().unwrap_or(part), c.id, &compose(&c.xf, xf), out, stack, total)?;
     }
     stack.pop();
     Ok(())
@@ -667,15 +733,44 @@ pub fn read_3mf(bytes: &[u8]) -> Result<(Vec<MeshObject>, Vec<String>)> {
         }
     }
     let xml = read_part(&mut zip, &root)?.ok_or_else(|| IoError::Invalid(format!("3MF: no model part `{root}`")))?;
-    let m = parse_model(&xml)?;
+    let root = part_key(&root);
+    let model = parse_model(&xml)?;
+    let mut model_bytes = xml.len();
+    // The model parts objects name (production extension), each read once. The entries are
+    // indexed first, so a package naming thousands of parts costs no scan per name; a name
+    // with no entry is left out, and the placements that need it say so.
+    let mut entries = HashMap::new();
+    for i in 0..zip.len() {
+        if let Some(Ok(n)) = zip.name_for_index(i) {
+            entries.entry(part_key(&n)).or_insert(i);
+        }
+    }
+    let mut seen = HashSet::from([root.clone()]);
+    let mut pending = Vec::new();
+    queue_parts(&model, &mut seen, &mut pending)?;
+    let mut parts = HashMap::from([(root.clone(), model)]);
+    while let Some(key) = pending.pop() {
+        let Some(&idx) = entries.get(&key) else { continue };
+        let xml = read_entry(&mut zip, idx, &key)?;
+        model_bytes = model_bytes.saturating_add(xml.len());
+        if model_bytes as u64 > MAX_PART {
+            return bad("model parts expand to more than 1 GB");
+        }
+        let m = parse_model(&xml).map_err(|e| in_part(&key, e))?;
+        queue_parts(&m, &mut seen, &mut pending)?;
+        parts.insert(key, m);
+    }
+    let pkg = Package { root, parts };
+    let Some(model) = pkg.parts.get(&pkg.root) else { return bad("no root model") };
     let mut out = Vec::new();
-    let mut warnings = m.warnings.clone();
+    let mut warnings = Vec::new();
     let mut total = 0usize;
-    for (k, (id, xf)) in m.build.iter().enumerate() {
+    for (k, item) in model.build.iter().enumerate() {
+        let part = item.part.as_deref().unwrap_or(&pkg.root);
         let mut mo = MeshObject::default();
-        match flatten(&m, *id, xf, &mut mo, &mut Vec::new(), &mut total) {
+        match flatten(&pkg, part, item.id, &item.xf, &mut mo, &mut Vec::new(), &mut total) {
             Ok(()) if !mo.triangles.is_empty() => {
-                let name = m.objects.get(id).map(|o| o.name.trim().to_string()).filter(|n| !n.is_empty());
+                let name = pkg.parts.get(part).and_then(|m| m.objects.get(&item.id)).map(|o| o.name.trim().to_string()).filter(|n| !n.is_empty());
                 mo.name = name.unwrap_or_else(|| format!("Mesh{}", k + 1));
                 out.push(mo);
             }
@@ -690,7 +785,7 @@ pub fn read_3mf(bytes: &[u8]) -> Result<(Vec<MeshObject>, Vec<String>)> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn tetra(name: &str) -> MeshObject {
@@ -718,16 +813,133 @@ mod tests {
         assert_eq!(model.matches("p1=\"1\"").count(), 1, "{model}");
     }
 
-    fn package(model: &str, rels: Option<&str>) -> Vec<u8> {
+    /// A package of these parts (name, contents).
+    fn package_parts(parts: &[(&str, &str)]) -> Vec<u8> {
         let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
         let o = zip::write::SimpleFileOptions::default();
-        if let Some(r) = rels {
-            zip.start_file("_rels/.rels", o).unwrap();
-            zip.write_all(r.as_bytes()).unwrap();
+        for (name, data) in parts {
+            zip.start_file(*name, o).unwrap();
+            zip.write_all(data.as_bytes()).unwrap();
         }
-        zip.start_file("3D/3dmodel.model", o).unwrap();
-        zip.write_all(model.as_bytes()).unwrap();
         zip.finish().unwrap().into_inner()
+    }
+
+    fn package(model: &str, rels: Option<&str>) -> Vec<u8> {
+        let mut parts: Vec<(&str, &str)> = rels.map(|r| ("_rels/.rels", r)).into_iter().collect();
+        parts.push(("3D/3dmodel.model", model));
+        package_parts(&parts)
+    }
+
+    const PRODUCTION: &str = r#"xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" requiredextensions="p""#;
+    const OBJECTS_PART: &str = "3D/Objects/object_1.model";
+
+    /// Object `id`: a tetrahedron with legs of `s` along the axes (volume s³/6).
+    fn tet_object(id: u32, name: &str, s: f64) -> String {
+        format!(
+            r#"<object id="{id}" type="model" name="{name}"><mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="{s}" y="0" z="0"/><vertex x="0" y="{s}" z="0"/><vertex x="0" y="0" z="{s}"/></vertices><triangles><triangle v1="0" v2="2" v3="1"/><triangle v1="0" v2="1" v3="3"/><triangle v1="1" v2="2" v3="3"/><triangle v1="0" v2="3" v3="2"/></triangles></mesh></object>"#
+        )
+    }
+
+    /// A model part holding `objects`, in `unit`, with no build items of its own.
+    fn model_part(unit: &str, objects: &str) -> String {
+        format!(r#"<?xml version="1.0"?><model unit="{unit}" {PRODUCTION}><resources>{objects}</resources><build/></model>"#)
+    }
+
+    fn volume(o: &MeshObject) -> f64 {
+        let p = |i: u32| o.positions[i as usize];
+        o.triangles.iter().map(|t| p(t[0]).dot(p(t[1]).cross(p(t[2])))).sum::<f64>() / 6.0
+    }
+
+    /// A multi-part project as slicers save it: the root model's object is two components in
+    /// another model part, which holds the meshes.
+    pub(crate) fn production_package() -> Vec<u8> {
+        let root = format!(
+            r#"<?xml version="1.0"?><model unit="millimeter" {PRODUCTION}><resources><object id="10" type="model" name="Pair"><components>
+<component p:path="/3D/Objects/object_1.model" objectid="1"/>
+<component p:path="/3D/Objects/object_1.model" objectid="2" transform="1 0 0 0 1 0 0 0 1 5 0 0"/>
+</components></object></resources><build><item objectid="10" transform="1 0 0 0 1 0 0 0 1 0 0 2"/></build></model>"#
+        );
+        let objects = model_part("millimeter", &format!("{}{}", tet_object(1, "A", 1.0), tet_object(2, "B", 2.0)));
+        package_parts(&[("3D/3dmodel.model", &root), (OBJECTS_PART, &objects)])
+    }
+
+    /// Objects kept in a model part of their own (3MF Production extension) come in with their
+    /// components' and the build item's transforms (#2089).
+    #[test]
+    fn components_in_other_model_parts() {
+        let (objs, warnings) = read_3mf(&production_package()).unwrap();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(objs.len(), 1);
+        let o = &objs[0];
+        assert_eq!(o.name, "Pair");
+        assert_eq!(o.triangles.len(), 8);
+        assert!((volume(o) - (1.0 + 8.0) / 6.0).abs() < 1e-9, "{}", volume(o));
+        // B moved 5 along x by its component, both 2 up by the build item.
+        let max_x = o.positions.iter().map(|p| p.x).fold(f64::MIN, f64::max);
+        assert!((max_x - 7.0).abs() < 1e-9, "{max_x}");
+        assert!(o.positions.iter().all(|p| p.z >= 2.0 - 1e-9 && p.z <= 4.0 + 1e-9));
+    }
+
+    /// Build items can name another part too, part names compare without regard to case, and
+    /// each part has its own unit: positions come out in millimetres, translations in the unit
+    /// of the part that names them.
+    #[test]
+    fn build_items_in_other_model_parts_and_their_units() {
+        let root = format!(
+            r#"<model unit="millimeter" {PRODUCTION}><resources/><build>
+<item p:path="/3D/Objects/object_1.model" objectid="1" transform="1 0 0 0 1 0 0 0 1 5 0 0"/>
+<item p:path="/3d/objects/OBJECT_1.model" objectid="2"/></build></model>"#
+        );
+        let objects = model_part("centimeter", &format!("{}{}", tet_object(1, "A", 1.0), tet_object(2, "B", 2.0)));
+        let (objs, warnings) = read_3mf(&package_parts(&[("3D/3dmodel.model", &root), (OBJECTS_PART, &objects)])).unwrap();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        let names: Vec<&str> = objs.iter().map(|o| o.name.as_str()).collect();
+        assert_eq!(names, ["A", "B"]);
+        // A: legs of 1 cm, moved 5 mm; B: legs of 2 cm.
+        assert!((volume(&objs[0]) - 1000.0 / 6.0).abs() < 1e-6 && (volume(&objs[1]) - 8000.0 / 6.0).abs() < 1e-6);
+        let xs = |o: &MeshObject| o.positions.iter().map(|p| p.x).fold((f64::MAX, f64::MIN), |(a, b), x| (a.min(x), b.max(x)));
+        assert_eq!(xs(&objs[0]), (5.0, 15.0));
+        assert_eq!(xs(&objs[1]), (0.0, 20.0));
+    }
+
+    #[test]
+    fn hostile_model_parts_are_errors() {
+        let root = |components: &str| {
+            format!(
+                r#"<model unit="millimeter" {PRODUCTION}><resources><object id="10" type="model"><components>{components}</components></object></resources><build><item objectid="10"/></build></model>"#
+            )
+        };
+        let to_objects = r#"<component p:path="/3D/Objects/object_1.model" objectid="1"/>"#;
+        let tet = model_part("millimeter", &tet_object(1, "A", 1.0));
+        let looped = model_part(
+            "millimeter",
+            r#"<object id="1" type="model"><components><component p:path="/3D/3dmodel.model" objectid="10"/></components></object>"#,
+        );
+        let many: String = (0..=MAX_ENTRIES).map(|i| format!(r#"<component p:path="/p{i}.model" objectid="1"/>"#)).collect();
+        let cases = [
+            // A part that isn't in the package, one outside it and an empty name.
+            package_parts(&[("3D/3dmodel.model", &root(r#"<component p:path="/3D/Objects/missing.model" objectid="1"/>"#))]),
+            package_parts(&[("3D/3dmodel.model", &root(r#"<component p:path="/../../etc/passwd" objectid="1"/>"#)), (OBJECTS_PART, &tet)]),
+            package_parts(&[("3D/3dmodel.model", &root(r#"<component p:path="" objectid="1"/>"#)), (OBJECTS_PART, &tet)]),
+            // An object the part doesn't have.
+            package_parts(&[("3D/3dmodel.model", &root(r#"<component p:path="/3D/Objects/object_1.model" objectid="7"/>"#)), (OBJECTS_PART, &tet)]),
+            // A part that is no model.
+            package_parts(&[("3D/3dmodel.model", &root(to_objects)), (OBJECTS_PART, "not xml")]),
+            // Parts that place each other in a loop.
+            package_parts(&[("3D/3dmodel.model", &root(to_objects)), (OBJECTS_PART, &looped)]),
+            // More part names than a package can hold.
+            package_parts(&[("3D/3dmodel.model", &root(&many))]),
+        ];
+        for (i, c) in cases.iter().enumerate() {
+            assert!(read_3mf(c).is_err(), "case {i}");
+        }
+        // A placement whose part is missing is reported; the others still come in.
+        let two = format!(
+            r#"<model unit="millimeter" {PRODUCTION}><resources/><build><item p:path="/3D/Objects/object_1.model" objectid="1"/><item p:path="/gone.model" objectid="1"/></build></model>"#
+        );
+        let (objs, warnings) = read_3mf(&package_parts(&[("3D/3dmodel.model", &two), (OBJECTS_PART, &tet)])).unwrap();
+        assert_eq!(objs.len(), 1);
+        assert!(warnings.iter().any(|w| w.contains("build item 2") && w.contains("gone.model")), "{warnings:?}");
     }
 
     #[test]
@@ -834,6 +1046,23 @@ mod tests {
         assert_eq!(objs.len(), 10_000);
         // Only the three vertices the one triangle reaches are copied per placement.
         assert!(objs.iter().all(|o| o.positions.len() == 3 && o.triangles.len() == 1), "{:?}", objs.first().map(|o| o.positions.len()));
+        assert!(t.elapsed() < std::time::Duration::from_secs(30), "took {:?}", t.elapsed());
+    }
+
+    /// Objects that only place other objects count toward the budget too: six levels of 300
+    /// components over an empty object (300^6 placements, and no triangles to count) stop at the
+    /// budget instead of running for days.
+    #[test]
+    fn nested_fan_out_of_empty_objects_is_bounded() {
+        let t = std::time::Instant::now();
+        let components = |child: u32| (0..300).map(|_| format!(r#"<component objectid="{child}"/>"#)).collect::<String>();
+        let mut objects = r#"<object id="1" type="model"/>"#.to_string();
+        for id in 2..=7 {
+            objects += &format!(r#"<object id="{id}" type="model"><components>{}</components></object>"#, components(id - 1));
+        }
+        let model = format!(r#"<model unit="millimeter" {PRODUCTION}><resources>{objects}</resources><build><item objectid="7"/></build></model>"#);
+        let err = read_3mf(&package(&model, None)).unwrap_err().to_string();
+        assert!(err.contains("placements"), "{err}");
         assert!(t.elapsed() < std::time::Duration::from_secs(30), "took {:?}", t.elapsed());
     }
 
