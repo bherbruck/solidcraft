@@ -2795,9 +2795,11 @@ impl Document {
     /// Insert a feature as given, keeping its id, name, parameter names and stored edge and
     /// face names, at the marker (or the end), with the model parameters its sketch dimensions
     /// use: a feature replayed from a script (`timeline.add`) is the feature the design had.
-    /// An id of 0 or an empty name gets a new one. Refused, changing nothing, when the id, the
-    /// name or a parameter name is already used, or the feature belongs to a component this
-    /// design does not have.
+    /// An id of 0 or an empty name gets a new one. A name another feature has is kept: features
+    /// may share one (a sketch and the extrude made from it, as `sketch.create` and
+    /// `solid.extrude` allow), and a design's script replays as it was (#1990). Refused,
+    /// changing nothing, when the id or a parameter name is already used, or the feature belongs
+    /// to a component this design does not have.
     pub fn insert_feature(&mut self, mut f: Feature, params: Vec<Param>) -> Result<u64> {
         if self.features.len() >= MAX_FEATURES {
             return Err(DocError::Invalid("too many features".into()));
@@ -2812,8 +2814,6 @@ impl Document {
         f.name = f.name.trim().to_string();
         if f.name.is_empty() {
             f.name = self.unique_name(f.kind.base_name());
-        } else if self.features.iter().any(|x| x.name == f.name) {
-            return Err(DocError::Invalid(format!("a feature named `{}` already exists", f.name)));
         }
         if f.component != 0 && !self.components.iter().any(|c| c.id == f.component) {
             return Err(DocError::Invalid(format!("feature `{}` belongs to an unknown component", f.name)));

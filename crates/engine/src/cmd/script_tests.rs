@@ -188,7 +188,6 @@ fn a_recorded_feature_that_does_not_fit_is_refused_and_changes_nothing() {
     };
     let refused = [
         ("id taken", with(&extrude, &["feature", "name"], json!("Other"))),
-        ("name taken", with(&extrude, &["feature", "id"], json!(0))),
         ("id out of range", with(&with(&extrude, &["feature", "id"], json!(1u64 << 60)), &["feature", "name"], json!("X"))),
         ("parameter taken", with(&with(&sketch, &["feature", "id"], json!(0)), &["feature", "name"], json!("S2"))),
         (
@@ -250,4 +249,32 @@ fn replayed_features_claiming_the_same_body_name_do_not_crash() {
     assert!(!matches!(r, Err(crate::EngineError::Internal(..))), "{r:?}");
     let m = run(&mut s, "inspect.measure", json!({}));
     assert!(m["body_count"].as_u64().is_some_and(|n| n >= 1), "{m}");
+}
+
+/// Features may share a name (#1990): a sketch and the extrude made from it, both called
+/// `Block`, as the commands allow, made a script that `timeline.add` refused to replay.
+#[test]
+fn features_sharing_a_name_replay_from_the_script() {
+    let mut s = Session::default();
+    run(&mut s, "sketch.create", json!({"plane": "XY", "name": "Block"}));
+    run(&mut s, "sketch.rectangle.two_point", json!({"p0": [0, 0], "p1": [20, 10]}));
+    run(&mut s, "sketch.finish", json!({}));
+    run(&mut s, "solid.extrude", json!({"distance": "5", "name": "Block"}));
+    let sc = script(&mut s);
+    assert_eq!(commands(&sc), ["timeline.add", "timeline.add"], "{sc:#}");
+    let mut t = replay(&sc);
+    same(&mut s, &mut t);
+    assert_eq!(t.doc.features.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["Block", "Block"]);
+    assert!((volume(&mut t) - 1000.0).abs() < 1e-6, "{}", volume(&mut t));
+}
+
+/// The sample design names its hole sketch and their cut alike; its script replays too.
+#[test]
+fn the_sample_design_replays_from_its_script() {
+    let mut s = Session::default();
+    if let Err(e) = s.run_script(&crate::sample::script()) {
+        panic!("sample: {e}");
+    }
+    let mut t = replay(&script(&mut s));
+    same(&mut s, &mut t);
 }

@@ -15,9 +15,9 @@ use crate::{EngineError, Result, Session};
 
 pub static COMMANDS: &[CommandSpec] = &[
     CommandSpec::new("timeline.add", "Add Recorded Feature", add).icon("new").params(
-        "feature: a feature as the design file and timeline.inspect hold it ({type, name?, id?, …}; id and name are kept when free, \
-         so later steps can refer to them); params?: [{name, expression, unit?, comment?}] (the model parameters its sketch \
-         dimensions use); the feature goes at the marker → feature, name, error, warning",
+        "feature: a feature as the design file and timeline.inspect hold it ({type, name?, id?, …}; id is kept when free and the name \
+         always, as features may share one, so later steps can refer to them); params?: [{name, expression, unit?, \
+         comment?}] (the model parameters its sketch dimensions use); the feature goes at the marker → feature, name, error, warning",
     ),
     CommandSpec::new("timeline.export_script", "Export Command Script", export_script).icon("export").noundo().doc_only().params(
         "path?: write the script to this file → script: {commands: [...]} that rebuilds the design (solidcraft-cli eval/run), \
