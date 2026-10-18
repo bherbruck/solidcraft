@@ -158,9 +158,37 @@ impl ParameterKind {
     }
 }
 
+/// SolidCraft: how far apart two ends of curves may be and still be one vertex. Intersection
+/// curves ending on the same edge (a sphere's curves on a face and on an earlier cut's face, both
+/// ending on the edge between those faces) are traced on different meshes, and their ends agree
+/// only to a few `TOLERANCE` (1e-6) where the surfaces meet at an angle (#1717).
+const END_TOLERANCE: f64 = 10.0 * TOLERANCE;
+
 impl<P: Copy + Tolerance, C: Clone> Loops<P, C> {
     fn search_parameter(&self, pt: P) -> Option<(usize, usize, ParameterKind)>
-    where C: BoundedCurve<Point = P> + SearchParameter<D1, Point = P> {
+    where
+        P: MetricSpace<Metric = f64>,
+        C: BoundedCurve<Point = P> + SearchParameter<D1, Point = P>, {
+        // SolidCraft: a point within `END_TOLERANCE` of an edge's end vertex is that end (the
+        // nearest such end), told by distance alone before any curve is searched for it. The
+        // search below finds a point on a curve only within `TOLERANCE`, so an intersection
+        // curve's end 1.5e-6 mm from a vertex was merged into it in one shell's loops (on an edge
+        // it lies on) and found on no edge in the other's (where the vertex ends another
+        // intersection curve): the vertex stayed two there, the tool face's loop never closed,
+        // and the result lost that face (#1717). By distance, both shells make the same merge.
+        let end = self
+            .iter()
+            .enumerate()
+            .flat_map(|(i, wire)| wire.iter().enumerate().map(move |(j, edge)| (i, j, edge)))
+            .flat_map(|(i, j, edge)| {
+                let (front, back) = (edge.absolute_front().point(), edge.absolute_back().point());
+                [(i, j, ParameterKind::Front, pt.distance(front)), (i, j, ParameterKind::Back, pt.distance(back))]
+            })
+            .filter(|&(_, _, _, d)| d < END_TOLERANCE)
+            .min_by(|a, b| a.3.total_cmp(&b.3));
+        if let Some((i, j, kind, _)) = end {
+            return Some((i, j, kind));
+        }
         self.iter()
             .enumerate()
             .flat_map(move |(i, wire)| wire.iter().enumerate().map(move |(j, edge)| (i, j, edge)))
@@ -435,6 +463,7 @@ impl<P: Copy + Tolerance, C: Clone> LoopsStore<P, C> {
         emap: &mut HashMap<EdgeID<C>, Edge<P, C>>,
     ) -> Option<(usize, usize, ParameterKind)>
     where
+        P: MetricSpace<Metric = f64>,
         C: Cut<Point = P> + SearchParameter<D1, Point = P>,
     {
         let pt = v.point();

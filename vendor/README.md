@@ -21,6 +21,13 @@ Changes:
   tolerance) is that end, whatever its parameter: a polyline's parameter counts segments, so
   an intersection curve ending 2e-7 mm from another's end could read as inside it, cut it
   into a sliver with a vertex of its own, and leave the result's shell open (#391).
+- `transversal/loops_store/mod.rs`: an intersection curve's end within `END_TOLERANCE` (1e-5 mm)
+  of a loop's vertex is that vertex, the nearest one, told by distance before any curve is
+  searched for the point. Two curves ending on the same edge are traced on different meshes and
+  their ends can be 1.5e-6 mm apart: the end was merged into the vertex in one shell's loops (on
+  an edge it lies on) but found on no edge in the other's (where the vertex ends another
+  intersection curve), so the tool face's loop never closed and a second, overlapping sphere cut
+  failed (#1717).
 - `transversal/loops_store/mod.rs`: an intersection edge added to a face at a vertex that more
   than one wire visits (several curves end on it: the touching point of two equal cylinders) goes
   into the corner that holds its direction, swept counterclockwise about the face's normal from
