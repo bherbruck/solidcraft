@@ -287,6 +287,13 @@ pub fn find_command(id: &str) -> Option<&'static CommandSpec> {
     all.iter().find(|c| c.id == id).or_else(|| all.iter().find(|c| c.id.eq_ignore_ascii_case(id))).copied()
 }
 
+/// The id for a new item of a list: one past the largest id in it. Ids come from the design file,
+/// so the largest may be the largest a `u64` holds, and one past that is an error, not an overflow
+/// (a panic where overflow is checked, an id that is already taken where it is not).
+pub(crate) fn next_free_id(cmd: &str, ids: impl Iterator<Item = u64>) -> Result<u64> {
+    ids.max().unwrap_or(0).checked_add(1).ok_or_else(|| crate::params::bad(cmd, "this design has no ids left to give"))
+}
+
 /// The end of an unknown command's error: up to three ids like `id`, nearest first. Ids a few
 /// letters away (`solid.extrud` → `solid.extrude`) come before ids that end in the same word
 /// (`file.open` → `doc.open`). Empty when nothing is close.

@@ -56,7 +56,7 @@ fn make(s: &mut Session, p: &Value, cmd: &str, decal: bool) -> Result<Value> {
     // It belongs to the active component (its plane is in that frame) and moves with it.
     let component = s.active_component;
     let doc = s.doc_mut();
-    let id = doc.canvases.iter().map(|c| c.id).max().unwrap_or(0) + 1;
+    let id = super::next_free_id(cmd, doc.canvases.iter().map(|c| c.id))?;
     let base = if decal { "Decal" } else { "Canvas" };
     let name = str_(p, "name").map(str::to_string).unwrap_or_else(|| format!("{base}{id}"));
     doc.canvases.push(Canvas {
