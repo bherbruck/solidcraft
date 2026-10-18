@@ -226,8 +226,9 @@ fn a_name_of_a_body_without_history_is_found_by_geometry_and_says_so_once_it_mov
     run(&mut s, "sketch.dimension", json!({"entities": ["l1"], "value": "len"}));
     run(&mut s, "sketch.finish", json!({}));
     run(&mut s, "solid.extrude", json!({"distance": 10, "name": "Block"}));
-    // Replacing the top by a plane: an operation that reports no history.
-    run(&mut s, "solid.replace_face", json!({"faces": [[20, 15, 10]], "target": {"origin": [0, 0, 12], "normal": [0, 0, 1]}, "name": "Lift"}));
+    // Lifting it 2 mm with Align: an operation that reports no history (Replace Face, used here
+    // before, keeps it now). The top ends at z = 12 as it did.
+    run(&mut s, "solid.align", json!({"bodies": ["Body1"], "from": [0, 0, 0], "to": [0, 0, 2], "name": "Lift"}));
     let state = s.model.state();
     let body = state.bodies.first().unwrap();
     assert!((0..solidcraft_doc::naming::face_names(body).len()).all(|i| !solidcraft_doc::naming::face_name_exact(body, i)));
@@ -240,6 +241,36 @@ fn a_name_of_a_body_without_history_is_found_by_geometry_and_says_so_once_it_mov
     let w = warning(&s, "Round").unwrap_or_default();
     assert!(w.contains("found by geometry, not exact history"), "{w}");
     assert!(!solid_at(&s, [49.9, 15.0, 11.9]));
+}
+
+/// Replace Face keeps the body's history, as Offset Face does: every face of the result is named
+/// exactly, and a sketch takes an attachment on the replaced face (before, no face could: "this
+/// face can't keep an attachment") and follows it when the target moves.
+#[test]
+fn a_sketch_on_a_replaced_face_follows_it() {
+    let mut s = Session::default();
+    run(&mut s, "parameters.add", json!({"name": "top", "expression": "15 mm"}));
+    block(&mut s);
+    run(&mut s, "solid.replace_face", json!({"faces": [[20, 15, 10]], "target": {"origin": [0, 0, "top"], "normal": [0, 0, 1]}, "name": "Lift"}));
+    assert!(names(&s, "Body1").iter().all(|(_, exact)| *exact), "{:?}", names(&s, "Body1"));
+    // A side the replacement only stretched takes an attachment too.
+    run(&mut s, "sketch.create", json!({"plane": {"face": [0, 15, 5]}, "name": "Side"}));
+    run(&mut s, "sketch.finish", json!({}));
+    run(&mut s, "sketch.create", json!({"plane": {"face": [20, 15, 15]}, "name": "OnTop"}));
+    run(&mut s, "sketch.circle.center", json!({"center": [0, 0], "radius": 3}));
+    run(&mut s, "sketch.finish", json!({}));
+    run(&mut s, "solid.extrude", json!({"sketch": "OnTop", "distance": 5, "operation": "join", "name": "Boss"}));
+    // The boss stands on the replaced top wherever the circle's centre lands on it.
+    let (lo, hi) = {
+        let state = s.model.state();
+        let b = state.body("Body1").unwrap().mesh().bounds();
+        (b.min.z, b.max.z)
+    };
+    assert!((lo - 0.0).abs() < 1e-6 && (hi - 20.0).abs() < 1e-6, "{lo} {hi}");
+    change(&mut s, "top", "18 mm");
+    assert_eq!(error(&s, "Boss"), None);
+    let hi = s.model.state().body("Body1").unwrap().mesh().bounds().max.z;
+    assert!((hi - 23.0).abs() < 1e-6, "the boss follows the top to z = 18: {hi}");
 }
 
 #[test]
