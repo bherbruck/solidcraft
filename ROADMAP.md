@@ -73,6 +73,11 @@ hierarchies are shared; bounded desktop preparation and occlusion use up to eigh
 Curves are approximated; drawing sheets,
 annotations and exact projected curves remain deferred. See [view DXF](docs/view-dxf.md).
 
+M11 precursor: `inspect.section_curves` returns the cut of bodies by a plane as 2D loops in
+the plane's frame (exact lines and arcs, fit splines for other curves, oriented loops with their
+areas) and writes them as SVG or DXF, one group or layer per body. It is the first stage of
+the drawings plan in #860.
+
 Desktop view DXF export runs in the file-operation worker with five-stage progress and
 cooperative cancellation. Curve tolerance (0.0001–1 mm, default 0.01 mm) is remembered alongside
 the hidden-edge setting. Cancelled exports preserve the model and the previous destination;

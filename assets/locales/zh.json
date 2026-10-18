@@ -423,6 +423,7 @@
   "cmd.inspect_interference": "干涉",
   "cmd.inspect_isocurve": "等参线分析",
   "cmd.inspect_minimum_radius": "最小半径分析",
+  "cmd.inspect_section_curves": "截面曲线",
   "cmd.inspect_silhouette": "轮廓",
   "cmd.inspect_zebra": "斑马纹分析",
   "cmd.joint_as_built": "现状接头",

@@ -423,6 +423,7 @@
   "cmd.inspect_interference": "干渉",
   "cmd.inspect_isocurve": "アイソカーブ解析",
   "cmd.inspect_minimum_radius": "最小半径解析",
+  "cmd.inspect_section_curves": "断面曲線",
   "cmd.inspect_silhouette": "シルエット",
   "cmd.inspect_zebra": "ゼブラ解析",
   "cmd.joint_as_built": "現位置ジョイント",

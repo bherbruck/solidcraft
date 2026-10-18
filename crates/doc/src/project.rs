@@ -23,6 +23,9 @@ const MAX_CHAIN: usize = 4000;
 
 #[path = "project_order.rs"]
 mod order;
+#[path = "project_section.rs"]
+mod section_loops;
+pub use section_loops::{SectionLoop, SectionSeg, section_loops};
 
 /// A resolved link: its geometry in sketch coordinates and the (possibly moved) reference.
 #[derive(Clone, Debug)]
@@ -983,6 +986,16 @@ fn silhouette(plane: &Plane, m: &Mesh) -> Vec<LinkGeom> {
 /// Section of a mesh (or one of its faces) with the sketch plane.
 pub(crate) fn section(plane: &Plane, m: &Mesh, face: Option<u32>) -> Vec<LinkGeom> {
     let size = m.bounds().diagonal().max(1e-9);
+    let (segs, exact) = section_segments(plane, m, face);
+    let segs: Vec<(Vec2, Vec2)> = segs.into_iter().map(|(a, b, _)| (a, b)).collect();
+    let loose = size * 2e-3;
+    fit_segments(&segs, size).into_iter().map(|g| refine_round(g, &exact, loose)).collect()
+}
+
+/// The segments where the plane crosses the mesh's triangles (in plane coordinates, each with
+/// its B-rep face), and the crossings that lie exactly on the surface (on a ruling).
+fn section_segments(plane: &Plane, m: &Mesh, face: Option<u32>) -> (Vec<(Vec2, Vec2, u32)>, Vec<Vec2>) {
+    let size = m.bounds().diagonal().max(1e-9);
     let q = size * 1e-7;
     let key = |p: Vec3| ((p.x / q).round() as i64, (p.y / q).round() as i64, (p.z / q).round() as i64);
     // Surface normal at each mesh vertex where the surface is smooth (None at creases), over
@@ -1072,7 +1085,7 @@ pub(crate) fn section(plane: &Plane, m: &Mesh, face: Option<u32>) -> Vec<LinkGeo
         }
         Some(h(0.5 * (lo + hi)))
     };
-    let mut segs: Vec<(Vec2, Vec2)> = Vec::new();
+    let mut segs: Vec<(Vec2, Vec2, u32)> = Vec::new();
     for (t, f) in m.triangles.iter().zip(&m.tri_face) {
         if face.is_some_and(|x| x != *f) {
             continue;
@@ -1088,13 +1101,11 @@ pub(crate) fn section(plane: &Plane, m: &Mesh, face: Option<u32>) -> Vec<LinkGeo
         if let [a, b] = pts[..] {
             let (a, b) = (plane.to_local(a), plane.to_local(b));
             if a.dist(b) > size * 1e-9 {
-                segs.push((a, b));
+                segs.push((a, b, *f));
             }
         }
     }
-    let exact = exact.into_inner();
-    let loose = size * 2e-3;
-    fit_segments(&segs, size).into_iter().map(|g| refine_round(g, &exact, loose)).collect()
+    (segs, exact.into_inner())
 }
 
 /// Re-fit a circle or arc through the exact section points near it, when there are enough.

@@ -406,6 +406,7 @@
   "cmd.inspect_interference": "Kolize",
   "cmd.inspect_isocurve": "Analýza izokřivek",
   "cmd.inspect_minimum_radius": "Analýza minimálního poloměru",
+  "cmd.inspect_section_curves": "Křivky řezu",
   "cmd.inspect_zebra": "Zebra analýza",
   "cmd.joint_as_built": "Kloub podle stavu",
   "cmd.joint_cam": "Vačka",
