@@ -7,6 +7,52 @@ use solidcraft_geom::Vec3;
 use super::solve_counts;
 use crate::Session;
 
+#[test]
+fn determined_pattern_geometry_does_not_attempt_conflicting_held_solves() {
+    let mut s = Session::default();
+    run(&mut s, "sketch.create", json!({"plane": "XY"}));
+    run(&mut s, "sketch.rectangle.two_point", json!({"p0": [5, 5], "p1": [6.5, 6.5]}));
+    run(&mut s, "sketch.dimension", json!({"entities": ["l1"], "value": 1.5}));
+    run(&mut s, "sketch.dimension", json!({"entities": ["l2"], "value": 1.5}));
+    run(&mut s, "sketch.constraint.fix", json!({"entities": ["l1.start"]}));
+    let pattern = run(
+        &mut s,
+        "sketch.pattern.rectangular",
+        json!({"entities": ["l1", "l2", "l3", "l4"], "count": 3, "count2": 3, "spacing": 2.2, "spacing2": -2.2}),
+    );
+    let line = pattern["curves"][0].as_str().expect("a patterned line");
+    let endpoint = format!("{line}.start");
+    let before = sketch_of(&s);
+    assert!(!before.curve_locked(before.curve_index(line).expect("patterned line index")));
+    for entity in [line, endpoint.as_str()] {
+        for live in [true, false] {
+            reset(&mut s);
+            let result = run(&mut s, "sketch.drag", json!({"entity": entity, "from": [5, 5], "to": [9, 12], "live": live}));
+            assert_eq!(result["reached"], json!(0.0));
+            assert_eq!(result["at"], json!([5.0, 5.0]));
+            assert_eq!(result["sketch"]["solved"], json!(true));
+            let full = usize::from(!live);
+            assert_eq!(solve_counts::take(), (full, full), "no held solve for determined geometry");
+            assert_eq!(sketch_of(&s), before);
+        }
+    }
+    reset(&mut s);
+    run(&mut s, "sketch.move_point", json!({"point": endpoint, "to": [9, 12]}));
+    assert_eq!(solve_counts::take(), (1, 1), "move_point also skips held solves");
+    assert_eq!(sketch_of(&s), before);
+
+    // A cached determined report must not suppress an outstanding dimension edit.
+    let dimension = before
+        .constraints
+        .iter()
+        .find(|c| matches!(c.kind, solidcraft_sketch::ConstraintKind::Length { l: 0, .. }))
+        .and_then(|c| c.param.as_ref())
+        .expect("the first line's dimension");
+    s.doc_mut().params.iter_mut().find(|p| &p.name == dimension).expect("dimension parameter").expr = "3".into();
+    run(&mut s, "sketch.drag", json!({"entity": line, "from": [5, 5], "to": [9, 12], "live": true}));
+    assert!((pt(&s, "l1.start").dist(pt(&s, "l1.end")) - 3.0).abs() < 1e-6);
+}
+
 fn run(s: &mut Session, id: &str, p: Value) -> Value {
     match s.execute(id, &p) {
         Ok(v) => v,

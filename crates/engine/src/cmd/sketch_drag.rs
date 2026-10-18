@@ -120,7 +120,29 @@ impl Path {
 ///
 /// `live`: one frame of an interactive drag, whose held solves share one frame's decomposition
 /// budget ([`Budget::frame`]); otherwise each has a solve's own.
-pub(super) fn drag_entity(sk: &mut Sketch, e: Ent, from: Vec2, to: Vec2, live: bool) -> (Dragged, Left) {
+pub(super) fn drag_entity(
+    sk: &mut Sketch,
+    e: Ent,
+    from: Vec2,
+    to: Vec2,
+    live: bool,
+    solved: Option<&solidcraft_doc::SolvedSketch>,
+) -> (Dragged, Left) {
+    // An unchanged, solved entity with no freedom cannot follow a drag. Holding it at a
+    // different position only makes its constraints conflict, and a large pattern would spend
+    // minutes trying dense solves before returning to the same geometry (#2006).
+    if solved.is_some_and(|ss| {
+        ss.report.ok()
+            && ss.sketch == *sk
+            && match e {
+                Ent::Point(q) => ss.report.point_determined.get(q),
+                Ent::Curve(c) => ss.report.curve_determined.get(c),
+            }
+            .copied()
+            .unwrap_or(false)
+    }) {
+        return (Dragged { reached: 0.0, moving: Vec::new() }, Left::Solved);
+    }
     let Some((path, hold, n, short)) = prepare(sk, e, from, to) else {
         return (Dragged { reached: 0.0, moving: Vec::new() }, Left::Unsolved);
     };

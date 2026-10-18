@@ -2358,9 +2358,11 @@ fn move_point(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "sketch.move_point";
     let to = req_vec2(cmd, p, "to")?;
     let id = target_sketch(s, p, cmd)?;
+    let state = s.model.result(id).map(|r| r.state.clone());
+    let last = state.as_ref().and_then(|state| state.sketch(id));
     let (_, rep) = edit_solved(s, id, false, |sk, _| {
         let q = point_ref(sk, p.get("point"), cmd, "point")?;
-        Ok(((), drag_entity(sk, Ent::Point(q), to, to, false).1.solve_again()))
+        Ok(((), drag_entity(sk, Ent::Point(q), to, to, false, last).1.solve_again()))
     })?;
     Ok(json!({"sketch": rep.as_ref().map(report_json)}))
 }
@@ -2383,7 +2385,8 @@ fn drag_frame(s: &mut Session, p: &Value, live: bool) -> Result<(Value, Option<c
     };
     let id = target_sketch(s, p, cmd)?;
     // The sketch's report as last evaluated: a live frame keeps its degrees of freedom.
-    let last = s.model.result(id).and_then(|r| r.state.sketch(id)).map(|ss| ss.report.clone());
+    let state = s.model.result(id).map(|r| r.state.clone());
+    let last = state.as_ref().and_then(|state| state.sketch(id));
     let (d, rep) = edit_solved(s, id, false, |sk, doc| {
         let r = p.get("entity").and_then(Value::as_str).ok_or_else(|| bad(cmd, "`entity` must be a sketch point or curve"))?;
         let e = ent(sk, r).ok_or_else(|| bad(cmd, format!("unknown sketch entity `{r}`")))?;
@@ -2394,7 +2397,7 @@ fn drag_frame(s: &mut Session, p: &Value, live: bool) -> Result<(Value, Option<c
         }
         // The held solves work on the dimensions' current values (a solved step applies them).
         doc.apply_dimension_values(&doc.param_values().0, sk)?;
-        let (d, left) = drag_entity(sk, e, from, to, live);
+        let (d, left) = drag_entity(sk, e, from, to, live, last);
         // A live frame's held solve is its only one; otherwise the sketch's own solve reports
         // its degrees of freedom.
         Ok((d, if live && last.is_some() { left } else { left.solve_again() }))
@@ -2404,7 +2407,7 @@ fn drag_frame(s: &mut Session, p: &Value, live: bool) -> Result<(Value, Option<c
     let sk = s.doc.sketch(id)?;
     let moves: Vec<Vec2> = d.moving.iter().filter_map(|&(q, was)| Some(sk.point(q)? - was)).collect();
     let at = from + moves.iter().fold(Vec2::ZERO, |a, m| a + *m) * (1.0 / moves.len().max(1) as f64);
-    let rep = rep.or_else(|| last.map(|last| SolveReport { status: solidcraft_sketch::SolveStatus::Solved, failing: Vec::new(), ..last }));
+    let rep = rep.or_else(|| last.map(|ss| SolveReport { status: solidcraft_sketch::SolveStatus::Solved, failing: Vec::new(), ..ss.report.clone() }));
     let out = json!({"sketch": rep.as_ref().map(report_json), "reached": d.reached, "at": [at.x, at.y]});
     Ok((out, rep.filter(|_| live).map(|report| crate::LiveEdit { sketch: id, report })))
 }
