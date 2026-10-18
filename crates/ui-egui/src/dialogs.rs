@@ -4537,21 +4537,27 @@ pub(crate) fn edge_sel(s: &Session, p0: Vec3) -> Option<Sel> {
 
 /// The body face containing a point (nearest triangle).
 pub(crate) fn face_sel(s: &Session, p0: Vec3) -> Option<Sel> {
+    if !p0.is_finite() {
+        return None;
+    }
     let st = s.world_state();
     let frames = stored_frames(s);
-    let mut best: Option<(f64, Sel)> = None;
+    let mut best: Option<(f64, f64, Sel)> = None;
     for b in &st.bodies {
         let p = stored_on(&frames, &b.name, p0);
         let m = b.mesh();
+        // The viewport can pick a finer display mesh than this reference mesh. A point
+        // on a curved face can therefore be a full chord tolerance away from its facets.
+        let tolerance = b.display_tol() + 1e-6 * p.len();
         for (t, f) in m.triangles.iter().zip(&m.tri_face) {
             let Some([a, bb, c]) = m.tri(t) else { continue };
             let d = crate::preview::point_triangle_dist(p, a, bb, c);
-            if best.as_ref().is_none_or(|(bd, _)| d < *bd) {
-                best = Some((d, Sel::Face { body: b.name.clone(), index: *f as usize, point: p }));
+            if best.as_ref().is_none_or(|(bd, _, _)| d < *bd) {
+                best = Some((d, tolerance, Sel::Face { body: b.name.clone(), index: *f as usize, point: p }));
             }
         }
     }
-    best.filter(|(d, _)| *d < 1e-3 + 1e-6 * p0.len()).map(|x| x.1)
+    best.filter(|(d, tolerance, _)| *d <= *tolerance).map(|x| x.2)
 }
 
 fn emboss_face_sel(s: &Session, component: u64, face: &solidcraft_engine::doc::EmbossFace, persistent: &str) -> Option<Sel> {
