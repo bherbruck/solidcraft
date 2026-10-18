@@ -1849,7 +1849,7 @@ pub fn fillet(body: &Body, edges: &[Vec3], radius: f64) -> Result<Body> {
 }
 
 /// [`fillet`], once the radius is known to fit.
-fn fillet_built(body: &Body, edges: &[Vec3], radius: f64) -> Result<Body> {
+pub(crate) fn fillet_built(body: &Body, edges: &[Vec3], radius: f64) -> Result<Body> {
     // Corners the local blends refuse (an earlier round at an edge's end): radius per edge.
     blend(body, edges, radius, Shape::Round, "fillet")
         .and_then(|b| closed(body, b))
@@ -1881,6 +1881,23 @@ fn keep_size(e: KernelError, e2: KernelError) -> KernelError {
         (KernelError::TooLarge(_), _) => e,
         (_, e2 @ KernelError::TooLarge(_)) => e2,
         _ => e,
+    }
+}
+
+/// [`fillet`] without the refusal's note: its outcome alone, for searches that try many radii
+/// and would otherwise verify a note for every one they refuse.
+fn fillet_quiet(body: &Body, edges: &[Vec3], radius: f64) -> Result<Body> {
+    fillet_built(body, edges, radius).and_then(|b| crate::blend_fit::accept(body, b, edges, crate::blend_fit::Size::Round(radius)))
+}
+
+/// Whether the blend of `edges` builds and fits at `size` ([`fillet`] or [`chamfer`] without the
+/// note): what a refusal's note names is vouched for by a real build (#1955).
+pub(crate) fn blend_builds(body: &Body, edges: &[Vec3], size: crate::blend_fit::Size) -> bool {
+    match size {
+        crate::blend_fit::Size::Round(r) => fillet_quiet(body, edges, r).is_ok(),
+        crate::blend_fit::Size::Chamfer(d) => chamfer_built(body, edges, d).and_then(|b| crate::blend_fit::accept(body, b, edges, size)).is_ok(),
+        // Chamfer sides are cut, not blended, and their refusals carry no note to vouch for.
+        crate::blend_fit::Size::Sides(..) => false,
     }
 }
 
@@ -1941,7 +1958,7 @@ pub fn fillet_max(body: &Body, edges: &[Vec3], radius: f64) -> Option<(f64, Body
             break;
         }
         let mid = lo + (hi - lo) / 2;
-        match fillet(body, edges, mid as f64 * q) {
+        match fillet_quiet(body, edges, mid as f64 * q) {
             Ok(b) => {
                 lo = mid;
                 best = Some(b);
@@ -1967,7 +1984,7 @@ pub fn fillet_max_each(body: &Body, edges: &[Vec3], radius: f64) -> Option<(Vec<
     let mut searches = 0;
     for g in &groups {
         let pts: Vec<Vec3> = g.iter().filter_map(|i| edges.get(*i).copied()).collect();
-        let r = match fillet(body, &pts, radius) {
+        let r = match fillet_quiet(body, &pts, radius) {
             Ok(_) => continue,
             Err(KernelError::TooLarge(_)) if searches < MAX_SEARCHES => {
                 searches += 1;
@@ -2091,7 +2108,7 @@ pub fn chamfer(body: &Body, edges: &[Vec3], distance: f64) -> Result<Body> {
 }
 
 /// [`chamfer`], once the size is known to fit.
-fn chamfer_built(body: &Body, edges: &[Vec3], distance: f64) -> Result<Body> {
+pub(crate) fn chamfer_built(body: &Body, edges: &[Vec3], distance: f64) -> Result<Body> {
     // Each step's result carries its history over `[body]`.
     let counts = record::counts(&[body]);
     // All cutters at once (their union mitres the corners), else one edge at a time.
