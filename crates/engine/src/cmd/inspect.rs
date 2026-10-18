@@ -19,7 +19,9 @@ pub static COMMANDS: &[CommandSpec] = &[
     CommandSpec::new("model.edges", "List Edges", model_edges).icon("inspect").noundo().params("body: name"),
     CommandSpec::new("model.faces", "List Faces", model_faces).icon("inspect").noundo().params(
         "body: name → per face: index, name (what face.delete, sheet.convert `face`, solid.shell … take in place of a point), exact, area, centroid (not always on the face), \
-         plane_normal, point (a point on the face that picks it), cylinder? ({origin, axis, radius} of a cylindrical face)",
+         plane_normal, point (a point on the face that picks it), cylinder? ({origin, axis, radius} of a cylindrical face), \
+         sheet_face? (a folded sheet's face: `sheet:<body>:<panel>:<side>`, panel base or a flange's tag F<feature>.<k>, side top | bottom | rim.<edge> | bend.inner | bend.outer; \
+         taken wherever a face name is, and it holds while sizes change and flanges come and go)",
     ),
     CommandSpec::new("model.threads", "List Threads", model_threads).icon("inspect").noundo(),
     CommandSpec::new("material.assign", "Physical Material", physical_material)
@@ -291,6 +293,10 @@ fn model_faces(s: &mut Session, p: &Value) -> Result<Value> {
     let names = solidcraft_doc::naming::face_names(b);
     let tol = (b.body.size() * 2e-3).max(1e-3);
     let spots = solidcraft_doc::naming::face_spots(b);
+    // A folded sheet's faces also have the readable names its sheet gives them, worked out in
+    // the body's own coordinates.
+    let model = s.model.state();
+    let sheet_names = model.body(&b.name).map(|own| solidcraft_doc::sheet::body_sheet_face_names(&model, own)).unwrap_or_default();
     let faces: Vec<Value> = b
         .body
         .faces(tol)?
@@ -299,6 +305,9 @@ fn model_faces(s: &mut Session, p: &Value) -> Result<Value> {
             let spot = spots.get(f.index).copied().flatten();
             let mut v = json!({"index": f.index, "name": names.get(f.index), "exact": solidcraft_doc::naming::face_name_exact(b, f.index),
                    "area": f.area, "centroid": f.centroid, "plane_normal": f.plane_normal, "point": spot.map(|x| x.point)});
+            if let (Some(Some(name)), Some(o)) = (sheet_names.get(f.index), v.as_object_mut()) {
+                o.insert("sheet_face".into(), json!(name));
+            }
             if let (Some(solidcraft_kernel::FaceSurface::Cylinder { origin, axis, radius }), Some(o)) =
                 (spot.and_then(|x| x.surface), v.as_object_mut())
             {

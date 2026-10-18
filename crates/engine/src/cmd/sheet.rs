@@ -904,3 +904,7 @@ mod convert_tests;
 #[cfg(test)]
 #[path = "sheet_dxf_tests.rs"]
 mod dxf_tests;
+
+#[cfg(test)]
+#[path = "sheet_face_names_tests.rs"]
+mod face_names_tests;

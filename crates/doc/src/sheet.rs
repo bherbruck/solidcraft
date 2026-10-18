@@ -18,8 +18,11 @@ use crate::{DocError, Document, IDENTITY, Mat, Result, apply_point, apply_vector
 
 #[path = "sheet_convert.rs"]
 mod convert;
+#[path = "sheet_face_names.rs"]
+mod face_names;
 pub use convert::{bend_edge_names, convert_body};
 pub(crate) use convert::{outline_loop, round_wall};
+pub use face_names::body_sheet_face_names;
 
 // Bound the aggregate geometry, including sampled curves and intermediate clipping pieces.
 // These are work limits, never geometry truncation: a larger input returns a useful error.
