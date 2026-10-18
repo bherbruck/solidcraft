@@ -19,7 +19,7 @@
 # of this repository (people with write access; fork pull requests never run on this machine).
 # There, Select checks and ci run on the self-hosted light runner (`self-hosted-light`, quick
 # jobs, so they never wait behind a build), and the repository checks, Clippy, the doc tests,
-# the reference tests and test shards 1-2 on the self-hosted runners (`self-hosted-fast`, warm
+# the reference tests and all four test shards on the self-hosted runners (`self-hosted-fast`, warm
 # build directories via scripts/ci/warm-target.sh). Fork PRs' Linux jobs run on the isolated, ephemeral
 # `self-hosted-untrusted` runners (no warm caches); everything else runs on GitHub's runners.
 # The test archive is always built on GitHub's runners: the self-hosted machine has a newer
@@ -286,7 +286,7 @@ jobs:
   tests:
     name: Native Linux tests (${{ matrix.shard }}/4)
     needs: [changes, build-tests]
-    runs-on: ${{ (needs.changes.outputs.local == 'true' && matrix.shard <= 2) && 'self-hosted-fast' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'self-hosted-untrusted' || 'ubuntu-24.04') }}
+    runs-on: ${{ needs.changes.outputs.local == 'true' && 'self-hosted-fast' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'self-hosted-untrusted' || 'ubuntu-24.04') }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
