@@ -244,9 +244,9 @@ impl Document {
         m
     }
 
-    /// World transform of one placement of `component`: the occurrence `path` from the root
-    /// (empty for the root itself). `None` when the path no longer leads to that component.
-    pub fn path_transform(&self, component: u64, path: &[u64]) -> Option<Mat> {
+    /// One placement: the component the occurrence `path` from the root leads to (the root for
+    /// an empty path) and its world transform. `None` when the path no longer exists.
+    pub fn path_placement(&self, path: &[u64]) -> Option<(u64, Mat)> {
         if path.len() > MAX_PLACEMENT_DEPTH + 1 {
             return None;
         }
@@ -256,7 +256,7 @@ impl Document {
             m = mat_mul(&m, &o.transform);
             c = o.component;
         }
-        (c == component).then_some(m)
+        Some((c, m))
     }
 
     /// Every placement of each component: (component, occurrence path ids, world transform).

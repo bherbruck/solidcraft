@@ -1412,22 +1412,26 @@ fn mirror(s: &mut Session, p: &Value) -> Result<Value> {
 
 /// Bodies picked where the viewport shows them: each world name ("Body1", or "Body1 (Occ:2)"
 /// for a further instance) becomes its component's body name, with the occurrence path of the
-/// placement it was picked at. Names stay as they are (and no placement is kept) while every
-/// component is in place, or when one of them is not a body.
+/// placement it was picked at (where the copy goes). Names stay as they are, and no placement is
+/// kept, while every body is in the active component and every component in place, or when one
+/// of them is not a body.
 fn placed_bodies(s: &Session, names: Vec<String>, cmd: &str) -> Result<(Vec<String>, Vec<Vec<u64>>)> {
-    if names.is_empty() || !crate::frames::placed(s) {
+    if names.is_empty() || s.doc.occurrences.is_empty() {
         return Ok((names, Vec::new()));
     }
     let frames = s.doc.body_frames_with_source(&s.model.state());
     let mut picked = Vec::with_capacity(names.len());
     for name in &names {
-        let Some((_, own, _, path, _)) = frames.iter().find(|(world, ..)| world == name) else { return Ok((names, Vec::new())) };
-        if path.iter().any(|id| s.pending_moves.contains_key(id)) {
-            return Err(bad(cmd, format!("`{name}` has a position that is not captured yet: Capture Position (component.capture_position) first")));
-        }
-        picked.push((own.clone(), path.clone()));
+        let Some((_, own, component, path, _)) = frames.iter().find(|(world, ..)| world == name) else { return Ok((names, Vec::new())) };
+        picked.push((own.clone(), *component, path.clone()));
     }
-    Ok(picked.into_iter().unzip())
+    if !crate::frames::placed(s) && picked.iter().all(|(_, component, _)| *component == s.active_component) {
+        return Ok((names, Vec::new()));
+    }
+    if let Some((name, ..)) = picked.iter().find(|(_, _, path)| path.iter().any(|id| s.pending_moves.contains_key(id))) {
+        return Err(bad(cmd, format!("`{name}` has a position that is not captured yet: Capture Position (component.capture_position) first")));
+    }
+    Ok(picked.into_iter().map(|(own, _, path)| (own, path)).unzip())
 }
 
 /// The other name of an origin plane (`Top` for `XY`, `XY` for `Top`...), if `name` is one.

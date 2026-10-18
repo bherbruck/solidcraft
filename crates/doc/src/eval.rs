@@ -1041,9 +1041,26 @@ fn placement_digest(doc: &Document, f: &Feature) -> u64 {
         FeatureKind::Revolve { to, .. } => to.is_some(),
         _ => false,
     };
-    // A mirror of placed bodies follows where they are placed.
-    let placed_mirror = matches!(&f.kind, FeatureKind::Mirror { placements, .. } if !placements.is_empty());
-    if to_object || placed_mirror {
+    // A mirror of placed bodies follows the placements it was picked at and its own component's
+    // frame, not every occurrence: moving an unrelated one leaves it (and its cache) alone.
+    if let FeatureKind::Mirror { placements, bodies, .. } = &f.kind
+        && !placements.is_empty()
+    {
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        doc.component_transform(f.component).iter().flatten().for_each(|x| x.to_bits().hash(&mut h));
+        for placed in placements.iter().map(|path| mirror_copy_frame(doc, path)) {
+            placed.is_some().hash(&mut h);
+            if let Some((component, frame, picked)) = placed {
+                component.hash(&mut h);
+                frame.iter().chain(&picked).flatten().for_each(|x| x.to_bits().hash(&mut h));
+            }
+        }
+        for b in bodies {
+            serde_json::to_string(&doc.body_offsets.get(&b.0)).unwrap_or_default().hash(&mut h);
+        }
+        return h.finish();
+    }
+    if to_object {
         return if doc.occurrences.is_empty() && doc.body_offsets.is_empty() { 0 } else { placements_hash(doc) };
     }
     let FeatureKind::Sketch { plane, sketch } = &f.kind else { return 0 };
@@ -4088,18 +4105,32 @@ fn mirror_matrix(pl: &Plane) -> Mat {
 
 const MAX_INSTANCES: usize = 1000;
 
-/// Where a mirrored body is, in the frame of the mirror's component: through the placement it
-/// was picked at and the feature's component frame. `None` when that is the body's own frame
-/// (and in older designs, which saved no placement).
-fn mirrored_placement(doc: &Document, f: &Feature, mb: &ModelBody, path: Option<&[u64]>) -> Result<Option<Mat>> {
+/// Where a mirrored body was picked and where its copy goes: the component the copy joins and
+/// that component's world frame, and the frame the body's own geometry is in where it was picked
+/// (its placement `path`, with its offset). `None` in older designs, which saved no placement and
+/// mirror the body's own geometry.
+fn mirrored_placement(doc: &Document, mb: &ModelBody, path: Option<&[u64]>) -> Result<Option<(u64, Mat, Mat)>> {
     let Some(path) = path else { return Ok(None) };
-    let owner = doc.model_body_component(mb);
-    let lost = || DocError::Invalid(format!("the placement `{}` was mirrored at no longer exists", mb.name));
-    let world = doc.path_transform(owner, path).ok_or_else(lost)?;
-    let world = doc.model_body_offset(mb).map(|offset| crate::mat_mul(&world, offset)).unwrap_or(world);
-    let inverse = crate::mat_inverse(&doc.component_transform(f.component)).ok_or_else(lost)?;
-    let rel = crate::mat_mul(&inverse, &world);
-    Ok((!crate::is_identity(&rel)).then_some(rel))
+    let (component, frame, picked) =
+        mirror_copy_frame(doc, path).ok_or_else(|| DocError::Invalid(format!("the placement `{}` was mirrored at no longer exists", mb.name)))?;
+    let source = doc.model_body_offset(mb).map(|offset| crate::mat_mul(&picked, offset)).unwrap_or(picked);
+    Ok(Some((component, frame, source)))
+}
+
+/// For a body mirrored at placement `path` (which, not the body's name, says where it is: a later
+/// insert can reuse the name): the component its copy joins, that component's world frame, and
+/// the placement's world frame. The copy joins the body's component, or, when that component is
+/// placed more than once (a copy there would show at every placement), the innermost component
+/// around it that is placed once.
+fn mirror_copy_frame(doc: &Document, path: &[u64]) -> Option<(u64, Mat, Mat)> {
+    let (_, picked) = doc.path_placement(path)?;
+    let placed_once = |id: &u64| {
+        let component = doc.occurrences.iter().find(|o| o.id == *id).map(|o| o.component);
+        doc.occurrences.iter().filter(|o| Some(o.component) == component).count() == 1
+    };
+    let once = path.iter().take_while(|id| placed_once(id)).count();
+    let (component, frame) = doc.path_placement(path.get(..once)?)?;
+    Some((component, frame, picked))
 }
 
 /// The placements (column-major matrices) of a pattern's copies, the original excluded.
@@ -5042,16 +5073,18 @@ fn eval_feature(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, st:
             for (k, n) in bodies.iter().enumerate() {
                 let i = st.bodies.iter().position(|b| &b.name == n).ok_or_else(|| DocError::Unknown(format!("body `{n}`")))?;
                 let Some(mb) = st.bodies.get(i).cloned() else { continue };
-                // A body of a component placed elsewhere is mirrored where it is shown: the copy
-                // (in this feature's component) from its placement, a joined body in its own frame.
-                let placed = mirrored_placement(doc, f, &mb, placements.get(k).map(Vec::as_slice))?;
-                let (copy, own) = match placed {
-                    Some(rel) => {
-                        let inverse = crate::mat_inverse(&rel).ok_or_else(|| DocError::Invalid(format!("the placement of `{n}` is singular")))?;
-                        let copy = crate::mat_mul(&m, &rel);
-                        (copy, crate::mat_mul(&inverse, &copy))
+                // A body picked where a placement shows it is mirrored there: the copy goes beside
+                // it into the component that placement shows, a joined body stays in its own frame.
+                let (component, copy, own) = match mirrored_placement(doc, &mb, placements.get(k).map(Vec::as_slice))? {
+                    Some((component, frame, source)) => {
+                        let singular = || DocError::Invalid(format!("the placement `{n}` was mirrored at is singular"));
+                        let inverse = |m: &Mat| crate::mat_inverse(m).ok_or_else(singular);
+                        // The plane is in this feature's component: the body mirrored in the world.
+                        let here = doc.component_transform(f.component);
+                        let world = crate::mat_mul(&crate::mat_mul(&here, &m), &crate::mat_mul(&inverse(&here)?, &source));
+                        (Some(component), crate::mat_mul(&inverse(&frame)?, &world), crate::mat_mul(&inverse(&source)?, &world))
                     }
-                    None => (m, m),
+                    None => (None, m, m),
                 };
                 let mirrored = moved_copy(&mb, kernel::transform_matrix(&mb.body, if *combine { own } else { copy })?, 1);
                 if *combine {
@@ -5073,7 +5106,13 @@ fn eval_feature(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, st:
                     }
                 } else {
                     let name = copy_body_name(st, f, output, &mb.name);
-                    st.bodies.push(ModelBody::traced_new(name, mirrored, f.id));
+                    let mut copy = ModelBody::traced_new(name, mirrored, f.id);
+                    if let Some(c) = component.filter(|c| *c != f.component) {
+                        // Kept in that component as a moved body is (and through later features).
+                        copy.component = c;
+                        copy.transferred = true;
+                    }
+                    st.bodies.push(copy);
                     output += 1;
                 }
             }
