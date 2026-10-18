@@ -19,6 +19,7 @@ mod colour_tokens_tests;
 mod colour_vision_tests;
 pub mod context_menu;
 pub mod control;
+mod control_params;
 pub mod crash_ui;
 pub mod deferred;
 pub mod delete;
