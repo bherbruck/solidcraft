@@ -96,7 +96,7 @@ pub static COMMANDS: &[CommandSpec] = &[
     CommandSpec::new("construct.plane.at_angle", "Plane at Angle", plane_angle)
         .at("SOLID", "CONSTRUCT")
         .icon("plane_angle")
-        .params("base: XY|XZ|YZ|plane name; axis: X|Y|Z|{origin, dir}; angle: expr; name?"),
+        .params("base: XY|XZ|YZ|plane name, or a planar face {face: [x,y,z], body?, index?, path?}; axis: X|Y|Z|{origin, dir}; angle: expr; name?"),
     CommandSpec::new("solid.split_face", "Split Face", split_face)
         .at("SOLID", "MODIFY")
         .icon("split_face")
@@ -1531,10 +1531,18 @@ fn plane_offset(s: &mut Session, p: &Value) -> Result<Value> {
 
 fn plane_angle(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "construct.plane.at_angle";
-    let base = plane_param(s, p.get("base"), cmd)?;
     let (axis_origin, axis_dir) = axis_line(p, cmd)?;
     let angle = req_expr(cmd, p, "angle")?;
     check_expr(s, &angle, Kind::Angle, cmd, "angle")?;
+    // A planar body face: attached exactly, as a sketch on that face is, so the plane follows it.
+    if let Some(face) = p.get("base").filter(|b| b.get("face").is_some()) {
+        let base = super::sketch::face::capture(s, face, cmd)?;
+        super::sketch::face::capture_positions(s, &base)?;
+        let kind = FeatureKind::ConstructionPlane { plane: solidcraft_doc::PlaneRef::AtAngle { base: Box::new(base), axis_origin, axis_dir, angle } };
+        // The capture is already in the authoring frame.
+        return add_feature_in(s, p, kind, false);
+    }
+    let base = plane_param(s, p.get("base"), cmd)?;
     add_feature(
         s,
         p,

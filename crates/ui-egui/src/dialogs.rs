@@ -534,7 +534,7 @@ impl Dialog {
             }
             "construct.plane.at_angle" => Dialog::new(
                 Kind::AnglePlane { angle: "45 deg".into() },
-                vec![SelInput::new("Plane", PLANES, false), SelInput::new("Axis", AXES, false)],
+                vec![SelInput::new("Plane", PLANES | PLANAR_FACES, false), SelInput::new("Axis", AXES, false)],
             ),
             "solid.split_body" => Dialog::new(
                 Kind::Split,
@@ -3999,10 +3999,7 @@ fn dialog_commands(app: &SolveApp, d: &Dialog) -> Result<Vec<(String, Value)>, S
         }
         Kind::AnglePlane { angle } => {
             need(0, "a plane")?;
-            let base = match sels(d, 0).first() {
-                Some(Sel::Plane { name }) => name.clone(),
-                _ => return Err("pick an origin or construction plane".into()),
-            };
+            let base = plane_arg(app, sels(d, 0).first())?;
             let axis = match sels(d, 1).first() {
                 Some(Sel::Axis { name }) => json!(name),
                 Some(x) => {
