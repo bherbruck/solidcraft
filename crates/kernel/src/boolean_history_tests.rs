@@ -501,3 +501,26 @@ fn bodies_apart_joined_keep_their_faces() {
     }
     assert!(faces_of(h).iter().all(|(change, origins)| *change == Change::Kept && origins.len() == 1), "{}", show(h));
 }
+
+/// A plate with a round end and a boss of that radius standing on it (#1209): the boss's wall
+/// and the plate's round end are two pieces of one cylinder, one over the other, meeting along a
+/// circle at the plate's top. That circle crosses the walls at its level only, so a second boss
+/// joined to the plate and a cut through the first, both prism booleans sewn slab by slab, keep
+/// every face of the plate and its boss, with their history.
+#[test]
+fn stacked_pieces_of_one_cylinder_keep_their_walls() {
+    let plate =
+        boolean(&boxed(0.0, -6.0, 0.0, 40.0, 6.0, 5.0), &crate::cylinder(Vec3::ZERO, Vec3::Z, 10.0, 5.0).unwrap(), BoolOp::Union).unwrap().unwrap();
+    let arm = boolean(&plate, &crate::cylinder(Vec3::ZERO, Vec3::Z, 10.0, 8.0).unwrap(), BoolOp::Union).unwrap().unwrap();
+    verified(&arm, &[&plate, &crate::cylinder(Vec3::ZERO, Vec3::Z, 10.0, 8.0).unwrap()], 0.01);
+    // Standing over the plate's far end, as the boss at the arm's other end does.
+    let second = crate::cylinder(Vec3::new(40.0, 0.0, 0.0), Vec3::Z, 4.0, 7.0).unwrap();
+    let bore = boxed(-3.0, -3.0, -1.0, 3.0, 3.0, 10.0);
+    for (tool, op) in [(&second, BoolOp::Union), (&bore, BoolOp::Cut)] {
+        let r = boolean(&arm, tool, op).unwrap().unwrap();
+        let h = verified(&r, &[&arm, tool], 0.01);
+        for f in 0..arm.face_count() {
+            assert!(!from(h, face(0, f)).is_empty(), "{op:?}: face {f} of the plate and boss is lost\n{}", show(h));
+        }
+    }
+}

@@ -435,6 +435,9 @@ pub(crate) struct Index {
     points: Vec<Vec3>,
     /// Per edge (edge order): whether it is a line.
     lines: Vec<bool>,
+    /// Per edge (edge order) that is not a line: the points its curve lies within (see
+    /// [`control_hull`]); `None` where they are not known.
+    hulls: Vec<Option<Vec<Vec3>>>,
 }
 
 impl Index {
@@ -451,6 +454,7 @@ impl Index {
             }
         }
         let lines = edges.iter().map(|e| matches!(e.curve(), mt::Curve::Line(_))).collect();
+        let hulls = edges.iter().map(|e| control_hull(&e.curve())).collect();
         let mut between: std::collections::HashMap<(usize, usize), Vec<usize>> = std::collections::HashMap::new();
         for (i, fs) in bounds.iter().enumerate() {
             match fs.as_slice() {
@@ -464,7 +468,7 @@ impl Index {
             .zip(bounds)
             .map(|(e, fs)| (fs, vertices.get(&e.absolute_front().id()).copied(), vertices.get(&e.absolute_back().id()).copied()))
             .collect();
-        Index { operand, edges: crate::record::edge_index(&b.solid), bounds, between, vertices, points, lines }
+        Index { operand, edges: crate::record::edge_index(&b.solid), bounds, between, vertices, points, lines, hulls }
     }
 
     /// The tag of the segments read off edge `e` (as it runs in a wire) of cap face `cap`.
@@ -517,7 +521,7 @@ struct Stations {
     /// Each wall's highest level.
     tops: std::collections::HashMap<usize, f64>,
     /// Per wall, the edges across it: the other wall and the edge's lowest and highest levels.
-    /// A curve other than a line spans every level.
+    /// A curve other than a line spans every level, unless it lies at one level.
     cross: std::collections::HashMap<usize, Vec<(usize, f64, f64)>>,
 }
 
@@ -540,7 +544,13 @@ impl Stations {
                     let (h, k) = (plane.height(*p), plane.height(*q));
                     (h.min(k), h.max(k))
                 }
-                _ => (f64::NEG_INFINITY, f64::INFINITY),
+                // A curve at one level (where a piece of a wall's surface stacked on another
+                // meets it: a boss's cylinder over the arc of the plate it stands on) crosses
+                // the walls there only. Any other spans every level.
+                _ => match index.hulls.get(i).and_then(Option::as_deref).map(|hull| level_span(hull, plane)) {
+                    Some((lo, hi)) if hi - lo < tol => (lo, hi),
+                    _ => (f64::NEG_INFINITY, f64::INFINITY),
+                },
             };
             cross.entry(f).or_default().push((g, lo, hi));
             cross.entry(g).or_default().push((f, lo, hi));
@@ -587,6 +597,35 @@ impl Stations {
             (1, false) => at.first().copied(),
             _ => None,
         }
+    }
+}
+
+/// The most control points [`control_hull`] reads of one curve.
+const MAX_HULL_POINTS: usize = 4096;
+
+/// The points curve `c` lies within: a B-spline's control points, or a NURBS curve's where its
+/// weights are positive (the curve then lies in their convex hull). `None` for a line, an
+/// intersection curve, other weights or too many points.
+fn control_hull(c: &mt::Curve) -> Option<Vec<Vec3>> {
+    match c {
+        mt::Curve::BSplineCurve(c) if c.control_points().len() <= MAX_HULL_POINTS => Some(c.control_points().iter().map(|p| from_p3(*p)).collect()),
+        mt::Curve::NurbsCurve(c) if c.control_points().len() <= MAX_HULL_POINTS => {
+            c.control_points().iter().map(|p| (p.w > 0.0 && p.w.is_finite()).then(|| Vec3::new(p.x / p.w, p.y / p.w, p.z / p.w))).collect()
+        }
+        _ => None,
+    }
+}
+
+/// The lowest and highest levels of `points` (infinite where there are none, or one isn't
+/// finite).
+fn level_span(points: &[Vec3], plane: &Plane) -> (f64, f64) {
+    let span = points
+        .iter()
+        .map(|p| plane.height(*p))
+        .try_fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), h| h.is_finite().then(|| (lo.min(h), hi.max(h))));
+    match span {
+        Some((lo, hi)) if lo <= hi => (lo, hi),
+        _ => (f64::NEG_INFINITY, f64::INFINITY),
     }
 }
 
