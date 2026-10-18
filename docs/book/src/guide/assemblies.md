@@ -239,3 +239,71 @@ measures the complete assembly. Volumes are summed, including overlapping bodies
 measuring their union. The same workflow is available through `component.properties` and
 `occurrence.properties`; see
 [placement and measurement details](https://github.com/bherbruck/solidcraft/blob/main/docs/assembly-properties.md).
+
+## Hole stacks
+
+Parts held together by rivets, bolts or pins have holes that line up through two or more
+touching layers. **Find Hole Stacks** (`inspect.hole_stacks`) lists them:
+
+```json
+{"command": "inspect.hole_stacks", "params": {"diameters": [[4, 6.5]], "touching": 0.05}}
+```
+
+Each stack has its `axis` (a unit vector pointing from `start` into the stack: down for a
+vertical stack, so `start` is on the top face), its `start` and `end` points on that axis,
+`grip_mm` (the clamped thickness from `start` to `end`) and its `layers`, outermost first:
+the `body`, the hole's diameter `d_mm` and its extent `t: [t0, t1]` in mm from `start`. A
+layer through an obround slot carries `slot: {length_mm, along}`, the slot's overall length
+and the direction of its length. Holes in no stack are listed under `lone` with their
+body, diameter, entry point `at`, axis and `depth_mm`.
+
+Round holes count whether their wall is an exact cylinder or a B-spline (holes in refolded or
+imported parts). Holes are on one axis when their axes are at most `axis_tolerance` apart
+(default 0.1 mm), either way round; a round hole lines up with a slot when its axis passes
+through the slot's centre line. Slots that no round hole passes through line up when they
+share a centre line, and their stack's axis runs through the middle of the length they share.
+Layers belong to one stack when the gap between them is at most `touching` (default 0.05 mm).
+`bodies` limits the search to some bodies, `diameters` to holes and slot widths in the given
+ranges, and `slots: false` leaves slots out. Standard parts already placed (a washer's hole)
+are left out unless named in `bodies`. The command only reads the design.
+
+**Fill Hole Stacks** (`parts.fasten`, or **Fill hole stacks** in the Insert Part dialog) puts a
+fastener in every stack, or in the ones you give:
+
+```json
+{"command": "parts.fasten", "params": {"family": "hex_bolt", "washer": true, "nut": true}}
+```
+
+`family` is a built-in family or one from a [part library](../dev/local-libraries.md#part-libraries-fastener-families).
+`stack` (an index or a stack object from `inspect.hole_stacks`) or `stacks` (a list of them, or
+`"all"`, the default) say which stacks; indices and `"all"` take the same filters as
+`inspect.hole_stacks`. Without `size`, each stack gets the largest size that passes its
+narrowest hole and has a length for its grip.
+
+- **Length.** `rule: "grip"` (the default) clamps the whole stack: a library family's shortest
+  length whose grip range holds the grip; otherwise the shortest length at least as long as the
+  grip, plus the nut's height and two thread pitches when there is a nut. `rule: "thread"` is a
+  screw into a tapped far layer: sized to pass the other layers (and not the far layer's tap
+  drill), at least as long as their grip plus `engagement` (default 1.5 × the diameter).
+- **Washers and nut.** `washer` (`true`, a family, or `{family, size}`) goes under the head and
+  under the nut (`washer_side: "head"`, `"nut"` or `"both"`) and counts toward the grip; `nut`
+  (`true` for the built-in hex nut, a family, or `{family, size}`) goes on the far face.
+- **Head side.** The head goes on the stack's `start` face; `head_side: "end"` puts it on the
+  other one and `{"body": "Base"}` on the face of that body's layer. A stack in `stacks` can
+  carry its own: `{"index": 3, "head_side": "end"}`, or `head_side` in a stack object.
+- **Set rivets.** A library family of blind rivets is drawn set: the shank ends at the far face
+  of the stack and the tail it forms (a disc 1.5 × the diameter across) sits beyond it, so the
+  rivet does not reach into what lies behind the stack. `drawn: "unset"` draws the full length.
+  Rivets set on different grips are different parts. `parts.insert` takes `drawn: "set"` with the
+  `grip` as well.
+- **Dry run.** `dry_run: true` returns what would go where (size, length, grip, article) and
+  places nothing.
+
+Each distinct part (family, size, length and, for a set rivet, grip) is one component, built once and placed as an
+occurrence in every stack that takes it, held by a rigid joint on the hole it sits on, so it
+follows the hole when the design changes; the joints are solved once, when all are placed. A
+stack through a slot on the head's side is placed without a joint. The result lists `placed`
+parts (component, occurrence, joint, stack, `head_side`, size, `length_mm`, `grip_mm`, the
+library's `article`, `part`: the article or `family/sizexlength`, and the washers' and nut's
+occurrences) and `unfilled` stacks with the reason: one no size or length fits, or whose hole
+gives no wall to seat on. The whole fill is one undo step.

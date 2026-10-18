@@ -293,13 +293,7 @@ fn origin_param(s: &Session, v: Option<&Value>, cmd: &str) -> Result<JointOrigin
     let snap = match what {
         "face" | "circle" => {
             let pick = local(world);
-            // A circle's name is its cylindrical wall's (a rim pick also touches the end face).
-            let named_at = if what == "circle" {
-                s.model.state().bodies.iter().filter_map(|b| cylinder_wall_point(&b.body, pick)).next().unwrap_or(pick)
-            } else {
-                pick
-            };
-            let face = solidcraft_doc::naming::face_names_at(&s.model.state(), &[named_at]).into_iter().next().filter(|n| !n.is_empty());
+            let face = face_name_at(s, occurrence, pick, what == "circle");
             if what == "face" { Snap::FaceCenter { pick, face } } else { Snap::CircleCenter { pick, face } }
         }
         "point" => Snap::Point { point: local(world), z: v.get("z").and_then(vec3).map(local_dir) },
@@ -329,7 +323,7 @@ fn circle_centre(s: &Session, occurrence: u64, pick: Vec3) -> Option<Snap> {
         .bodies
         .iter()
         .filter(|b| s.doc.model_body_component(b) == component)
-        .find_map(|b| solidcraft_doc::kernel::cylinder_end_at(&b.body, pick))?;
+        .find_map(|b| solidcraft_doc::joints::cylinder_end_at(&s.doc, b, pick))?;
     let along = (pick - c.axis_point).dot(c.axis);
     let (at, dir) = if (along - c.start).abs() <= (c.end - along).abs() { (c.start, -1.0) } else { (c.end, 1.0) };
     Some(Snap::Point { point: c.axis_point + c.axis * at, z: Some(c.axis * dir) })
@@ -395,6 +389,40 @@ fn limits_param(s: &Session, p: &Value, kind: JointKind, cmd: &str) -> Result<Ve
 
 fn next_joint_id(s: &Session) -> u64 {
     s.doc.assembly.joints.iter().map(|j| j.id).max().unwrap_or(0) + 1
+}
+
+/// A joint origin as `joint.create` takes it (`{occurrence?, face | circle | point | frame}`),
+/// for commands that build joints themselves.
+pub(crate) fn origin(s: &Session, v: &Value, cmd: &str) -> Result<JointOrigin> {
+    origin_param(s, Some(v), cmd)
+}
+
+/// Add a rigid joint without solving: a command that adds many solves once at the end
+/// ([`resolve`]). The occurrences should already sit where the joint puts them.
+pub(crate) fn add_rigid_unsolved(s: &mut Session, a: JointOrigin, b: JointOrigin, offset: f64, name: String) -> Result<u64> {
+    if s.doc.assembly.joints.len() >= 10_000 {
+        return Err(EngineError::Other("too many joints".into()));
+    }
+    if a.occurrence == b.occurrence {
+        return Err(bad("joint.create", "a joint needs two different occurrences"));
+    }
+    let id = next_joint_id(s);
+    let n = JointKind::Rigid.dofs().len();
+    s.visibility.hidden_joints.retain(|h| *h != id);
+    s.doc_mut().assembly.joints.push(Joint {
+        id,
+        name,
+        kind: JointKind::Rigid,
+        a,
+        b,
+        values: vec![0.0; n],
+        limits: vec![None; n],
+        flip: false,
+        offset,
+        angle: 0.0,
+        suppressed: false,
+    });
+    Ok(id)
 }
 
 fn add_joint(s: &mut Session, mut j: Joint, p: &Value) -> Result<Value> {
@@ -1237,11 +1265,46 @@ mod reach_tests;
 #[path = "joints_tests.rs"]
 mod tests;
 
+/// The name of the face a joint origin picks at `pick` (the occurrence's component's
+/// coordinates): a face of that component's bodies, looked up where each body's geometry is (a
+/// body moved in from another component keeps its own coordinates, placed by its offset); a
+/// circle's is its cylindrical wall's (a rim pick also touches the end face). Else, as before,
+/// the face of any body there.
+fn face_name_at(s: &Session, occurrence: u64, pick: Vec3, circle: bool) -> Option<String> {
+    let st = s.model.state();
+    let component = if occurrence == 0 { 0 } else { s.doc.occurrences.iter().find(|o| o.id == occurrence).map_or(0, |o| o.component) };
+    let bodies: Vec<_> = st.bodies.iter().filter(|b| !b.body.is_mesh() && s.doc.model_body_component(b) == component).collect();
+    // The pick in a body's own coordinates.
+    let own = |b: &solidcraft_doc::ModelBody, p: Vec3| match s.doc.model_body_offset(b) {
+        Some(m) => solidcraft_doc::mat_inverse(m).map(|inv| solidcraft_doc::apply_point(&inv, p)),
+        None => Some(p),
+    };
+    let wall = if circle {
+        bodies
+            .iter()
+            .filter_map(|b| {
+                let q = own(b, pick)?;
+                cylinder_wall_point(&b.body, q).map(|(at, off)| (*b, at, off))
+            })
+            .min_by(|a, b| a.2.total_cmp(&b.2))
+    } else {
+        None
+    };
+    let named = match wall {
+        Some((b, at, _)) => solidcraft_doc::naming::face_name_at_body(b, at),
+        None => bodies.iter().find_map(|b| solidcraft_doc::naming::face_name_at_body(b, own(b, pick)?)),
+    };
+    named.or_else(|| solidcraft_doc::naming::face_names_at(&st, &[pick]).into_iter().next().filter(|n| !n.is_empty()))
+}
+
 /// A point in the middle of the cylindrical face at `pick` (on its wall, halfway along).
-fn cylinder_wall_point(b: &solidcraft_doc::kernel::Body, pick: Vec3) -> Option<Vec3> {
+fn cylinder_wall_point(b: &solidcraft_doc::kernel::Body, pick: Vec3) -> Option<(Vec3, f64)> {
     let c = solidcraft_doc::kernel::cylinder_face_at(b, pick)?;
     let v = pick - c.axis_point;
     let along = v.dot(c.axis);
-    let radial = (v - c.axis * along).normalized()?;
-    Some(c.axis_point + c.axis * ((c.start + c.end) / 2.0) + radial * c.radius)
+    let radial = v - c.axis * along;
+    // How far the pick is off this wall: coaxial holes of touching bodies share a radius, and
+    // the pick lies on the wall of only one of them.
+    let off = (radial.len() - c.radius).abs() + (c.start - along).max(along - c.end).max(0.0);
+    Some((c.axis_point + c.axis * ((c.start + c.end) / 2.0) + radial.normalized()? * c.radius, off))
 }

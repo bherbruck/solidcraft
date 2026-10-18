@@ -136,3 +136,62 @@ The opaque PBR consumer makes v1 export fail explicitly when any body, component
 face or material-default appearance contains PBR parameters. Neither overwrite consent
 nor an existing output file permits a lossy downgrade; use the richer transport
 when available. Scalar catalog imports still select the scalar response explicitly.
+
+## Part libraries: fastener families
+
+A part library adds fastener families beside the built-in ones (`parts.library`): blind
+rivets, bolts, screws, nuts, washers and pins described by a table, built with the same
+parametric shapes as the built-in parts. Following the [library proposal](libraries.md), a
+library is a directory with a JSON manifest, `library.json` (a single `.json` file works
+too). It is read by `parts.library.load {path}` and stays open for the rest of the session;
+nothing is discovered or fetched on its own. This is a separate format from the scalar
+catalog above: it has no content revisions, and a family is selected by name.
+
+```json
+{
+  "format": "solidcraft-parts/1",
+  "id": "example.rivets",
+  "name": "Example blind rivets",
+  "provenance": {"license": "CC0-1.0", "author": "Example"},
+  "families": [{
+    "kind": "fastener_family",
+    "name": "rivet_dome",
+    "label": "Rivet",
+    "standard": "example",
+    "shape": "blind_rivet",
+    "sizes": [
+      {"size": "4.0", "d": 4.0, "head": {"d": 8.0, "h": 1.3, "style": "dome"},
+       "lengths": [{"length": 6, "grip": [1.0, 3.0]}, {"length": 8, "grip": [3.0, 5.0]}]},
+      {"size": "4.8", "d": 4.8, "head": {"d": 9.5, "h": 1.6, "style": "dome"},
+       "lengths": [{"length": 10, "grip": [4.0, 6.0]}, {"length": 12, "grip": [6.0, 8.0], "article": "EX-48-12"}]}
+    ]
+  }]
+}
+```
+
+- `shape` is `blind_rivet`, `bolt`, `screw`, `nut`, `washer` or `pin`. `d` is the shank
+  diameter (the hole of a nut or washer). `head` is `{d, h, style}`: across the head (across
+  flats for `hex`, the outside of a nut or washer) and its height; `style` is `dome` (the
+  default), `flat`, `countersunk` (flush with the seating face), `hex` or `socket`. A pin has
+  no head. `pitch` (bolts, screws, nuts) adds a cosmetic thread.
+- `lengths` lists each length a size comes in (not for nuts and washers), each with the
+  `grip: [min, max]` it holds and an optional `article` number: the part is named with it
+  (`Rivet 4.8x12 EX-48-12`) and keeps it in the design, its identity in a parts list.
+- Names: the library `id` is lower-case letters, digits, `.`, `_` and `-`; a family `name`
+  is lower-case letters, digits and `_`. A family may not be named like a built-in family or
+  a family of another open library. Commands take the name, or `library-id/name`.
+
+`parts.insert {family, size, grip}` picks the shortest length whose grip range holds `grip`
+(or takes `length`); `parts.resize {component, size?, length? | grip?}` rebuilds it.
+The part keeps a copy of its family in the design, so it rebuilds and resizes after the
+library file is moved, changed or gone; `parts.library` then lists the family with
+`source: "design"`. Opening a library again reloads it; parts already inserted keep the copy
+they were made from.
+
+`parts.library.load` refuses a malformed file and names the JSON path of the first bad
+value (`families[0].sizes[1].d: must be a number`). `parts.library {family, check: true}` (or
+`{path, check: true}` for a file that is not open) reports what makes a well-formed family hard
+to use, as `{ok, problems: [{path, message}]}`: grip ranges of one size that overlap (ranges
+that only touch are fine), sizes without lengths, sizes or lengths listed twice, and names
+of built-in families. A file is at most 4 MiB with at most 256 families, 256 sizes per family
+and 256 lengths per size; dimensions are finite, above 0 and at most 2,000 mm.
