@@ -807,6 +807,11 @@ fn hostile_params_never_panic() {
         "continuity",
         "crown",
         "faces",
+        "keep",
+        "with",
+        "keep_with",
+        "stitch",
+        "extend",
     ];
     // Commands are independent; worker threads take them one at a time (their costs vary a lot).
     let ids: Vec<&str> = command_specs()

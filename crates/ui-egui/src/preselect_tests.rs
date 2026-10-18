@@ -1454,6 +1454,59 @@ fn ruled_surface_dialog_takes_edges_a_face_and_a_direction() {
 }
 
 #[test]
+fn trim_dialog_takes_curves_several_keep_points_and_another_surface() {
+    // Two 20 × 10 sheets crossing at x = 0 / z = 0 and a sketch line x = 3 on XY.
+    let mut app = app_with(json!([
+        {"command": "sketch.create", "params": {"plane": "XY", "name": "F"}},
+        {"command": "sketch.rectangle.two_point", "params": {"p0": [-10, 0], "p1": [10, 10]}},
+        {"command": "sketch.finish", "params": {}},
+        {"command": "surface.patch", "params": {"sketch": "F", "body_name": "Floor"}},
+        {"command": "sketch.create", "params": {"plane": "YZ", "name": "W"}},
+        {"command": "sketch.rectangle.two_point", "params": {"p0": [0, -10], "p1": [10, 10]}},
+        {"command": "sketch.finish", "params": {}},
+        {"command": "surface.patch", "params": {"sketch": "W", "body_name": "Wall"}},
+        {"command": "sketch.create", "params": {"plane": "XY", "name": "Cut"}},
+        {"command": "sketch.line", "params": {"points": [[3, -5], [3, 15]], "ids": ["c1"]}},
+        {"command": "sketch.finish", "params": {}}
+    ]));
+    let face = |body: &str, p: [f64; 3]| Sel::Face { body: body.into(), index: 0, point: Vec3::new(p[0], p[1], p[2]) };
+    let mut d = start(&mut app, vec![], "surface.trim");
+    assert_eq!(d.inputs.len(), 5);
+    d.inputs[0].items = vec![Sel::Body { name: "Floor".into() }];
+    d.inputs[1].items = vec![Sel::SketchCurve { id: "c1".into() }];
+    // Two places on the one face both count (a face pick would toggle the face off).
+    d.inputs[2].toggle(vec![face("Floor", [1.0, 5.0, 0.0])]);
+    d.inputs[2].toggle(vec![face("Floor", [-5.0, 5.0, 0.0])]);
+    assert_eq!(d.inputs[2].items.len(), 2);
+    let (id, p) = apply_commands(&app, &d).unwrap().remove(0);
+    assert_eq!(p["curves"]["curves"], json!(["c1"]), "{p}");
+    assert_eq!(p["keep"], json!([[1.0, 5.0, 0.0], [-5.0, 5.0, 0.0]]), "{p}");
+    app.session.execute(&id, &p).unwrap();
+    let area = |app: &SolveApp, n: &str| app.session.world_state().body(n).unwrap().mesh().measure().area;
+    assert!((area(&app, "Floor") - 130.0).abs() < 1e-6, "{}", area(&app, "Floor"));
+    app.session.execute("edit.undo", &json!({})).unwrap();
+    // Mutual: the other surface replaces the tool; stitched into an L.
+    d.inputs[1].items.clear();
+    d.inputs[2].items = vec![face("Floor", [5.0, 5.0, 0.0])];
+    d.inputs[3].items = vec![Sel::Body { name: "Wall".into() }];
+    assert!(apply_commands(&app, &d).is_err(), "nothing kept of the wall yet");
+    d.inputs[4].items = vec![face("Wall", [0.0, 5.0, 5.0])];
+    if let Kind::Surface(crate::dialogs_surface::Surf::Trim { stitch, .. }) = &mut d.kind {
+        *stitch = true;
+    }
+    let (id, p) = apply_commands(&app, &d).unwrap().remove(0);
+    assert_eq!((&p["with"], &p["keep_with"], &p["stitch"]), (&json!("Wall"), &json!([0.0, 5.0, 5.0]), &json!(true)), "{p}");
+    assert!(p.get("extend").is_none() && p.get("plane").is_none(), "{p}");
+    app.session.execute(&id, &p).unwrap();
+    assert!((area(&app, "Floor") - 200.0).abs() < 1e-6 && app.session.world_state().body("Wall").is_none());
+    let fid = app.session.doc.features.last().unwrap().id;
+    let back = crate::dialogs::for_feature(&app, fid, None).unwrap();
+    assert!(matches!(back.kind, Kind::Surface(crate::dialogs_surface::Surf::Trim { stitch: true, extend: false, direction: None })));
+    let counts: Vec<usize> = back.inputs.iter().map(|i| i.items.len()).collect();
+    assert_eq!(counts, [1, 0, 1, 1, 1]);
+}
+
+#[test]
 fn untrim_dialog_takes_a_face_its_holes_and_the_outer_boundary() {
     // A 40 × 20 × 2 plate with three holes: its top untrimmed (every hole) is the whole 800 mm²
     // rectangle; one hole picked by an edge; Edit Feature brings the picks and options back.

@@ -1098,31 +1098,6 @@ pub fn thicken(body: &Body, thickness: f64, symmetric: bool) -> Result<Body> {
     })
 }
 
-/// A surface body trimmed by a tool: its faces are cut where the tool meets them and the
-/// pieces on the side of `keep` are kept. The result's history is over `[body]`.
-pub fn trim(body: &Body, tool: &crate::SplitTool, keep: Vec3) -> Result<Body> {
-    body.require_brep("trim")?;
-    let total = body.solid.face_iter().count();
-    let all: Vec<usize> = (0..total).collect();
-    let (split, _) = crate::splitface::split_any(body, &all, tool)?;
-    let side = crate::splitface::side_of_point(tool, keep)?;
-    guard("trim", || {
-        let mut kept = Vec::new();
-        for f in split.solid.face_iter() {
-            let x = crate::splitface::face_side(f, tool, split.size())?;
-            if (x >= 0.0) == (side >= 0.0) {
-                kept.push(f.clone());
-            }
-        }
-        if kept.is_empty() {
-            return Err(KernelError::Invalid("nothing is left on that side of the tool".into()));
-        }
-        // The kept pieces are the split's own; its history carries them back to `body`.
-        let trimmed = rebuilt_body(surface_body(kept), &[&split.solid], &Rebuild::default());
-        Ok(crate::record::after(trimmed, &split, &crate::record::counts(&[body])))
-    })
-}
-
 /// A planar surface extended: the chosen straight edges (picked by points on them) move
 /// outward in the face's plane by `distance`, their neighbours lengthened to meet them. The
 /// result's history is over `[body]`: the face and each edge the one it was moved from.
@@ -1196,7 +1171,7 @@ pub fn extend(body: &Body, at: &[Vec3], distance: f64) -> Result<Body> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{box_solid, cylinder, measure};
+    use crate::{box_solid, cylinder, measure, trim};
     use solidcraft_geom::{Loop2, Vec2};
 
     fn rel(a: f64, b: f64) -> f64 {

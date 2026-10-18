@@ -151,6 +151,12 @@ fn classify(body: &Body, mesh: &Mesh, mut work: usize) -> (Vec<bool>, Vec<bool>)
             boundaries.push(None);
             continue;
         }
+        // Mapping rebuilds each edge through a check that refuses one starting and ending at
+        // the same vertex (a loop of one closed edge: a hole a closed curve cut).
+        if wires.iter().flat_map(|w| w.edge_iter()).any(|e| e.front().id() == e.back().id()) {
+            boundaries.push(None);
+            continue;
+        }
         let mapped = face.try_mapped(|_| Some(()), |_| Some(()), |surface| ruled(surface, face.orientation(), &mut work));
         boundaries.push(mapped.map(|face| face.surface()));
     }
@@ -241,6 +247,27 @@ mod tests {
 
     fn ring(count: usize) -> Body {
         crate::extrude(&Plane::XY, &[Region2 { outer: circle(10., count), holes: vec![circle(9., count).reversed()] }], 0., 3.).unwrap().remove(0)
+    }
+
+    /// A square sheet with a round hole a closed curve cut (its loop one closed edge) is
+    /// classified without a check refusing the closed edge (a panic the guard would catch).
+    #[test]
+    fn a_hole_of_one_closed_edge_is_classified() {
+        let sheet = crate::patch_region(
+            &Plane::XY,
+            &Region2 {
+                outer: Loop2::polygon(&[Vec2::new(-10., -10.), Vec2::new(10., -10.), Vec2::new(10., 10.), Vec2::new(-10., 10.)]),
+                holes: vec![],
+            },
+        )
+        .unwrap();
+        let ring: Vec<Seg2> = circle(4., 8).segs;
+        let tool = crate::SplitTool::Curves { plane: Plane::XY, curves: vec![ring], along: None };
+        let holed = crate::trim(&sheet, &tool, Vec3::new(9., 9., 0.)).unwrap();
+        assert!(holed.solid.edge_iter().any(|e| e.front().id() == e.back().id()), "a closed edge");
+        let mesh = holed.tessellate(0.02).unwrap();
+        let (smooth, sharp) = classify(&holed, &mesh, WORK);
+        assert_eq!((smooth.len(), sharp.len()), (mesh.edges.len(), mesh.edges.len()));
     }
 
     #[test]

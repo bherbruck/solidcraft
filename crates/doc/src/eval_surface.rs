@@ -67,20 +67,46 @@ pub(super) fn eval(doc: &Document, vals: &BTreeMap<String, Value>, f: &Feature, 
             }
             apply_op(st, f, tools, *operation, &crate::plain(targets))
         }
-        FeatureKind::SurfaceTrim { body, plane, tool, keep } => {
+        FeatureKind::SurfaceTrim { body, plane, tool, keep, keep_more, curves, with, keep_with, stitch, extend } => {
             let i = st.bodies.iter().position(|b| &b.name == body).ok_or_else(|| DocError::Unknown(format!("body `{body}`")))?;
             let Some(mb) = st.bodies.get(i).cloned() else { return Err(DocError::Invalid("body".into())) };
-            let trimmed = match tool {
-                Some(t) => {
+            let picks: Vec<Vec3> = std::iter::once(keep.0).chain(keep_more.iter().map(|p| p.0)).collect();
+            let keeps = if keep_more.is_empty() { kernel::TrimKeep::Side(keep.0) } else { kernel::TrimKeep::Regions(&picks) };
+            if let Some(other) = with {
+                return mutual_trim(st, i, other, keeps, &crate::plain(keep_with), *stitch, *extend);
+            }
+            let trimmed = match (tool, curves) {
+                (Some(t), _) => {
                     let tb = st.body(&t.body).ok_or_else(|| DocError::Unknown(format!("body `{}`", t.body)))?;
                     let face = crate::appearance::face_index_at(tb, t.point.0)
                         .ok_or_else(|| DocError::Invalid(format!("no face of `{}` at the tool point", t.body)))?;
-                    kernel::trim(&mb.body, &kernel::SplitTool::Face { body: &tb.body, face }, keep.0)?
+                    kernel::trim_keep(&mb.body, &kernel::SplitTool::Face { body: &tb.body, face }, keeps)?
                 }
-                None => kernel::trim(&mb.body, &kernel::SplitTool::Plane(doc.resolve_plane_in(vals, plane, 0, Some(st))?), keep.0)?,
+                (None, Some(c)) => {
+                    let ss = st
+                        .sketch(c.sketch.0)
+                        .ok_or_else(|| DocError::Unknown(format!("sketch {} (it must come earlier in the timeline)", c.sketch)))?;
+                    let ss = sketch_in_feature_frame(doc, ss, f.component)?;
+                    let ids: Vec<String> = if c.curves.is_empty() {
+                        ss.sketch.curves.iter().filter(|k| !k.construction).map(|k| k.id.clone()).collect()
+                    } else {
+                        c.curves.clone()
+                    };
+                    let chains = curve_chains(&ss, &ids)?;
+                    if chains.is_empty() {
+                        return Err(DocError::Invalid(format!("sketch `{}` has no curves to trim with", ss.name)));
+                    }
+                    kernel::trim_keep(
+                        &mb.body,
+                        &kernel::SplitTool::Curves { plane: ss.plane, curves: chains, along: c.direction.map(|d| d.0) },
+                        keeps,
+                    )?
+                }
+                (None, None) => kernel::trim_keep(&mb.body, &kernel::SplitTool::Plane(doc.resolve_plane_in(vals, plane, 0, Some(st))?), keeps)?,
             };
+            let made = Traced::step(trimmed, &[&mb.traced()]);
             if let Some(slot) = st.bodies.get_mut(i) {
-                *slot = ModelBody::new(mb.name, trimmed, mb.feature);
+                *slot = ModelBody::traced_new(mb.name, made, mb.feature);
             }
             Ok(())
         }
@@ -501,6 +527,43 @@ fn boundary_frames(
         out.push(Boundary { frames, order: orders.get(side).copied().unwrap_or(solidcraft_kernel::Continuity::G1) });
     }
     Ok(out)
+}
+
+/// Mutual Trim: the body at `i` and `other` trimmed by each other (each keeping its picks), the
+/// kept pieces sewn into the first when `stitch`; their faces named after the faces they are
+/// pieces of.
+fn mutual_trim(st: &mut ModelState, i: usize, other: &str, keeps: kernel::TrimKeep, keep_with: &[Vec3], stitch: bool, extend: bool) -> Result<()> {
+    let j = st.bodies.iter().position(|b| b.name == other).ok_or_else(|| DocError::Unknown(format!("body `{other}`")))?;
+    if i == j {
+        return Err(DocError::Invalid("a surface can't trim itself: pick another surface".into()));
+    }
+    let (Some(a), Some(b)) = (st.bodies.get(i).cloned(), st.bodies.get(j).cloned()) else { return Err(DocError::Invalid("body".into())) };
+    let keeps_with = match keep_with {
+        [] => return Err(DocError::Invalid(format!("pick the side of `{other}` to keep"))),
+        [p] => kernel::TrimKeep::Side(*p),
+        ps => kernel::TrimKeep::Regions(ps),
+    };
+    let (ta, tb) = kernel::mutual_trim(&a.body, &b.body, keeps, keeps_with, extend)?;
+    let (ta, tb) = (Traced::step(ta, &[&a.traced()]), Traced::step(tb, &[&b.traced()]));
+    if stitch {
+        let sewn = kernel::stitch(&[&ta.body, &tb.body], 0.0)?;
+        if sewn.edge_count() >= ta.body.edge_count() + tb.body.edge_count() {
+            return Err(DocError::Invalid("the trimmed surfaces don't meet along an edge: they can't be stitched".into()));
+        }
+        let sewn = Traced::step(sewn, &[&ta, &tb]);
+        if let Some(slot) = st.bodies.get_mut(i) {
+            *slot = ModelBody::traced_new(a.name, sewn, a.feature);
+        }
+        st.bodies.retain(|x| x.name != other);
+    } else {
+        if let Some(slot) = st.bodies.get_mut(i) {
+            *slot = ModelBody::traced_new(a.name, ta, a.feature);
+        }
+        if let Some(slot) = st.bodies.get_mut(j) {
+            *slot = ModelBody::traced_new(b.name, tb, b.feature);
+        }
+    }
+    Ok(())
 }
 
 /// What a surface builder sweeps: the boundary loops of the picked profiles, then the picked

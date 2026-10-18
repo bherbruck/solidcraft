@@ -1498,14 +1498,31 @@ pub enum FeatureKind {
         #[walk(length = "Tolerance")]
         tolerance: Expr,
     },
-    /// A surface body trimmed by a plane, or by a face of a body (`tool`), keeping the side of
-    /// `keep`.
+    /// A surface body trimmed by a plane, by a face of a body (`tool`, its surface extended) or
+    /// by sketch curves swept onto it (`curves`), keeping the side of `keep`; with `keep_more`,
+    /// the regions (pieces that hang together once cut) `keep` and those points pick instead.
+    /// With `with`, a mutual trim: `body` and `with` (one face each) cut each other, `with`
+    /// keeping the side of its one `keep_with` point or the regions of several; `extend`
+    /// extends one that stops short of the other to meet it, and `stitch` sews the two kept
+    /// pieces into `body` (`with` is then gone).
     SurfaceTrim {
         body: BodyName,
         plane: PlaneRef,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         tool: Option<FaceAt>,
         keep: Position,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        keep_more: Vec<Position>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        curves: Option<TrimCurves>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        with: Option<BodyName>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        keep_with: Vec<Position>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        stitch: bool,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        extend: bool,
     },
     Move {
         bodies: Vec<BodyName>,
@@ -1674,6 +1691,18 @@ impl FilletStyle {
         let degree = knots.len().saturating_sub(values.len() + 1);
         solidcraft_kernel::RadiusSpline { degree, knots: knots.to_vec(), radii: values }
     }
+}
+
+/// Sketch curves a trim cuts with: chains of the curves `curves` (every curve of the sketch
+/// that is not construction geometry when empty) swept along `direction` (the sketch's normal
+/// when none) onto the surface.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, solidcraft_derive::Walk)]
+pub struct TrimCurves {
+    pub sketch: SketchId,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub curves: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub direction: Option<Dir>,
 }
 
 /// A face picked by a point on it, on a named body.

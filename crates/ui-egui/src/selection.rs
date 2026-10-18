@@ -46,12 +46,21 @@ pub struct SelInput {
     pub accept: Accept,
     /// Many items (clicks toggle them), or one (a click replaces it).
     pub multi: bool,
+    /// Face picks are places on the face, not the face: several on one face add up (a click on
+    /// the very spot of one takes it out). For points that pick pieces a face is cut into.
+    pub places: bool,
     pub items: Vec<Sel>,
 }
 
 impl SelInput {
     pub fn new(label: &'static str, accept: Accept, multi: bool) -> SelInput {
-        SelInput { label, accept, multi, items: Vec::new() }
+        SelInput { label, accept, multi, places: false, items: Vec::new() }
+    }
+
+    /// This input with face picks as places (see [`SelInput::places`]).
+    pub fn places(mut self) -> SelInput {
+        self.places = true;
+        self
     }
 
     /// The selection a hit stands for, if this input accepts it.
@@ -85,11 +94,17 @@ impl SelInput {
             return;
         }
         // A pick of something already in (or a chain fully in) takes it out.
-        if picked.iter().all(|p| self.items.iter().any(|x| same_item(x, p))) {
-            self.items.retain(|x| !picked.iter().any(|p| same_item(x, p)));
+        let places = self.places;
+        // Whether two picks are the same item of this input.
+        let same = |a: &Sel, b: &Sel| match (a, b) {
+            (Sel::Face { point: p, .. }, Sel::Face { point: q, .. }) if places => same_item(a, b) && p.dist(*q) <= 1e-9,
+            _ => same_item(a, b),
+        };
+        if picked.iter().all(|p| self.items.iter().any(|x| same(x, p))) {
+            self.items.retain(|x| !picked.iter().any(|p| same(x, p)));
         } else {
             for p in picked {
-                if !self.items.iter().any(|x| same_item(x, &p)) {
+                if !self.items.iter().any(|x| same(x, &p)) {
                     self.items.push(p);
                 }
             }
