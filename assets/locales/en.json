@@ -881,6 +881,7 @@
   "ui.agent_chat_no_cli": "solidcraft-cli was not found next to the app, so the agent can't reach the design.",
   "ui.agent_chat_no_control": "The agent chat's endpoint did not start, so the agent can't reach the design.",
   "ui.agent_chat_no_images": "This agent doesn't take pictures",
+  "ui.agent_chat_node_too_old": "Node.js {version} is too old for this agent. Install Node.js 20.10 or newer (22 LTS recommended) so that it comes first on the PATH, or replace the system's Node, then press Connect again.",
   "ui.agent_chat_none_found": "No coding agent found. Install one of these, then press Refresh:",
   "ui.agent_chat_none_found_short": "No agent found",
   "ui.agent_chat_not_installed": "Not installed",

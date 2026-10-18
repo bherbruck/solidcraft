@@ -255,9 +255,82 @@ pub fn runnable_sibling(program: &Path) -> Option<PathBuf> {
     names_for(name, true).into_iter().map(|n| dir.join(n)).find(|p| p.is_file())
 }
 
+/// Whether Node.js `major.minor` can run the npm ACP adapters. They load JSON with import
+/// attributes (`import … with { type: "json" }`), which Node reads from 18.20, 20.10 and 21 on;
+/// an older one stops at once with `SyntaxError: Unexpected token 'with'`.
+fn node_runs_adapters((major, minor): (u32, u32)) -> bool {
+    match major {
+        18 => minor >= 20,
+        20 => minor >= 10,
+        m => m >= 21,
+    }
+}
+
+/// `v18.19.1` (what `node --version` prints, and the `Node.js v18.19.1` line Node ends an
+/// uncaught error with) as `(18, 19)`.
+fn node_version_of(text: &str) -> Option<(u32, u32)> {
+    let v = text.trim().strip_prefix("Node.js").unwrap_or(text).trim().strip_prefix('v')?;
+    let mut parts = v.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.split(|c: char| !c.is_ascii_digit()).next()?.parse().ok()?;
+    Some((major, minor))
+}
+
+/// Whether `program` is a script that asks `env` for `node` (`#!/usr/bin/env node`, as npm's
+/// adapters are), so the PATH decides which Node runs it.
+fn runs_on_env_node(program: &Path) -> bool {
+    let mut head = [0u8; 256];
+    let n = std::fs::File::open(program).and_then(|mut f| std::io::Read::read(&mut f, &mut head)).unwrap_or(0);
+    let first = head.get(..n).unwrap_or_default().split(|&b| b == b'\n').next().unwrap_or_default();
+    let Some(line) = std::str::from_utf8(first).ok().and_then(|l| l.strip_prefix("#!")) else { return false };
+    let mut words = line.split_whitespace();
+    if !words.next().is_some_and(|w| w.ends_with("/env")) {
+        return false;
+    }
+    // `env -S node --flag` and `env node` both name it as the first word that isn't an option.
+    words.find(|w| !w.starts_with('-')).is_some_and(|w| w == "node")
+}
+
+/// The Node.js version in an agent's last stderr lines, when it is one the adapters can't run on:
+/// the panel then says so instead of leaving only Node's own syntax error.
+pub(super) fn node_too_old_in(tail: &[String]) -> Option<String> {
+    let line = tail.iter().rev().map(|l| l.trim()).find(|l| l.starts_with("Node.js v"))?;
+    let v = node_version_of(line)?;
+    (!node_runs_adapters(v)).then(|| line.trim_start_matches("Node.js ").to_string())
+}
+
+/// `dirs` for starting `program`, with one change: when `program` runs on `env node` and the
+/// first `node` in `dirs` is too old for it (Ubuntu's packaged Node ahead of a newer one from
+/// nvm, say), the folder of the first `node` that can run it is moved to the front. Otherwise
+/// `dirs` is returned as it is. `probe` reads a `node`'s version.
+fn dirs_for(program: &Path, mut dirs: Vec<PathBuf>, probe: impl Fn(&Path) -> Option<(u32, u32)>) -> Vec<PathBuf> {
+    if !cfg!(unix) || !runs_on_env_node(program) {
+        return dirs;
+    }
+    let nodes: Vec<usize> = dirs.iter().enumerate().filter(|(_, d)| d.join("node").is_file()).map(|(i, _)| i).take(16).collect();
+    let Some(&first) = nodes.first() else { return dirs };
+    let ok = |i: usize| dirs.get(i).and_then(|d| probe(&d.join("node"))).is_some_and(node_runs_adapters);
+    if ok(first) {
+        return dirs;
+    }
+    if let Some(better) = nodes.iter().skip(1).copied().find(|&i| ok(i)) {
+        let d = dirs.remove(better);
+        dirs.insert(0, d);
+    }
+    dirs
+}
+
+/// `node --version` of the `node` at `path`.
+fn node_version(path: &Path) -> Option<(u32, u32)> {
+    let mut cmd = Command::new(path);
+    cmd.arg("--version");
+    first_line(cmd, Duration::from_secs(2)).as_deref().and_then(node_version_of)
+}
+
 /// Start probes and sessions with the same PATH used for discovery. Desktop launchers often
 /// omit Node's install folder even when we found an adapter with a `#!/usr/bin/env node` shebang.
-/// Only the child's environment changes; inherited absolute PATH entries keep precedence.
+/// Only the child's environment changes; inherited absolute PATH entries keep precedence, except
+/// that a Node too old to run the adapter gives way to a newer one found later ([`dirs_for`]).
 pub(super) fn command_for(program: &Path) -> Command {
     // Older saved Windows commands may name npm's bare Unix script rather than its .cmd shim.
     let shim = if cfg!(windows) { runnable_sibling(program) } else { None };
@@ -269,7 +342,7 @@ pub(super) fn command_for(program: &Path) -> Command {
     } else {
         Command::new(program)
     };
-    if let Ok(path) = std::env::join_paths(search_dirs()) {
+    if let Ok(path) = std::env::join_paths(dirs_for(program, search_dirs(), node_version)) {
         cmd.env("PATH", path);
     }
     cmd
@@ -278,13 +351,19 @@ pub(super) fn command_for(program: &Path) -> Command {
 /// `program --version`'s first line, or `None` after `limit` (the probe is then stopped).
 fn version(program: &Path, limit: Duration) -> Option<String> {
     let mut cmd = command_for(program);
+    cmd.arg("--version");
+    first_line(cmd, limit).map(|line| version_of(&line))
+}
+
+/// The first non-empty line `cmd` prints, or `None` after `limit` (it is then stopped).
+fn first_line(mut cmd: Command, limit: Duration) -> Option<String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         // CREATE_NO_WINDOW: probing a console agent doesn't flash a terminal window.
         cmd.creation_flags(0x0800_0000);
     }
-    let mut child = cmd.arg("--version").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
+    let mut child = cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
     let start = Instant::now();
     loop {
         match child.try_wait() {
@@ -299,8 +378,7 @@ fn version(program: &Path, limit: Duration) -> Option<String> {
     }
     let mut out = String::new();
     std::io::Read::read_to_string(&mut child.stdout.take()?, &mut out).ok()?;
-    let line = out.lines().map(str::trim).find(|l| !l.is_empty())?;
-    Some(version_of(line))
+    out.lines().map(str::trim).find(|l| !l.is_empty()).map(str::to_string)
 }
 
 /// The version number in a `--version` line (`codex-cli 0.162.1`, `2.1.295 (Claude Code)`,
@@ -396,6 +474,65 @@ mod tests {
         assert_eq!(version_of("goose v1.9.0"), "v1.9.0");
         assert_eq!(version_of("grok 1.0.58 (26283d10dd58) [alpha]"), "1.0.58");
         assert_eq!(version_of("dev build"), "dev build");
+    }
+
+    #[test]
+    fn node_versions_that_read_import_attributes() {
+        assert_eq!(node_version_of("v18.19.1"), Some((18, 19)));
+        assert_eq!(node_version_of("Node.js v22.11.0"), Some((22, 11)));
+        assert_eq!(node_version_of("v20.10.0-nightly"), Some((20, 10)));
+        assert_eq!(node_version_of("node: not found"), None);
+        // Ubuntu 24.04's packaged Node (18.19) stops at `with`; 18.20, 20.10 and 21 on read it.
+        for (v, ok) in [((18, 19), false), ((18, 20), true), ((19, 9), false), ((20, 9), false), ((20, 10), true), ((21, 0), true), ((24, 1), true)] {
+            assert_eq!(node_runs_adapters(v), ok, "{v:?}");
+        }
+    }
+
+    #[test]
+    fn an_agents_stderr_tells_when_its_node_is_too_old() {
+        let tail = |last: &str| {
+            ["SyntaxError: Unexpected token 'with'", "    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:152:18)", "", last]
+                .map(String::from)
+        };
+        assert_eq!(node_too_old_in(&tail("Node.js v18.19.1")).as_deref(), Some("v18.19.1"));
+        assert_eq!(node_too_old_in(&tail("Node.js v22.11.0")), None, "a new enough Node failed for another reason");
+        assert_eq!(node_too_old_in(&tail("error: not signed in")), None);
+        assert_eq!(node_too_old_in(&[]), None);
+    }
+
+    /// Ubuntu's packaged Node 18.19 in /usr/bin comes before nvm's folders in the desktop PATH,
+    /// and an adapter with `#!/usr/bin/env node` would run on it and stop at its first import.
+    /// The first `node` that can run it is moved to the front; nothing else changes.
+    #[test]
+    #[cfg(unix)]
+    fn an_env_node_adapter_skips_a_node_too_old_for_it() {
+        let root = std::env::temp_dir().join(format!("sc-agent-node-{}", std::process::id()));
+        let (old, other, new, bin) = (root.join("usr-bin"), root.join("other"), root.join("nvm-22"), root.join("adapters"));
+        for d in [&old, &other, &new, &bin] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(old.join("node"), "18").unwrap();
+        std::fs::write(new.join("node"), "22").unwrap();
+        let adapter = bin.join("claude-agent-acp");
+        std::fs::write(&adapter, "#!/usr/bin/env node\nimport pkg from './package.json' with { type: 'json' };\n").unwrap();
+        let native = bin.join("goose");
+        std::fs::write(&native, "\x7fELF").unwrap();
+        // The fake `node`s hold their major version; nothing is started.
+        let probe = |p: &Path| std::fs::read_to_string(p).ok().and_then(|s| s.parse().ok()).map(|m| (m, if m == 18 { 19 } else { 11 }));
+        let dirs = vec![old.clone(), other.clone(), new.clone()];
+
+        assert_eq!(dirs_for(&adapter, dirs.clone(), probe), [new.clone(), old.clone(), other.clone()]);
+        // A new enough first Node, a program that isn't a Node script, or no better Node: unchanged.
+        assert_eq!(dirs_for(&adapter, vec![new.clone(), old.clone()], probe), [new.clone(), old.clone()]);
+        assert_eq!(dirs_for(&native, dirs.clone(), probe), dirs);
+        assert_eq!(dirs_for(&adapter, vec![old.clone(), other.clone()], probe), [old.clone(), other.clone()]);
+
+        std::fs::write(&adapter, "#!/usr/bin/env -S node --no-warnings\n").unwrap();
+        assert!(runs_on_env_node(&adapter));
+        std::fs::write(&adapter, "#!/bin/sh\nexec node \"$0\"\n").unwrap();
+        assert!(!runs_on_env_node(&adapter), "a shell script picks its Node itself");
+        assert!(!runs_on_env_node(&root.join("missing")));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

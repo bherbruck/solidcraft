@@ -405,9 +405,16 @@ impl AgentChat {
             Event::Exited { tail } => {
                 self.state = Some(State::Exited);
                 self.steering = false;
+                #[cfg(not(target_arch = "wasm32"))]
+                let old_node = discover::node_too_old_in(&tail);
+                #[cfg(target_arch = "wasm32")]
+                let old_node: Option<String> = None;
                 let last: Vec<String> = tail.into_iter().rev().take(6).collect::<Vec<_>>().into_iter().rev().collect();
                 let detail = if last.is_empty() { String::new() } else { format!("\n{}", last.join("\n")) };
                 self.notice(format!("{}{detail}", tr("ui.agent_chat_exited")), true);
+                if let Some(version) = old_node {
+                    self.notice(trf("ui.agent_chat_node_too_old", &[("version", &version)]), true);
+                }
                 self.stop_backend(false);
                 return Some(Outcome::TurnEnd);
             }
