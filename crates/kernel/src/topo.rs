@@ -22,7 +22,7 @@ pub struct TopoCounts {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Surf {
+pub(crate) enum Surf {
     Plane { n: Vec3, d: f64 },
     Cylinder { axis: Vec3, p: Vec3, r: f64 },
     Sphere { c: Vec3, r: f64 },
@@ -40,7 +40,7 @@ impl Surf {
             Surf::Other(_) => "other",
         }
     }
-    fn same(&self, o: &Surf, tol: f64) -> bool {
+    pub(crate) fn same(&self, o: &Surf, tol: f64) -> bool {
         match (*self, *o) {
             (Surf::Plane { n, d }, Surf::Plane { n: n2, d: d2 }) => n.dot(n2) > 1.0 - 1e-9 && (d - d2).abs() < tol,
             (Surf::Cylinder { axis, p, r }, Surf::Cylinder { axis: a2, p: p2, r: r2 }) => {
@@ -331,7 +331,7 @@ fn fit_sphere(pts: &[Vec3]) -> Option<(Vec3, f64)> {
     (r2 > 0.0 && r2.is_finite()).then(|| (c + m, r2.sqrt()))
 }
 
-fn classify_faces(b: &Body, mesh: &Mesh, nf: usize, tol: f64) -> Vec<Surf> {
+pub(crate) fn classify_faces(b: &Body, mesh: &Mesh, nf: usize, tol: f64) -> Vec<Surf> {
     let mut pts: Vec<Vec<Vec3>> = vec![Vec::new(); nf];
     let mut nrm: Vec<Vec<Vec3>> = vec![Vec::new(); nf];
     for (t, f) in mesh.triangles.iter().zip(&mesh.tri_face) {
@@ -643,40 +643,99 @@ pub struct CylinderFace {
     pub internal: bool,
 }
 
+/// A body's mesh at the fine tolerance the cylinder lookups use, with its faces' surfaces.
+type Surfaces = std::sync::Arc<(Mesh, Vec<Surf>)>;
+
+/// The surfaces of the last bodies looked up, by solid: a joint on a round face finds its
+/// cylinder again on every joint solve, and seating many parts finds many on one body.
+static SURFACES: std::sync::Mutex<Vec<(std::sync::Weak<crate::body::Solid>, Surfaces)>> = std::sync::Mutex::new(Vec::new());
+
+/// Bodies whose surfaces are kept (an assembly of a few hundred parts is looked up again and again).
+const KEEP_SURFACES: usize = 256;
+
+fn surfaces(b: &Body) -> Option<Surfaces> {
+    let size = b.size();
+    let compute = || -> Option<Surfaces> {
+        let mesh = b.tessellate(mesh_tol(size)).ok()?;
+        let surfs = classify_faces(b, &mesh, b.face_count(), (size * 1e-4).max(1e-6));
+        Some(std::sync::Arc::new((mesh, surfs)))
+    };
+    if b.mesh.is_some() {
+        return compute();
+    }
+    let key = std::sync::Arc::downgrade(&b.solid);
+    if let Ok(cache) = SURFACES.lock()
+        && let Some((_, hit)) = cache.iter().find(|(k, _)| k.ptr_eq(&key))
+    {
+        return Some(hit.clone());
+    }
+    let made = compute()?;
+    if let Ok(mut cache) = SURFACES.lock() {
+        cache.retain(|(k, _)| k.strong_count() > 0);
+        cache.insert(0, (key, made.clone()));
+        cache.truncate(KEEP_SURFACES);
+    }
+    Some(made)
+}
+
 pub fn cylinder_face_at(b: &Body, p: Vec3) -> Option<CylinderFace> {
     let size = b.size();
-    let mesh = b.tessellate((size * 1e-3).max(1e-3)).ok()?;
-    // The face of the triangle nearest the point.
-    let mut best: Option<(f64, u32)> = None;
+    let cached = surfaces(b)?;
+    let (mesh, surfs) = (&cached.0, &cached.1);
+    // Each face's distance from the point (its nearest triangle).
+    let mut near: HashMap<u32, f64> = HashMap::new();
     for (t, f) in mesh.triangles.iter().zip(&mesh.tri_face) {
         let Some([a, bb, c]) = mesh.tri(t) else { continue };
-        let d = ((a + bb + c) / 3.0).dist(p).min(a.dist(p)).min(bb.dist(p)).min(c.dist(p));
-        if best.is_none_or(|(bd, _)| d < bd) {
-            best = Some((d, *f));
-        }
+        let d = crate::boolean_guard::point_triangle_dist(p, a, bb, c);
+        near.entry(*f).and_modify(|x| *x = x.min(d)).or_insert(d);
     }
-    let (d, face) = best?;
-    if d > size * 0.05 {
+    let nearest = near.values().copied().fold(f64::INFINITY, f64::min);
+    if nearest > size * 0.05 {
         return None;
     }
-    let nf = b.face_count();
-    let tol = (size * 1e-4).max(1e-6);
-    let surfs = classify_faces(b, &mesh, nf, tol);
-    let Surf::Cylinder { axis, p: ap, r } = *surfs.get(face as usize)? else { return None };
-    Some(cylinder_extent(&mesh, face, axis, ap, r))
+    // The facets of a curved face lie off it by up to the mesh's tolerance, so the triangle
+    // nearest a point on a hole's wall can be one of the face round its rim (they share the
+    // rim's points; in a thin plate of a large body, whose mesh is coarse, the wall is a few
+    // long facets). Of the faces within that tolerance of the nearest, the point lies on the
+    // one whose own surface it is nearest (a cylinder: within its extent).
+    let tol = mesh_tol(size);
+    let mut best: Option<(f64, u32, Option<CylinderFace>)> = None;
+    let mut faces: Vec<(u32, f64)> = near.into_iter().filter(|(_, d)| *d <= nearest + tol).collect();
+    faces.sort_by_key(|(f, _)| *f);
+    for (face, d) in faces {
+        let (off, cyl) = match surfs.get(face as usize) {
+            Some(Surf::Plane { n, d: k }) => (d.min((n.dot(p) - k).abs()), None),
+            Some(Surf::Cylinder { axis, p: ap, r }) => {
+                let c = cylinder_extent(mesh, face, *axis, *ap, *r);
+                let v = p - c.axis_point;
+                let along = v.dot(c.axis);
+                let surface = ((v - c.axis * along).len() - c.radius).abs() + (c.start - along).max(along - c.end).max(0.0);
+                (d.min(surface), Some(c))
+            }
+            _ => (d, None),
+        };
+        if best.as_ref().is_none_or(|(bo, ..)| off < *bo) {
+            best = Some((off, face, cyl));
+        }
+    }
+    best?.2
+}
+
+/// The chord tolerance the cylinder lookups mesh a body of this size at.
+fn mesh_tol(size: f64) -> f64 {
+    (size * 1e-3).max(1e-3)
 }
 
 /// The cylindrical face one of whose end circles is centred at `p` (a circle given by its
 /// centre, where no face lies), the nearest when several are.
 pub fn cylinder_end_at(b: &Body, p: Vec3) -> Option<CylinderFace> {
-    let size = b.size();
-    let tol = (size * 1e-3).max(1e-3);
-    let mesh = b.tessellate(tol).ok()?;
-    let surfs = classify_faces(b, &mesh, b.face_count(), (size * 1e-4).max(1e-6));
+    let tol = (b.size() * 1e-3).max(1e-3);
+    let cached = surfaces(b)?;
+    let (mesh, surfs) = (&cached.0, &cached.1);
     let mut best: Option<(f64, CylinderFace)> = None;
     for (face, s) in surfs.iter().enumerate() {
         let Surf::Cylinder { axis, p: ap, r } = *s else { continue };
-        let c = cylinder_extent(&mesh, u32::try_from(face).ok()?, axis, ap, r);
+        let c = cylinder_extent(mesh, u32::try_from(face).ok()?, axis, ap, r);
         let v = p - c.axis_point;
         let along = v.dot(c.axis);
         let off = (v - c.axis * along).len() + (along - c.start).abs().min((c.end - along).abs());

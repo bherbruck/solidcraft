@@ -1480,3 +1480,48 @@ fn interference_of_a_pin_a_hair_off_its_hole() {
         assert!((i["interferences"][0]["near_coaxial"]["offset_mm"].as_f64().unwrap_or(0.0) - offset).abs() < 1e-9, "{i}");
     }
 }
+
+#[test]
+fn a_pick_on_a_small_hole_in_a_thin_sheet_of_a_large_body_takes_that_hole() {
+    // A 2 mm sheet 2.4 m long is meshed coarsely for the cylinder lookups: a 5 mm hole's wall is
+    // a few long facets, and the facet nearest a point on the wall can be one of the sheet's
+    // face round the rim (they share the rim's points). Every point round each wall, just in
+    // from either face, takes that hole, with its axis through the hole's centre.
+    let mut s = Session::default();
+    let xs = [-900.0, -600.0, -326.3, -296.3, 296.3, 326.3, 600.0, 900.0];
+    for (name, z) in [("Outer", 0), ("Inner", 2)] {
+        run(
+            &mut s,
+            "solid.box",
+            json!({"length": 2400, "width": 300, "height": 2, "corner": [-1200, -150, z], "operation": "new", "body_name": name}),
+        );
+        for x in xs {
+            run(
+                &mut s,
+                "solid.cylinder",
+                json!({"radius": 2.5, "height": 10, "base": [x, 0, -3], "axis": [0, 0, 1], "operation": "cut", "targets": [name]}),
+            );
+        }
+    }
+    let mut missed = Vec::new();
+    for x in xs {
+        for z in [0.5, 1.5, 2.5, 3.5] {
+            for k in 0..16 {
+                let a = f64::from(k) * std::f64::consts::PI / 8.0;
+                let p = [x + 2.5 * a.cos(), 2.5 * a.sin(), z];
+                let name = format!("O{}", s.doc.assembly.origins.len());
+                match s.execute("joint.origin", &json!({"circle": p, "name": name})) {
+                    Ok(_) => {
+                        let o = s.doc.assembly.origins.iter().find(|o| o.name == name).map(|o| o.origin.clone());
+                        let f = o.and_then(|o| solidcraft_doc::joints::resolve_origin(&s.doc, &s.model.state(), &o).ok());
+                        if !f.is_some_and(|f| (f[3][0] - x).abs() < 1e-3 && f[3][1].abs() < 1e-3) {
+                            missed.push((p, format!("{f:?}")));
+                        }
+                    }
+                    Err(e) => missed.push((p, e.to_string())),
+                }
+            }
+        }
+    }
+    assert!(missed.is_empty(), "{} of {} picks missed their hole: {missed:?}", missed.len(), xs.len() * 4 * 16);
+}

@@ -1,7 +1,10 @@
 //! Insert Part: the standard parts library (screws, bolts, nuts, washers, set screws, pins,
-//! bearings) by family, size and length, with the size's table values and a picture of the part.
+//! bearings, and the families of open part libraries) by family, size and length, with the
+//! size's table values and a picture of the part.
 //! Picking a hole (its wall or rim) seats the part in it with a rigid joint; without one the part
-//! goes at the origin. The live preview shows it placed.
+//! goes at the origin. **Fill hole stacks** puts one in every stack of holes lined up through
+//! touching parts instead (`parts.fasten`), each sized to its holes and grip. The live preview
+//! shows them placed.
 
 use egui::{RichText, vec2};
 use serde_json::{Value, json};
@@ -21,6 +24,17 @@ pub struct Family {
     /// Size names and their table rows.
     pub sizes: Vec<(String, Value)>,
     pub lengths: Option<Vec<f64>>,
+}
+
+impl Family {
+    /// The lengths size `size` comes in: a library family lists them per size (each with the
+    /// grip it holds), a built-in one for the whole family.
+    pub fn lengths_of(&self, size: usize) -> Option<Vec<f64>> {
+        match self.sizes.get(size).and_then(|(_, row)| row.get("lengths")).and_then(Value::as_array) {
+            Some(ls) => Some(ls.iter().filter_map(|l| l.get("length").and_then(Value::as_f64)).collect()),
+            None => self.lengths.clone(),
+        }
+    }
 }
 
 /// The library as `parts.library` gives it.
@@ -60,13 +74,15 @@ pub struct Pt {
     pub picture: Option<(usize, usize, Option<usize>)>,
     /// The library, read once.
     pub lib: Option<Vec<Family>>,
+    /// Fill every hole stack (`parts.fasten`) instead of inserting one part.
+    pub fill: bool,
 }
 
 /// The dialog for Insert Part.
 pub fn start(_app: &SolveApp, id: &str) -> Option<(Kind, Vec<SelInput>)> {
     matches!(id, "parts.fastener" | "parts.insert").then(|| {
         (
-            Kind::Part(Pt { family: 0, size: 0, length: None, name: String::new(), picture: None, lib: None }),
+            Kind::Part(Pt { family: 0, size: 0, length: None, name: String::new(), picture: None, lib: None, fill: false }),
             vec![SelInput::new("Hole (optional)", FACES | EDGES, false)],
         )
     })
@@ -81,7 +97,7 @@ pub fn insert_params(lib: &[Family], k: &Pt, hole: Option<&Sel>) -> Result<Value
     let f = lib.get(k.family).ok_or("the parts library is empty")?;
     let (size, _) = f.sizes.get(k.size).ok_or("pick a size")?;
     let mut p = json!({"family": f.id, "size": size});
-    if let Some(l) = k.length.and_then(|i| f.lengths.as_ref().and_then(|ls| ls.get(i))) {
+    if let Some(l) = k.length.and_then(|i| f.lengths_of(k.size).and_then(|ls| ls.get(i).copied())) {
         p["length"] = json!(l);
     }
     match hole {
@@ -95,6 +111,13 @@ pub fn insert_params(lib: &[Family], k: &Pt, hole: Option<&Sel>) -> Result<Value
         p["name"] = json!(k.name.trim());
     }
     Ok(p)
+}
+
+/// The fill command's parameters: the family, each stack's size and length chosen by its holes
+/// and grip.
+pub fn fill_params(lib: &[Family], k: &Pt) -> Result<Value, String> {
+    let f = lib.get(k.family).ok_or("the parts library is empty")?;
+    Ok(json!({"family": f.id}))
 }
 
 /// A picture of the part alone.
@@ -141,9 +164,13 @@ pub fn rows(app: &mut SolveApp, ui: &mut egui::Ui, k: &mut Pt, inputs: &[SelInpu
     let Some(f) = lib.get(k.family) else { return false };
     let sizes: Vec<&str> = f.sizes.iter().map(|s| s.0.as_str()).collect();
     row_label(ui, "Size");
+    let before = k.size;
     combo(ui, "pt_size", &sizes, &mut k.size);
     ui.end_row();
-    if let Some(ls) = &f.lengths {
+    if k.size != before && f.sizes.get(before).is_some_and(|(_, row)| row.get("lengths").is_some()) {
+        k.length = None;
+    }
+    if let Some(ls) = &f.lengths_of(k.size) {
         let mut labels = vec!["Default".to_string()];
         labels.extend(ls.iter().map(|l| crate::prefs::show_mm(app, *l, 1)));
         let refs: Vec<&str> = labels.iter().map(String::as_str).collect();
@@ -153,9 +180,18 @@ pub fn rows(app: &mut SolveApp, ui: &mut egui::Ui, k: &mut Pt, inputs: &[SelInpu
         k.length = i.checked_sub(1);
         ui.end_row();
     }
-    row_label(ui, "Name");
-    ui.add(egui::TextEdit::singleline(&mut k.name).hint_text("automatic"));
+    row_label(ui, "Fill hole stacks");
+    crate::dialogs::check(ui, &mut k.fill);
     ui.end_row();
+    if k.fill {
+        row_label(ui, "");
+        ui.label(RichText::new(crate::i18n::tr_label("one in every hole stack, sized to its holes and grip")).color(t.text_dim));
+        ui.end_row();
+    } else {
+        row_label(ui, "Name");
+        ui.add(egui::TextEdit::singleline(&mut k.name).hint_text("automatic"));
+        ui.end_row();
+    }
     // The part, and its table values.
     let key = (k.family, k.size, k.length);
     let tex_id = egui::Id::new("sc_part_picture");
@@ -185,13 +221,14 @@ pub fn rows(app: &mut SolveApp, ui: &mut egui::Ui, k: &mut Pt, inputs: &[SelInpu
     if let Some((_, row)) = f.sizes.get(k.size)
         && let Some(o) = row.as_object()
     {
-        for (key, v) in o.iter().filter(|(key, _)| key.as_str() != "size") {
+        // A library size's lengths are the Length row's choices already.
+        for (key, v) in o.iter().filter(|(key, _)| !matches!(key.as_str(), "size" | "lengths")) {
             row_label(ui, &key.replace('_', " "));
             ui.label(RichText::new(v.as_f64().map(|x| crate::prefs::show_mm(app, x, 1)).unwrap_or_else(|| v.to_string())).color(t.text_dim));
             ui.end_row();
         }
     }
-    if inputs.first().is_some_and(|i| i.items.is_empty()) {
+    if !k.fill && inputs.first().is_some_and(|i| i.items.is_empty()) {
         row_label(ui, "");
         ui.label(RichText::new(crate::i18n::tr_label("pick a hole to seat it, or OK places it at the origin")).color(t.text_dim));
         ui.end_row();
@@ -205,6 +242,9 @@ pub fn commands(app: &SolveApp, k: &Pt, inputs: &[SelInput]) -> Result<Vec<(Stri
         Some(l) => l.clone(),
         None => app.session.scratch().execute("parts.library", &json!({})).map(|v| families(&v)).unwrap_or_default(),
     };
+    if k.fill {
+        return Ok(vec![("parts.fasten".into(), fill_params(&lib, k)?)]);
+    }
     let p = insert_params(&lib, k, inputs.first().and_then(|i| i.items.first()))?;
     // The toolbar's command when the engine has it (same parameters).
     let id = if solidcraft_engine::find_command("parts.fastener").is_some() { "parts.fastener" } else { "parts.insert" };
@@ -237,15 +277,38 @@ mod tests {
     #[test]
     fn insert_params_for_picks() {
         let l = lib();
-        let k = Pt { family: 0, size: 1, length: Some(2), name: String::new(), picture: None, lib: None };
+        let k = Pt { family: 0, size: 1, length: Some(2), name: String::new(), picture: None, lib: None, fill: false };
         let hole = Sel::Face { body: "Body1".into(), index: 3, point: Vec3::new(5.0, 0.0, 10.0) };
         let p = insert_params(&l, &k, Some(&hole)).unwrap();
         assert_eq!(p, json!({"family": "socket_head_cap_screw", "size": "M6", "length": 20.0, "at": [5.0, 0.0, 10.0]}));
-        let k = Pt { family: 1, size: 0, length: None, name: "Front bearing".into(), picture: None, lib: None };
+        let k = Pt { family: 1, size: 0, length: None, name: "Front bearing".into(), picture: None, lib: None, fill: false };
         let p = insert_params(&l, &k, None).unwrap();
         assert_eq!(p["point"], json!([0.0, 0.0, 0.0]));
         assert_eq!(p["name"], "Front bearing");
         assert!(p.get("length").is_none());
         assert!(insert_params(&[], &k, None).is_err());
+    }
+
+    /// Fill hole stacks runs parts.fasten for the family, sized by each stack.
+    #[test]
+    fn fill_runs_fasten_for_the_family() {
+        let l = lib();
+        let k = Pt { family: 0, size: 1, length: Some(2), name: String::new(), picture: None, lib: None, fill: true };
+        assert_eq!(fill_params(&l, &k).unwrap(), json!({"family": "socket_head_cap_screw"}));
+        assert!(fill_params(&[], &k).is_err());
+    }
+
+    /// A library family's lengths come from the picked size.
+    #[test]
+    fn library_sizes_carry_their_own_lengths() {
+        let l = families(&json!({"families": [
+            {"family": "rivet_dome", "name": "Rivet", "standard": "", "source": "example.rivets", "lengths": [6, 8, 12],
+             "sizes": [{"size": "4.0", "lengths": [{"length": 6, "grip": [1, 3]}, {"length": 8, "grip": [3, 5]}]},
+                       {"size": "4.8", "lengths": [{"length": 12, "grip": [6, 8]}]}]},
+        ]}));
+        assert_eq!(l[0].lengths_of(0), Some(vec![6.0, 8.0]));
+        assert_eq!(l[0].lengths_of(1), Some(vec![12.0]));
+        let k = Pt { family: 0, size: 1, length: Some(0), name: String::new(), picture: None, lib: None, fill: false };
+        assert_eq!(insert_params(&l, &k, None).unwrap()["length"], json!(12.0));
     }
 }

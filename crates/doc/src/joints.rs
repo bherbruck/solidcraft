@@ -388,13 +388,48 @@ fn component_of(doc: &Document, occ: u64) -> Result<u64> {
 /// Resolve a joint origin to a frame in its component's coordinates.
 /// A snap's pick point moved onto its named face (an error when the face is gone: a joint must
 /// not quietly attach elsewhere).
-fn named_pick(st: &ModelState, pick: Vec3, face: Option<&str>) -> Result<Vec3> {
-    match face {
-        Some(n) => crate::naming::point_on_face(st, n, pick)
-            .map(|(q, _)| q)
-            .ok_or_else(|| DocError::Invalid(format!("joint origin: the face `{n}` no longer exists (edit the joint to pick again)"))),
-        None => Ok(pick),
+fn named_pick(doc: &Document, st: &ModelState, pick: Vec3, face: Option<&str>) -> Result<Vec3> {
+    let Some(n) = face else { return Ok(pick) };
+    let gone = || DocError::Invalid(format!("joint origin: the face `{n}` no longer exists (edit the joint to pick again)"));
+    let hit = crate::name_lookup::locate_face(st, n, pick).ok_or_else(gone)?;
+    // A body moved in from another component keeps its geometry where it was made (its
+    // offset places it): the pick, in the component's coordinates, is taken to the body's own
+    // and the point found brought back.
+    match st.bodies.get(hit.body).and_then(|b| doc.model_body_offset(b).map(|m| (b, m))) {
+        Some((b, m)) => {
+            let q = body_point(m, pick).ok_or_else(gone)?;
+            crate::naming::face_on_body(b, n, q).map(|(_, at, _)| apply_point(m, at)).ok_or_else(gone)
+        }
+        None => Ok(hit.point),
     }
+}
+
+/// A point in a component's coordinates taken into the coordinates of a body placed by `offset`.
+fn body_point(offset: &Mat, p: Vec3) -> Option<Vec3> {
+    mat_inverse(offset).map(|inv| apply_point(&inv, p))
+}
+
+/// The cylindrical face of a component's body at `pick` (the component's coordinates), in the
+/// component's coordinates: a body moved in from another component is looked up where its
+/// geometry is, through its offset.
+pub fn cylinder_face_at(doc: &Document, b: &crate::ModelBody, pick: Vec3) -> Option<solidcraft_kernel::CylinderFace> {
+    placed_cylinder(doc, b, pick, solidcraft_kernel::cylinder_face_at)
+}
+
+/// [`cylinder_face_at`] for a cylinder one of whose end circles is centred at `pick`.
+pub fn cylinder_end_at(doc: &Document, b: &crate::ModelBody, pick: Vec3) -> Option<solidcraft_kernel::CylinderFace> {
+    placed_cylinder(doc, b, pick, solidcraft_kernel::cylinder_end_at)
+}
+
+fn placed_cylinder(
+    doc: &Document,
+    b: &crate::ModelBody,
+    pick: Vec3,
+    find: fn(&solidcraft_kernel::Body, Vec3) -> Option<solidcraft_kernel::CylinderFace>,
+) -> Option<solidcraft_kernel::CylinderFace> {
+    let Some(m) = doc.model_body_offset(b) else { return find(&b.body, pick) };
+    let c = find(&b.body, body_point(m, pick)?)?;
+    Some(solidcraft_kernel::CylinderFace { axis_point: apply_point(m, c.axis_point), axis: apply_vector(m, c.axis), ..c })
 }
 
 pub fn resolve_origin(doc: &Document, st: &ModelState, o: &JointOrigin) -> Result<Mat> {
@@ -403,16 +438,18 @@ pub fn resolve_origin(doc: &Document, st: &ModelState, o: &JointOrigin) -> Resul
         Snap::Frame { origin, z, x } => frame(*origin, *z, *x).ok_or_else(bad),
         Snap::Point { point, z } => frame(*point, z.unwrap_or(Vec3::Z), None).ok_or_else(bad),
         Snap::FaceCenter { pick, face } => {
-            let pick = &named_pick(st, *pick, face.as_deref())?;
+            let pick = named_pick(doc, st, *pick, face.as_deref())?;
             let comp = component_of(doc, o.occurrence)?;
             let mut best: Option<(f64, Vec3, Vec3)> = None;
             for b in component_bodies(doc, st, comp) {
                 let tol = (b.body.size() * 2e-3).max(1e-3);
+                let m = doc.model_body_offset(b).copied().unwrap_or(IDENTITY);
                 for f in b.body.faces(tol)? {
                     let Some(n) = f.plane_normal else { continue };
-                    let d = (*pick - f.centroid).dot(n).abs() + 1e-3 * (*pick - f.centroid).len();
+                    let (c, n) = (apply_point(&m, f.centroid), apply_vector(&m, n));
+                    let d = (pick - c).dot(n).abs() + 1e-3 * (pick - c).len();
                     if best.as_ref().is_none_or(|(bd, _, _)| d < *bd) {
-                        best = Some((d, f.centroid, n));
+                        best = Some((d, c, n));
                     }
                 }
             }
@@ -432,15 +469,18 @@ pub fn resolve_origin(doc: &Document, st: &ModelState, o: &JointOrigin) -> Resul
 /// (component coordinates). Any other snap is refused.
 fn circle_at(doc: &Document, st: &ModelState, o: &JointOrigin) -> Result<(Vec3, solidcraft_kernel::CylinderFace)> {
     let Snap::CircleCenter { pick, face } = &o.snap else { return Err(DocError::Invalid("pick a round face".into())) };
-    let pick = named_pick(st, *pick, face.as_deref())?;
+    let pick = named_pick(doc, st, *pick, face.as_deref())?;
     let comp = component_of(doc, o.occurrence)?;
     let cyl = component_bodies(doc, st, comp)
         .into_iter()
-        .filter_map(|b| solidcraft_kernel::cylinder_face_at(&b.body, pick))
+        .filter_map(|b| cylinder_face_at(doc, b, pick))
         .min_by(|a, b| {
+            // Off the wall, and past its ends: coaxial holes of two bodies have one radius, and
+            // the pick is on the wall of only one of them.
             let off = |c: &solidcraft_kernel::CylinderFace| {
                 let v = pick - c.axis_point;
-                ((v - c.axis * v.dot(c.axis)).len() - c.radius).abs()
+                let along = v.dot(c.axis);
+                ((v - c.axis * along).len() - c.radius).abs() + (c.start - along).max(along - c.end).max(0.0)
             };
             off(a).total_cmp(&off(b))
         })
