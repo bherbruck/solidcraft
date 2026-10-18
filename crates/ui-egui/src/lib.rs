@@ -706,6 +706,12 @@ impl SolveApp {
         if self.file_load.busy() || self.file_picker.is_some() {
             return;
         }
+        if id == "view.normal_to" {
+            if self.run(id, json!({"camera": self.cam})).is_ok() {
+                self.home.open = false;
+            }
+            return;
+        }
         // A disabled command starts nothing, however it was reached. The toolbar greys its
         // button, but a shortcut, the command palette and the control channel all land here.
         // Its reason goes to the status line, so the refusal is never silent.

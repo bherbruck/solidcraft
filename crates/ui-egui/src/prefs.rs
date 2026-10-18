@@ -1150,6 +1150,9 @@ fn page(app: &mut SolveApp, ui: &mut egui::Ui, t: &Tokens) {
             ui.end_row();
             if app.preferences.nav == TOUCHPAD_NAV {
                 note(ui, crate::i18n::tr("nav.touchpad.help"));
+            } else if app.preferences.nav == "solidworks" {
+                note(ui, crate::i18n::tr("nav.solidworks.help"));
+                note(ui, crate::i18n::tr("nav.solidworks.free_orbit"));
             } else {
                 let snap_help = if app.preferences.nav == OPENSCAD_NAV { "" } else { "; hold Shift during orbit to snap" };
                 let raw_help = format!("{}; Ctrl+left drag on empty space orbits{snap_help}; hold Space to pan; the wheel zooms", nav_preset(&app.preferences.nav).help);

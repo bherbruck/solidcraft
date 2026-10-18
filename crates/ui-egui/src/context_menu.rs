@@ -420,6 +420,10 @@ fn viewport_items(app: &SolveApp) -> Vec<Item> {
         let face = sel.iter().find_map(|s| if let Sel::Face { body, .. } = s { Some(body.clone()) } else { None }).unwrap_or_default();
         let (feature, sketch) = body_feature_and_sketch(app, &face);
         let hidden = app.session.visibility.hidden_bodies.contains(&face);
+        if app.preferences.nav == "solidworks" {
+            v.push(cmd(app, "view.normal_to", "Normal to Selection").with(json!({"camera": app.cam})));
+            v.push(Item::sep());
+        }
         v.push(cmd(app, "sketch.create", "Create Sketch"));
         v.push(cmd(app, "solid.extrude", "Extrude"));
         v.push(cmd(app, "construct.plane.offset", "Offset Plane"));
@@ -1879,6 +1883,35 @@ fn show_props(app: &mut SolveApp, ctx: &egui::Context) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn solidworks_face_menu_runs_normal_to_selection_and_rejects_curved_faces() {
+        let mut h = crate::scenario::Harness::new();
+        h.app.home.open = false;
+        h.app.run("solid.cylinder", json!({"diameter":30,"height":20})).unwrap();
+        let state = h.app.session.world_state();
+        let body = state.bodies.first().unwrap();
+        let faces = body.body.faces(0.1).unwrap();
+        let flat = faces.iter().find(|f| f.plane_normal.is_some()).unwrap();
+        let curved = faces.iter().find(|f| f.plane_normal.is_none()).unwrap();
+        h.app.session.selection = vec![Sel::Face { body: body.name.clone(), index: flat.index, point: flat.centroid }];
+        assert!(items(&h.app, &Target::Viewport).iter().all(|i| i.id != "view.normal_to"));
+        h.app.preferences.nav = "solidworks".into();
+        h.app.preferences.language = "ja".into();
+        h.settle();
+        let before = h.app.cam;
+        open_for(&mut h.app, pos2(800.0, 400.0), Target::Viewport);
+        h.settle();
+        assert!(items(&h.app, &Target::Viewport).iter().any(|i| i.id == "view.normal_to" && i.enabled));
+        h.step(&json!({"click":{"handle":"menu:view.normal_to"}})).unwrap();
+        h.frames(90);
+        assert!(h.app.cam.back().dist(flat.plane_normal.unwrap()) < 2e-6);
+        assert_eq!((h.app.cam.distance, h.app.cam.fov), (before.distance, before.fov));
+        assert!(h.app.viewport.context_menu.is_none());
+        assert_eq!(crate::i18n::Locale::for_language("ja").label("Normal to Selection"), "選択アイテムに垂直");
+        h.app.session.selection = vec![Sel::Face { body: body.name.clone(), index: curved.index, point: curved.centroid }];
+        assert!(items(&h.app, &Target::Viewport).iter().any(|i| i.id == "view.normal_to" && !i.enabled));
+    }
 
     #[test]
     fn viewport_right_click_keeps_list_menu_and_radial_is_opt_in() {

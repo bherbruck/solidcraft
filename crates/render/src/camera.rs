@@ -222,7 +222,7 @@ pub struct Camera {
     pub target: Vec3,
     /// Rotation about Z; 0 = looking along +Y (from the front).
     pub yaw: f64,
-    /// Elevation above the XY plane, in (−π/2, π/2].
+    /// Elevation above the XY plane, in [−π/2, π/2]. Roll preserves orientation across poles.
     pub pitch: f64,
     /// Rotation about the viewing direction. Zero keeps the world's up axis vertical.
     #[serde(default)]
@@ -359,6 +359,34 @@ impl Camera {
             self.roll = (self.roll + radians) % std::f64::consts::TAU;
         }
     }
+    /// Rotate about the current screen right, up and back axes (radians), without a pole
+    /// limit. Reconstruct both heading and roll so crossing a pole keeps the image continuous.
+    pub fn rotate_in_view(&mut self, radians: Vec3) {
+        if !self.is_valid() || !radians.is_finite() {
+            return;
+        }
+        let angle = radians.x.hypot(radians.y).hypot(radians.z);
+        if !(angle > 1e-12) || !angle.is_finite() {
+            return;
+        }
+        let (right, up, back) = self.basis();
+        let Some(axis) = (right * (radians.x / angle) + up * (radians.y / angle) + back * (radians.z / angle)).normalized() else { return };
+        let (sin, cos) = angle.sin_cos();
+        let rotate = |v: Vec3| v * cos + axis.cross(v) * sin + axis * (axis.dot(v) * (1.0 - cos));
+        let rotated_right = rotate(right);
+        let Some(rotated_back) = rotate(back).normalized() else { return };
+        let framed = self.up.to_frame(rotated_back);
+        let yaw = if framed.x.hypot(framed.y) < 1e-10 { self.yaw } else { (-framed.x).atan2(-framed.y) };
+        let pitch = framed.z.clamp(-1.0, 1.0).asin();
+        let base_right = self.up.from_frame(Vec3::new(yaw.cos(), -yaw.sin(), 0.0));
+        let Some(base_up) = rotated_back.cross(base_right).normalized() else { return };
+        let roll = rotated_right.dot(base_up).atan2(rotated_right.dot(base_right));
+        if yaw.is_finite() && pitch.is_finite() && roll.is_finite() {
+            self.yaw = yaw;
+            self.pitch = pitch;
+            self.roll = roll;
+        }
+    }
     pub fn set_view(&mut self, v: StandardView) {
         let lim = std::f64::consts::FRAC_PI_2 - 1e-6;
         let (y, p) = v.angles();
@@ -431,6 +459,47 @@ impl Camera {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn screen_rotation_crosses_both_poles_and_returns_after_a_full_turn() {
+        for up in [UpAxis::Z, UpAxis::Y] {
+            for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
+                let mut cam = Camera { yaw: 0.0, pitch: 0.0, up, ..Default::default() };
+                let initial = cam;
+                let step = std::f64::consts::TAU / 256.0;
+                for _ in 0..256 {
+                    let before = cam.basis();
+                    cam.rotate_in_view(axis * step);
+                    let after = cam.basis();
+                    assert!(cam.is_valid());
+                    // An X or Y turn moves the viewing direction every step, including at a pole.
+                    if axis != Vec3::Z {
+                        assert!((before.2.dot(after.2) - step.cos()).abs() < 1e-10);
+                    }
+                    assert!(before.0.dot(after.0) > 0.999 && before.1.dot(after.1) > 0.999);
+                    assert!(after.0.cross(after.1).dist(after.2) < 1e-10);
+                }
+                let (r, u, b) = initial.basis();
+                let (rr, uu, bb) = cam.basis();
+                assert!(r.dist(rr) < 1e-9 && u.dist(uu) < 1e-9 && b.dist(bb) < 1e-9, "{up:?} {axis:?}: {cam:?}");
+                assert_eq!((cam.target, cam.distance, cam.fov, cam.up), (initial.target, initial.distance, initial.fov, initial.up));
+            }
+        }
+    }
+
+    #[test]
+    fn screen_rotation_ignores_invalid_motion_and_reverses_combined_axes() {
+        let initial = Camera { roll: 1.2, ..Default::default() };
+        let mut cam = initial;
+        for motion in [Vec3::ZERO, Vec3::new(f64::NAN, 0.0, 0.0), Vec3::new(0.0, f64::INFINITY, 0.0), Vec3::new(f64::MAX, f64::MAX, 0.0)] {
+            cam.rotate_in_view(motion);
+            assert_eq!(cam, initial);
+        }
+        let motion = Vec3::new(0.3, -0.4, 0.2);
+        cam.rotate_in_view(motion);
+        cam.rotate_in_view(-motion);
+        assert!(cam.basis().0.dist(initial.basis().0) < 1e-12 && cam.back().dist(initial.back()) < 1e-12);
+    }
 
     #[test]
     fn front_view_projects_target_to_centre() {

@@ -174,7 +174,7 @@ mod tests {
     /// The camera math the page applies the motion with (`navigation::device`): `sketch` keeps
     /// the orientation, as editing a sketch does.
     fn navigate(cam: &mut Camera, motion: Motion, seconds: f64, height: f64, sketch: bool, reverse_zoom: bool) {
-        crate::navigation::device_camera(cam, motion, seconds, height, !sketch, reverse_zoom);
+        crate::navigation::device_camera(cam, motion, seconds, height, !sketch, reverse_zoom, false);
     }
 
     /// One frame: the 3D mouse hands its motion over, and the modelling viewport applies it.
@@ -209,6 +209,40 @@ mod tests {
         assert_eq!(mapping.apply(Axes::default()), still);
         let off = DriverMapping::default().with_user_axes([false; 6], [0.0; 6]);
         assert_eq!(off.apply(PUSH), still);
+    }
+
+    #[test]
+    fn solidworks_free_orbit_respects_per_axis_settings_through_both_poles() {
+        let ctx = egui::Context::default();
+        let initial = Camera { yaw: 0.0, pitch: 1.4, roll: 0.0, ..Default::default() };
+        let axes = Axes { translation: [0; 3], rotation: [350, 0, 0] };
+        let step = std::f64::consts::TAU / 128.0;
+        for mapping in [DriverMapping::default(), DriverMapping::object_mode()] {
+            for reversed in [false, true] {
+                for speed in [0.5, 2.0] {
+                    let mut app = app();
+                    app.preferences.nav = "solidworks".into();
+                    app.preferences.space_mouse_reverse[3] = reversed;
+                    app.preferences.space_mouse_axis_speed[3] = speed;
+                    app.cam = initial;
+                    for i in 0..128 {
+                        let before = app.cam;
+                        assert!(frame(&mut app, &ctx, mapping, axes, step / (2.0 * f64::from(speed))));
+                        assert!((before.back().dot(app.cam.back()) - step.cos()).abs() < 1e-10);
+                        if i == 0 {
+                            let direction = if reversed { -1.0 } else { 1.0 };
+                            assert!((app.cam.back().dot(initial.basis().1) - direction * step.sin()).abs() < 1e-10);
+                        }
+                    }
+                    assert!(app.cam.back().dist(initial.back()) < 1e-9 && app.cam.basis().0.dist(initial.basis().0) < 1e-9);
+                    assert_eq!((app.cam.target, app.cam.distance, app.cam.fov), (initial.target, initial.distance, initial.fov));
+                    app.preferences.space_mouse_axis_speed[3] = 0.0;
+                    let before = app.cam;
+                    frame(&mut app, &ctx, mapping, axes, 0.04);
+                    assert_eq!(app.cam, before);
+                }
+            }
+        }
     }
 
     const PUSH: Axes = Axes { translation: [0, 350, 0], rotation: [0; 3] };
