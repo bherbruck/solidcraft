@@ -1367,6 +1367,8 @@
   "ui.reset_the_settings_on_this_page": "重置此页面上的设置",
   "ui.restore": "还原",
   "ui.restore_defaults": "恢复默认值",
+  "ui.reverse_horizontal_pan_direction": "反转水平平移方向",
+  "ui.reverse_horizontal_pan_tip": "水平双指滚动和拇指滚轮向相反方向平移",
   "ui.reverse_zoom_direction": "反转缩放方向",
   "ui.revolve": "旋转",
   "ui.right": "右视",

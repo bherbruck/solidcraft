@@ -1367,6 +1367,8 @@
   "ui.reset_the_settings_on_this_page": "このページの設定をリセット",
   "ui.restore": "復元",
   "ui.restore_defaults": "初期値に戻す",
+  "ui.reverse_horizontal_pan_direction": "水平パンの方向を反転",
+  "ui.reverse_horizontal_pan_tip": "水平方向の2本指スクロールとサムホイールで、反対方向にパンします",
   "ui.reverse_zoom_direction": "ズーム方向を反転",
   "ui.revolve": "回転",
   "ui.right": "右側面",

@@ -307,7 +307,8 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
         // (its End was lost); a stuck flag would pan future mouse input.
         app.viewport.trackpad_gesture = false;
     }
-    let pan = if trackpad_pan { raw.pan } else { egui::Vec2::ZERO } + raw.mouse_pan;
+    let mut pan = if trackpad_pan { raw.pan } else { egui::Vec2::ZERO } + raw.mouse_pan;
+    pan.x *= crate::prefs::pan_sign_x(app);
     let scroll = if app.viewport.wheel_zoom_raw_until_idle || (trackpad_pan && app.viewport.trackpad_until_idle) {
         raw.zoom + if trackpad_pan { 0.0 } else { raw.point_zoom }
     } else {

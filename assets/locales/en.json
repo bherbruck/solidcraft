@@ -1367,6 +1367,8 @@
   "ui.reset_the_settings_on_this_page": "Reset the settings on this page",
   "ui.restore": "Restore",
   "ui.restore_defaults": "Restore Defaults",
+  "ui.reverse_horizontal_pan_direction": "Reverse horizontal pan direction",
+  "ui.reverse_horizontal_pan_tip": "Horizontal two-finger scrolling and the thumb wheel pan the other way",
   "ui.reverse_zoom_direction": "Reverse zoom direction",
   "ui.revolve": "Revolve",
   "ui.right": "Right",
