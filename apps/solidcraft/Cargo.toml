@@ -9,7 +9,8 @@ default-run = "solidcraft"
 
 # The workspace lints, except unsafe_code: denied, not forbidden, so that src/open_documents.rs
 # (macOS file-open events), src/native_crash.rs (Windows exception filter) and src/native_frame.rs
-# (Windows resize border) can allow it: none has a safe API. Keep the rest in sync with [workspace.lints].
+# (Windows resize border), and src/space_mouse_macos/ffi.rs (3DxWare's native ABI) can allow it:
+# none has a safe API. Keep the rest in sync with [workspace.lints].
 [lints.rust]
 unsafe_code = "deny"
 
@@ -70,6 +71,8 @@ solidcraft-3dx-client = { workspace = true }
 # The 3D mouse (src/space_mouse.rs), in the shared-device open mode so that a running 3DxWare
 # driver does not shut the app out.
 hidapi = { version = "2.6.7", default-features = false, features = ["macos-shared-device"] }
+# Load the user's installed 3DxWare at runtime; already in the dependency tree through wgpu.
+libloading = "0.8.9"
 # Files opened from Finder and the Dock (src/open_documents.rs); all already come with eframe and rfd.
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder"] }

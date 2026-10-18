@@ -8,6 +8,50 @@ use std::time::Duration;
 
 use crate::SolveApp;
 
+/// The view state native navigation libraries need. Camera updates still belong to the page
+/// (`navigation::device`), so Render and future 2D pages retain their navigation capabilities.
+pub struct View {
+    pub camera: solidcraft_engine::render::Camera,
+    pub bounds: solidcraft_engine::geom::Aabb3,
+    pub selection: Option<solidcraft_engine::geom::Aabb3>,
+    pub aspect: f64,
+    pub rotatable: bool,
+    pub enabled: bool,
+}
+
+pub fn view(app: &SolveApp, ctx: &egui::Context) -> View {
+    let enabled = app.preferences.space_mouse_enabled
+        && !app.home.open
+        && !app.file_picker_busy()
+        && !crate::dialogs_sheet::flat_active(app)
+        && ctx.input(|i| i.focused)
+        && !egui::Popup::is_any_open(ctx);
+    View {
+        camera: app.cam,
+        bounds: if crate::render_workspace::active(app) {
+            crate::render_workspace::navigation_bounds(app)
+        } else {
+            crate::viewport::view_bounds(app)
+        },
+        selection: crate::viewport::selection_bounds(app),
+        aspect: app.viewport.rect.map_or(1.0, |r| f64::from(r.width() / r.height().max(1.0))),
+        rotatable: app.session.active_sketch.is_none(),
+        enabled,
+    }
+}
+
+/// Queue a driver-calculated camera; validate it before taking over from pointer navigation.
+pub fn navigate_camera_frame(app: &mut SolveApp, ctx: &egui::Context, camera: solidcraft_engine::render::Camera) -> bool {
+    app.viewport.device_camera = None;
+    if !view(app, ctx).enabled || !camera.is_valid() || !(1e-3..=1e7).contains(&camera.distance) {
+        return false;
+    }
+    app.begin_external_navigation();
+    app.viewport.device_camera = Some(camera);
+    ctx.request_repaint();
+    true
+}
+
 /// What a 3Dconnexion device reports at full deflection, in raw units, on every axis.
 pub const FULL_SCALE: i16 = 350;
 
@@ -193,6 +237,29 @@ mod tests {
         let mut app = SolveApp::new(Session::default(), Services::default());
         app.home.open = false;
         app
+    }
+
+    #[test]
+    fn native_camera_obeys_focus_enable_and_sketch_locks() {
+        let ctx = egui::Context::default();
+        let _ = ctx.run_ui(egui::RawInput { focused: true, ..Default::default() }, |_| {});
+        let mut app = app();
+        let before = app.cam;
+        let next = solidcraft_engine::render::Camera { yaw: before.yaw + 0.5, distance: before.distance * 0.8, ..before };
+        assert!(navigate_camera_frame(&mut app, &ctx, next));
+        // The driver queues; the active page owns application of its capabilities.
+        assert_eq!(app.cam, before);
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
+        crate::navigation::device(&mut app, rect, crate::navigation::NavCaps { orbit: false, pick: false });
+        assert_eq!(app.cam.yaw, before.yaw);
+        assert_eq!(app.cam.distance, next.distance);
+        assert!(app.viewport.device_camera.is_none());
+        app.preferences.space_mouse_enabled = false;
+        assert!(!navigate_camera_frame(&mut app, &ctx, next));
+        assert!(app.viewport.device_camera.is_none());
+        app.preferences.space_mouse_enabled = true;
+        let _ = ctx.run_ui(egui::RawInput { focused: false, ..Default::default() }, |_| {});
+        assert!(!navigate_camera_frame(&mut app, &ctx, next));
     }
 
     #[test]

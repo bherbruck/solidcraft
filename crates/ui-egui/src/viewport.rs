@@ -101,6 +101,10 @@ pub struct ViewportState {
     /// The 3D mouse's motion this frame, for the page showing the camera to apply with what its
     /// camera may do (`navigation::device`).
     pub device_motion: Option<crate::space_mouse::DeviceMotion>,
+    /// An absolute camera calculated by a native navigation driver, consumed by the active page.
+    pub device_camera: Option<Camera>,
+    /// The active native 3D-mouse backend owns sensitivity/axes in its driver settings.
+    pub space_mouse_driver_settings: bool,
     /// After immediate zoom, ignore egui's outstanding smoothing until the gesture ends.
     pub(crate) wheel_zoom_raw_until_idle: bool,
     /// While trackpad scrolling runs, ignore egui's smoothing tail for zoom so

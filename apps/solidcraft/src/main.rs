@@ -27,6 +27,8 @@ mod native_frame;
 mod open_documents;
 #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
 mod space_mouse;
+#[cfg(target_os = "macos")]
+mod space_mouse_macos;
 mod startup;
 
 use solidcraft_engine::{Session, io};
@@ -38,8 +40,10 @@ struct App {
     starting: Option<std::path::PathBuf>,
     /// Frames begun; the second one means the first was drawn (startup is over).
     frames: u32,
-    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     space_mouse: space_mouse::SpaceMouse,
+    #[cfg(target_os = "macos")]
+    space_mouse: space_mouse_macos::SpaceMouse,
 }
 
 impl eframe::App for App {
@@ -68,10 +72,12 @@ impl eframe::App for App {
             self.solve.open_path_async(&f);
         }
         self.solve.logic(ctx);
-        #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
         if !self.solve.file_picker_busy() {
             self.space_mouse.tick(&mut self.solve, ctx);
         }
+        #[cfg(target_os = "macos")]
+        self.space_mouse.tick(&mut self.solve, ctx);
         if self.solve.quit_requested {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
@@ -655,8 +661,10 @@ fn main() -> eframe::Result {
             if !notes.is_empty() {
                 app.set_status(notes.join(" "), true);
             }
-            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+            #[cfg(any(target_os = "windows", target_os = "linux"))]
             let space_mouse = space_mouse::SpaceMouse::start(&cc.egui_ctx);
+            #[cfg(target_os = "macos")]
+            let space_mouse = space_mouse_macos::SpaceMouse::start(&cc.egui_ctx);
             solidcraft_engine::crash::phase("first frame");
             Ok(Box::new(App {
                 solve: app,

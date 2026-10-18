@@ -1150,6 +1150,7 @@
   "ui.slot": "Langloch",
   "ui.smooth": "Glatt",
   "ui.snap": "Einrasten",
+  "ui.space_mouse_driver_settings": "Geschwindigkeit, Achsen, Navigationsmodi und Tastenbelegungen werden in den 3Dconnexion-Einstellungen konfiguriert.",
   "ui.spacing": "Abstand",
   "ui.spacing_2": "Abstand 2",
   "ui.sphere": "Sphäre",

@@ -1419,6 +1419,7 @@
   "ui.smooth_wheel_zoom": "滑らかなホイールズーム",
   "ui.smooth_wheel_zoom_tip": "オフにすると、ホイール操作のたびにズームが即座に反映され、滑らかな減速効果は適用されません。",
   "ui.snap": "スナップ",
+  "ui.space_mouse_driver_settings": "ナビゲーションの速度、軸、モード、ボタンの割り当ては、3Dconnexion Settingsで設定してください。",
   "ui.space_mouse_hint": "視点の移動と回転を同時に行います（スケッチ中はパンとズームのみ）",
   "ui.space_mouse_navigate": "SpaceNavigator / SpaceMouseで視点を操作",
   "ui.spacing": "間隔",

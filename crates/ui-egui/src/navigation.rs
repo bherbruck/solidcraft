@@ -522,6 +522,16 @@ pub(crate) fn handle(app: &mut SolveApp, ui: &mut egui::Ui, rect: Rect, resp: &e
 /// being edited (a sketch keeps its view square to it). [`handle`] calls it for its page; the 3D
 /// mouse only reads the device and queues the motion ([`crate::space_mouse::navigate_frame`]).
 pub(crate) fn device(app: &mut SolveApp, rect: Rect, caps: NavCaps) {
+    if let Some(mut cam) = app.viewport.device_camera.take() {
+        if !caps.orbit || app.session.active_sketch.is_some() {
+            cam.yaw = app.cam.yaw;
+            cam.pitch = app.cam.pitch;
+            cam.roll = app.cam.roll;
+        }
+        if cam.is_valid() {
+            app.cam = cam;
+        }
+    }
     let Some(queued) = app.viewport.device_motion.take() else { return };
     let turn = caps.orbit && app.session.active_sketch.is_none();
     let height = f64::from(rect.height().max(1.0));

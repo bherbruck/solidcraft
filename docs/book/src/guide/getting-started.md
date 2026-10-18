@@ -142,6 +142,20 @@ so put a reverse proxy with a certificate in front (Caddy, Traefik, nginx); the 
 any URL path, such as `https://example.com/cad/`. To build the image without Compose, from the
 repository root: `docker build -f packaging/docker/Dockerfile -t solidcraft-web .`
 
+### 3D mouse on macOS
+
+Install 3DxWare for macOS, connect your SpaceMouse and start SolidCraft. SpaceMouse Enterprise
+uses the same native Navigation Library as other supported 3Dconnexion devices. In **3Dconnexion
+Settings**, select SolidCraft and choose **Object** mode to make the model follow the cap. Speed,
+axis directions, navigation mode, rotation center and button assignments are controlled there.
+SolidCraft's **Preferences › Navigation** has the enable switch. While editing a sketch,
+translation pans and zooms and rotation is locked.
+
+SolidCraft exports its modelling commands and Fit/Home/standard views for assignment to Enterprise
+buttons and radial menus. Button commands use the same enabled checks and interactive tools as
+toolbar clicks. See the repository's [macOS integration notes](https://github.com/tangency-labs/solidcraft/blob/main/docs/macos-3d-mouse.md)
+for implementation and verification details.
+
 ### 3D mouse in the browser
 
 The web app reads a 3Dconnexion SpaceMouse or SpaceNavigator through the browser's Gamepad API,

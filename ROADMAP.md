@@ -314,6 +314,10 @@ completed drawings publish atomically. The browser still exports synchronously.
 
 ## View navigation
 
+- macOS SpaceMouse navigation uses the installed 3DxWare Navigation Library for pan, zoom,
+  orbit and driver profile settings. Enterprise buttons can invoke exported SolidCraft commands,
+  with separate Design and Sketch banks; sketch navigation keeps rotation locked.
+  See [macOS 3D mouse setup and limitations](docs/macos-3d-mouse.md).
 - Desktop Ctrl/Cmd +/- and 0 change or reset the saved UI scale. The scale slider keeps
   its layout stable during a drag and applies the selected scale on release.
 

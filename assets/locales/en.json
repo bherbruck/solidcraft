@@ -1419,6 +1419,7 @@
   "ui.smooth_wheel_zoom": "Smooth wheel zoom",
   "ui.smooth_wheel_zoom_tip": "Turn off to apply each wheel event immediately, without a smoothing tail",
   "ui.snap": "Snap",
+  "ui.space_mouse_driver_settings": "Use 3Dconnexion Settings for navigation speed, axes, modes and button assignments.",
   "ui.space_mouse_hint": "Move and rotate the view together; sketches use pan and zoom only.",
   "ui.space_mouse_navigate": "Navigate with SpaceNavigator / SpaceMouse",
   "ui.spacing": "Spacing",

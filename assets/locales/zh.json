@@ -1419,6 +1419,7 @@
   "ui.smooth_wheel_zoom": "平滑滚轮缩放",
   "ui.smooth_wheel_zoom_tip": "关闭后每个滚轮事件立即生效，不做平滑延迟",
   "ui.snap": "捕捉",
+  "ui.space_mouse_driver_settings": "请在 3Dconnexion Settings 中设置导航速度、轴、模式和按钮分配。",
   "ui.space_mouse_hint": "同时移动和旋转视图；草图中仅支持平移和缩放。",
   "ui.space_mouse_navigate": "使用 SpaceNavigator / SpaceMouse 导航",
   "ui.spacing": "间距",

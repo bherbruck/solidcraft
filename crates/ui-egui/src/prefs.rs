@@ -1221,25 +1221,29 @@ fn page(app: &mut SolveApp, ui: &mut egui::Ui, t: &Tokens) {
             ui.label(crate::i18n::tr_label("3D mouse"));
             ui.checkbox(&mut app.preferences.space_mouse_enabled, crate::i18n::tr_label("Navigate with SpaceNavigator / SpaceMouse"));
             ui.end_row();
-            ui.label(crate::i18n::tr_label("3D mouse speed"));
-            ui.add_enabled(
-                app.preferences.space_mouse_enabled,
-                egui::Slider::new(&mut app.preferences.space_mouse_speed, 0.25..=3.0).step_by(0.05).custom_formatter(|v, _| format!("{v:.2}×")),
-            );
-            ui.end_row();
-            for (axis, name) in SPACE_MOUSE_AXES.iter().enumerate() {
-                ui.label(crate::i18n::tr_label(name));
-                ui.horizontal(|ui| {
-                    ui.add_enabled_ui(app.preferences.space_mouse_enabled, |ui| {
-                        if let Some(reverse) = app.preferences.space_mouse_reverse.get_mut(axis) {
-                            ui.checkbox(reverse, crate::i18n::tr_label("Invert"));
-                        }
-                        if let Some(speed) = app.preferences.space_mouse_axis_speed.get_mut(axis) {
-                            ui.add(egui::Slider::new(speed, 0.0..=3.0).step_by(0.05).custom_formatter(|v, _| format!("{v:.2}×")));
-                        }
-                    });
-                });
+            if app.viewport.space_mouse_driver_settings {
+                note(ui, crate::i18n::tr("ui.space_mouse_driver_settings"));
+            } else {
+                ui.label(crate::i18n::tr_label("3D mouse speed"));
+                ui.add_enabled(
+                    app.preferences.space_mouse_enabled,
+                    egui::Slider::new(&mut app.preferences.space_mouse_speed, 0.25..=3.0).step_by(0.05).custom_formatter(|v, _| format!("{v:.2}×")),
+                );
                 ui.end_row();
+                for (axis, name) in SPACE_MOUSE_AXES.iter().enumerate() {
+                    ui.label(crate::i18n::tr_label(name));
+                    ui.horizontal(|ui| {
+                        ui.add_enabled_ui(app.preferences.space_mouse_enabled, |ui| {
+                            if let Some(reverse) = app.preferences.space_mouse_reverse.get_mut(axis) {
+                                ui.checkbox(reverse, crate::i18n::tr_label("Invert"));
+                            }
+                            if let Some(speed) = app.preferences.space_mouse_axis_speed.get_mut(axis) {
+                                ui.add(egui::Slider::new(speed, 0.0..=3.0).step_by(0.05).custom_formatter(|v, _| format!("{v:.2}×")));
+                            }
+                        });
+                    });
+                    ui.end_row();
+                }
             }
             note(ui, crate::i18n::tr_label("Move and rotate the view together; sketches use pan and zoom only."));
         }

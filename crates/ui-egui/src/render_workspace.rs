@@ -70,6 +70,12 @@ pub fn active(app: &SolveApp) -> bool {
     app.ui.tab == "RENDER"
 }
 
+/// Reuse the preview's extracted scene during native navigation; never rebuild its geometry
+/// just to answer the driver's model-extents query on every frame.
+pub(crate) fn navigation_bounds(app: &SolveApp) -> solidcraft_engine::geom::Aabb3 {
+    app.render_workspace.scene.as_ref().map(|s| s.bounds).unwrap_or_else(|| crate::viewport::view_bounds(app))
+}
+
 pub fn host_executor(max_dimension: u32, depth: bool, samples: u32) -> Result<ExecutorDescriptor, String> {
     if !matches!(samples, 1 | 2 | 4 | 8 | 16) {
         return Err("unsupported GPU sample count".into());
