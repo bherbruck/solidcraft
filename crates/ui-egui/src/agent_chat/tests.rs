@@ -37,7 +37,7 @@ fn a_sign_in_request_keeps_the_question_for_after_the_login() {
 #[test]
 fn a_plan_update_replaces_the_turns_plan() {
     let mut c = chat();
-    c.push(Item::User { text: "go".into(), image: false });
+    c.push(Item::User { text: "go".into(), image: false, pictures: Vec::new() });
     c.on_event(Event::Plan(vec![("a".into(), "pending".into())]));
     c.on_event(Event::Text { thought: false, text: "working".into() });
     c.on_event(Event::Plan(vec![("a".into(), "completed".into())]));
@@ -774,4 +774,103 @@ fn an_agents_markdown_is_drawn_as_blocks() {
     // A hostile reply draws too (no panic, bounded work).
     h.app.agent_chat.items.push(Item::Agent { thought: false, text: "*".repeat(50_000) + &"[".repeat(5_000) + &"`a".repeat(5_000) });
     h.frames(3);
+}
+
+/// A long message scrolls inside its box: the buttons under the box stay in the window (#2224).
+#[test]
+fn a_long_message_keeps_the_buttons_in_the_window() {
+    let mut h = crate::scenario::Harness::new();
+    h.call("ui.resize", json!({"width": 1600.0, "height": 1000.0}));
+    h.call("ui.agent_chat", json!({"open": true}));
+    h.frames(8);
+    let [_, rest] = h.widget("Send").expect("the Send button is drawn");
+    let box_before = h.app.agent_chat.panel_rect.map(|r| r.bottom());
+    h.app.agent_chat.input = "Please make the plate thicker and then add a fillet on every outside edge.\n".repeat(60);
+    h.frames(8);
+    let window = 1000.0;
+    for name in ["Send", "Attach view"] {
+        let [_, y] = h.widget(name).unwrap_or_else(|| panic!("{name} is drawn"));
+        assert!(y < window, "{name} is at {y}, below the window's bottom at {window}");
+        // The box is pinned to the bottom and grows upwards: the buttons do not move.
+        assert!((y - rest).abs() < 1.0, "{name} moved from {rest} to {y}");
+    }
+    assert_eq!(h.app.agent_chat.panel_rect.map(|r| r.bottom()), box_before, "the panel keeps its size");
+}
+
+fn test_png(colour: [u8; 4], width: u32) -> Vec<u8> {
+    let mut png = Vec::new();
+    let image = image::RgbaImage::from_pixel(width, 4, image::Rgba(colour));
+    image::DynamicImage::ImageRgba8(image).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).expect("a PNG");
+    png
+}
+
+/// A message's pictures show as thumbnails; a click opens the viewer on that one, where Next, the
+/// arrow keys and Esc work (#2224). A message whose picture is not taken yet keeps a plain caption.
+#[test]
+fn a_messages_pictures_open_in_a_viewer() {
+    let mut h = crate::scenario::Harness::new();
+    h.call("ui.agent_chat", json!({"open": true}));
+    h.app.agent_chat.items.push(Item::User { text: "waiting".into(), image: true, pictures: Vec::new() });
+    h.frames(3);
+    let [x, y] = h.widget("View attached").expect("the plain caption is drawn");
+    h.call("ui.click", json!({"x": x, "y": y}));
+    h.frames(3);
+    assert!(h.app.agent_chat.gallery.is_none(), "no picture yet: nothing opens");
+
+    h.app.agent_chat.items.clear();
+    let pictures = vec![Picture::new(test_png([200, 30, 30, 255], 8), "first view"), Picture::new(test_png([30, 30, 200, 255], 16), "")];
+    h.app.agent_chat.items.push(Item::User { text: "look".into(), image: true, pictures });
+    h.frames(4);
+    assert!(h.widget("View attached").is_none(), "thumbnails replace the caption");
+    let point = |name: &str| {
+        let p = crate::scenario::handle_at(name).unwrap_or_else(|| panic!("{name} is drawn"));
+        json!({"x": p.x, "y": p.y})
+    };
+    // Hovering is not clicking.
+    let second = point("agent_chat:picture:0:1");
+    h.call("ui.move", second.clone());
+    h.frames(3);
+    assert!(h.app.agent_chat.gallery.is_none());
+    h.call("ui.click", second);
+    h.frames(4);
+    assert_eq!(h.app.agent_chat.gallery.as_ref().map(|g| g.at), Some(1), "the click opens the viewer on that picture");
+    assert!(crate::scenario::rect_of("agent_chat:gallery_picture").is_some(), "the picture is drawn big");
+    // Next wraps round; the arrow keys step too.
+    let next = point("agent_chat:gallery_next");
+    h.call("ui.click", next);
+    h.frames(3);
+    assert_eq!(h.app.agent_chat.gallery.as_ref().map(|g| g.at), Some(0));
+    h.call("ui.key", json!({"key": "ArrowRight"}));
+    h.frames(3);
+    assert_eq!(h.app.agent_chat.gallery.as_ref().map(|g| g.at), Some(1));
+    let state = h.call("ui.agent_chat", json!({}));
+    assert_eq!(state["result"]["items"][0]["pictures"], 2);
+    h.call("ui.key", json!({"key": "Escape"}));
+    h.frames(3);
+    assert!(h.app.agent_chat.gallery.is_none(), "Esc closes the viewer");
+    // New chat closes it with the conversation.
+    h.app.agent_chat.gallery = Some(Gallery { pictures: vec![Picture::new(test_png([0, 0, 0, 255], 4), "")], at: 0 });
+    super::new_chat(&mut h.app);
+    assert!(h.app.agent_chat.gallery.is_none());
+}
+
+/// A message's picture is kept on the message the agent starts on, not on an earlier one.
+#[test]
+fn the_picture_goes_to_the_newest_message_that_wanted_one() {
+    let mut chat = AgentChat::default();
+    chat.push(Item::User { text: "no picture".into(), image: false, pictures: Vec::new() });
+    chat.push(Item::User { text: "first".into(), image: true, pictures: vec![Picture::new(vec![1], "")] });
+    chat.push(Item::User { text: "second".into(), image: true, pictures: Vec::new() });
+    chat.keep_picture(vec![2, 3]);
+    let kept: Vec<usize> = chat
+        .items
+        .iter()
+        .filter_map(|i| match i {
+            Item::User { pictures, .. } => Some(pictures.iter().map(|p| p.png.len()).sum()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(kept, [0, 1, 2]);
+    chat.keep_picture(vec![0; super::MAX_PICTURE_BYTES + 1]);
+    assert!(matches!(chat.items.last(), Some(Item::User { pictures, .. }) if pictures.len() == 1), "an oversized picture is not kept");
 }

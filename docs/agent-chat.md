@@ -153,7 +153,11 @@ The agent reaches the open design only through SolidCraft's own tools (the
   (with **Copy**), bold, italic, `code` and links (web links only; each link is a button that opens
   it in your browser). What you type, and the agent's thoughts, stay plain text.
 - **Attach view:** tick it to send a picture of the current view with your message, for agents
-  that take pictures.
+  that take pictures. The picture is taken when the agent starts on the message and then shows as
+  a small thumbnail under it. Hold the pointer over the thumbnail for a bigger preview that stays
+  while you do; click it to open the viewer (the message's pictures one at a time, with **‹** and
+  **›** or the arrow keys, closed with Esc or a click outside). A long message scrolls inside its
+  box, so **Send** and the buttons beside it stay in view.
 
 ## Permissions
 

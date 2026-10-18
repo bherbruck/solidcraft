@@ -53,6 +53,8 @@ const MAX_PROMPT: usize = 100_000;
 const APPROVAL_TIMEOUT_MS: f64 = 240_000.0;
 /// Size of the picture of the view sent with a message.
 const VIEW_IMAGE: (u32, u32) = (960, 600);
+/// A picture kept for the user to open later, at most this big.
+const MAX_PICTURE_BYTES: usize = 4 << 20;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum State {
@@ -90,11 +92,58 @@ impl State {
     }
 }
 
+/// A picture shown with a message: what the agent got (a picture of the view, or any other
+/// attachment) as PNG, and a note shown with it in the viewer. The thumbnail and the viewer share
+/// one texture, made when the picture is first drawn.
+#[derive(Clone)]
+pub struct Picture {
+    png: Arc<Vec<u8>>,
+    note: String,
+    texture: Arc<std::sync::OnceLock<Option<egui::TextureHandle>>>,
+}
+
+impl Picture {
+    pub fn new(png: Vec<u8>, note: impl Into<String>) -> Self {
+        Self { png: Arc::new(png), note: note.into(), texture: Arc::default() }
+    }
+
+    /// The picture as a texture, `None` when it can't be decoded.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn texture(&self, ctx: &egui::Context) -> Option<egui::TextureHandle> {
+        self.texture
+            .get_or_init(|| {
+                let rgba = image::load_from_memory_with_format(&self.png, image::ImageFormat::Png).ok()?.to_rgba8();
+                let size = [usize::try_from(rgba.width()).ok()?, usize::try_from(rgba.height()).ok()?];
+                Some(ctx.load_texture(
+                    "sc_agent_chat_picture",
+                    egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()),
+                    egui::TextureOptions::LINEAR,
+                ))
+            })
+            .clone()
+    }
+}
+
+impl std::fmt::Debug for Picture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Picture({} bytes, {:?})", self.png.len(), self.note)
+    }
+}
+
+/// The viewer: the pictures of one message, and the one shown.
+#[derive(Clone, Debug)]
+pub struct Gallery {
+    pictures: Vec<Picture>,
+    at: usize,
+}
+
 #[derive(Clone, Debug)]
 pub enum Item {
     User {
         text: String,
         image: bool,
+        /// The view's picture, kept once it is taken (when the agent starts on the message).
+        pictures: Vec<Picture>,
     },
     Agent {
         thought: bool,
@@ -171,6 +220,8 @@ pub struct AgentChat {
     pub open: bool,
     pub items: Vec<Item>,
     pub input: String,
+    /// The viewer, open on one message's pictures.
+    gallery: Option<Gallery>,
     state: Option<State>,
     agent: String,
     images: bool,
@@ -252,6 +303,18 @@ impl AgentChat {
             self.items.drain(..MAX_ITEMS / 10);
         }
         self.items.push(item);
+    }
+    /// Keep the picture just sent with the newest message that wanted one (the user can open it).
+    fn keep_picture(&mut self, png: Vec<u8>) {
+        let slot = self.items.iter_mut().rev().find_map(|item| match item {
+            Item::User { image: true, pictures, .. } if pictures.is_empty() => Some(pictures),
+            _ => None,
+        });
+        if let Some(slot) = slot
+            && png.len() <= MAX_PICTURE_BYTES
+        {
+            slot.push(Picture::new(png, ""));
+        }
     }
     fn notice(&mut self, text: impl Into<String>, error: bool) {
         self.push(Item::Notice { text: text.into(), error });
@@ -597,7 +660,7 @@ pub fn send(app: &mut SolveApp, ctx: &egui::Context, text: String) {
 /// Put `text` in the conversation and send it (`interrupted`: the agent is told it cut in on its
 /// previous step).
 fn submit(app: &mut SolveApp, ctx: &egui::Context, text: String, image: bool, interrupted: bool) {
-    app.agent_chat.push(Item::User { text: text.clone(), image });
+    app.agent_chat.push(Item::User { text: text.clone(), image, pictures: Vec::new() });
     match app.agent_chat.state() {
         State::Ready => start_turn_with(app, text, image, interrupted.then_some(INTERRUPT_NOTE)),
         s => {
@@ -654,6 +717,7 @@ pub fn new_chat(app: &mut SolveApp) {
     let chat = &mut app.agent_chat;
     chat.confirm_new = false;
     chat.items.clear();
+    chat.gallery = None;
     chat.pending.clear();
     chat.pending_edit = None;
     chat.queued = None;
@@ -713,7 +777,10 @@ fn start_turn_with(app: &mut SolveApp, text: String, image: bool, note: Option<&
     let mut parts = vec![PromptPart::Text(sent)];
     if image {
         match crate::control::view_png(app, VIEW_IMAGE.0, VIEW_IMAGE.1) {
-            Ok(png) => parts.push(PromptPart::Image { mime: "image/png".into(), base64: backend::base64(&png) }),
+            Ok(png) => {
+                parts.push(PromptPart::Image { mime: "image/png".into(), base64: backend::base64(&png) });
+                app.agent_chat.keep_picture(png);
+            }
             Err(e) => log::warn!("the view's picture is left out of the prompt: {e}"),
         }
     }
@@ -1195,7 +1262,7 @@ pub fn status(app: &SolveApp) -> Value {
         .items
         .iter()
         .map(|i| match i {
-            Item::User { text, image } => json!({"user": text, "image": image}),
+            Item::User { text, image, pictures } => json!({"user": text, "image": image, "pictures": pictures.len()}),
             Item::Agent { thought, text } => json!({"agent": text, "thought": thought}),
             Item::Tool { id, title, kind, status, output } => {
                 json!({"tool": id, "title": title, "kind": kind, "status": status.map(|s| format!("{s:?}")), "output": output})
